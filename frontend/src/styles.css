@@ -1320,6 +1320,13 @@ button {
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
 }
 
+.sidebarToggleBtn:disabled {
+  cursor: default;
+  opacity: 0.65;
+  transform: none;
+  box-shadow: none;
+}
+
 .sidebarToggleBtn:active {
   transform: scale(0.95);
 }
@@ -6413,11 +6420,22 @@ em {
   align-items: center;
   gap: 8px;
   min-height: 36px;
+  min-width: 0;
   padding: 7px 9px;
   border: 1px solid var(--card-border);
   border-radius: 8px;
   background: var(--subtle-bg);
   font-weight: 500;
+}
+
+.userCreateForm .userAccessOption span,
+.userCreateForm .userAdminAccessOption span,
+.userEditModal .userAccessOption span,
+.userEditModal .userAdminAccessOption span {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .userCreateForm .userAccessOption input,
@@ -6450,13 +6468,15 @@ em {
 
 .userTableWrap {
   width: 100%;
-  overflow: visible;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .userTableWrap .dataTable {
   width: 100%;
-  table-layout: fixed;
+  min-width: 540px;
   border-collapse: collapse;
+  table-layout: auto;
   text-align: left;
 }
 
@@ -6467,12 +6487,12 @@ em {
 
 .userTableWrap .dataTable th:nth-child(2),
 .userTableWrap .dataTable td:nth-child(2) {
-  width: 15%;
+  width: 18%;
 }
 
 .userTableWrap .dataTable th:nth-child(3),
 .userTableWrap .dataTable td:nth-child(3) {
-  width: calc(58% - 80px);
+  width: 45%;
 }
 
 .userTableWrap .dataTable th:last-child,
@@ -6485,6 +6505,9 @@ em {
   padding: 10px 6px;
   border-bottom: 1px solid var(--line);
   font-size: 12px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  vertical-align: top;
 }
 
 .userTableWrap .dataTable th {
@@ -6498,6 +6521,8 @@ em {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  max-width: 100%;
+  white-space: normal;
 }
 
 .userTableName {
@@ -6505,6 +6530,7 @@ em {
   color: var(--text-main);
   font-weight: 600;
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .userTableName svg {
@@ -6532,7 +6558,7 @@ em {
   color: #1d4ed8;
   font-size: 11px;
   font-weight: 600;
-  white-space: normal;
+  line-height: 1.4;
 }
 
 .userRoleBadge.admin {

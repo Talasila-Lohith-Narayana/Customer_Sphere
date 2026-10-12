@@ -17,6 +17,10 @@ export default function Shell() {
   const [profiles, setProfiles] = useState([]);
   const [profilesLoading, setProfilesLoading] = useState(true);
   const [profilesError, setProfilesError] = useState("");
+  const [isCompactViewport, setIsCompactViewport] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth <= 850;
+  });
 
   // Sidebar collapse/minimize state with localStorage persistence
   const [collapsed, setCollapsed] = useState(() => {
@@ -27,7 +31,29 @@ export default function Shell() {
     }
   });
 
+  useEffect(() => {
+    const updateViewportState = () => {
+      const compact = window.innerWidth <= 850;
+      setIsCompactViewport(compact);
+      setCollapsed((prev) => {
+        if (compact) {
+          try {
+            localStorage.setItem("sidebar_collapsed", "true");
+          } catch {}
+          return true;
+        }
+        return prev;
+      });
+    };
+
+    updateViewportState();
+    window.addEventListener("resize", updateViewportState);
+    return () => window.removeEventListener("resize", updateViewportState);
+  }, []);
+
   const toggleCollapsed = () => {
+    if (isCompactViewport) return;
+
     setCollapsed((prev) => {
       const next = !prev;
       try {
@@ -188,8 +214,9 @@ export default function Shell() {
           type="button"
           className="sidebarToggleBtn"
           onClick={toggleCollapsed}
-          title={collapsed ? "Expand sidebar" : "Minimize sidebar"}
-          aria-label={collapsed ? "Expand sidebar" : "Minimize sidebar"}
+          disabled={isCompactViewport}
+          title={isCompactViewport ? "Sidebar automatically collapses on narrow screens" : (collapsed ? "Expand sidebar" : "Minimize sidebar")}
+          aria-label={isCompactViewport ? "Sidebar automatically collapses on narrow screens" : (collapsed ? "Expand sidebar" : "Minimize sidebar")}
         >
           {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
