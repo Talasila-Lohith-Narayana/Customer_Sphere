@@ -89,11 +89,6 @@ export default function DeferredDashboardSection({
     );
   }
 
-  const placeholderTitles =
-    section === "trends"
-      ? ["Revenue growth trend", "Customer segments"]
-      : ["Brazilian Market Geolocation Heatmap"];
-
   return (
     <div
       className={`dashboardLazyPlaceholderGroup dashboardLazyPlaceholderGroup--${section}`}
@@ -101,23 +96,7 @@ export default function DeferredDashboardSection({
       aria-busy={status === "loading"}
       aria-label={`${title} ${status === "loading" ? "loading" : "placeholder"}`}
     >
-      {placeholderTitles.map((placeholderTitle, index) => (
-        <section className="panel dashboardLazyPlaceholder" key={placeholderTitle}>
-          <h2>{placeholderTitle}</h2>
-          <div
-            className={`dashboardSkeleton dashboardSkeleton--${section} dashboardSkeleton--${section}-${index + 1}`}
-            aria-hidden="true"
-          >
-            <span className="dashboardSkeletonLine dashboardSkeletonLine--short" />
-            <span className="dashboardSkeletonChart" />
-            <div className="dashboardSkeletonRows">
-              <span />
-              <span />
-              <span />
-            </div>
-          </div>
-        </section>
-      ))}
+      <DashboardSectionSkeleton section={section} />
       {status === "error" ? (
         <div className="dashboardLazyStatus dashboardLazyStatus--error" role="alert">
           <p className="dashboardLazyError">
@@ -141,4 +120,32 @@ export default function DeferredDashboardSection({
       )}
     </div>
   );
+}
+
+export function DashboardSectionSkeleton({ section }) {
+  const titles =
+    section === "trends"
+      ? ["Revenue growth trend", "Customer segments"]
+      : ["Brazilian Market Geolocation Heatmap"];
+
+  return titles.map((title, index) => (
+    <section
+      className={`panel dashboardLazyPlaceholder dashboardLazyPlaceholder--${section}`}
+      key={title}
+      aria-hidden="true"
+    >
+      <h2>{title}</h2>
+      <div
+        className={`dashboardSkeleton dashboardSkeleton--${section} dashboardSkeleton--${section}-${index + 1}`}
+      >
+        <span className="dashboardSkeletonLine dashboardSkeletonLine--short" />
+        <span className="dashboardSkeletonChart" />
+        <div className="dashboardSkeletonRows">
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
+    </section>
+  ));
 }

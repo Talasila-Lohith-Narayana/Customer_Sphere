@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { dashboardService } from "../services/api";
 import { ErrorState, LoadingState, Page } from "../components/States";
@@ -6,13 +6,15 @@ import { ErrorState, LoadingState, Page } from "../components/States";
 // Modular dashboard components
 import DashboardHeroBanner from "../components/dashboard/DashboardHeroBanner";
 import DashboardKpiCards from "../components/dashboard/DashboardKpiCards";
-import DashboardRevenueTrend from "../components/dashboard/DashboardRevenueTrend";
-import DashboardCustomerSegments from "../components/dashboard/DashboardCustomerSegments";
-import DashboardGeoHeatmap from "../components/dashboard/DashboardGeoHeatmap";
 import { COMPARISON_PERIODS } from "../components/dashboard/dashboardConstants";
-import DeferredDashboardSection from "../components/dashboard/DeferredDashboardSection";
+import DeferredDashboardSection, {
+  DashboardSectionSkeleton,
+} from "../components/dashboard/DeferredDashboardSection";
 import { subscribeToDashboardDataChanges } from "../services/dashboardDataEvents";
 
+const DashboardRevenueTrend = lazy(() => import("../components/dashboard/DashboardRevenueTrend"));
+const DashboardCustomerSegments = lazy(() => import("../components/dashboard/DashboardCustomerSegments"));
+const DashboardGeoHeatmap = lazy(() => import("../components/dashboard/DashboardGeoHeatmap"));
 const DASHBOARD_POLL_INTERVAL_MS = 1 * 60 * 1000;
 
 function getDashboardParams(selectedTime, range, compare, compPeriod) {
@@ -202,10 +204,22 @@ export default function Dashboard() {
           refreshToken={refreshToken}
         >
           {(sectionData) => (
-            <>
-              <DashboardRevenueTrend monthly={sectionData.monthly} />
-              <DashboardCustomerSegments segments={sectionData.segments} navigate={navigate} />
-            </>
+            <Suspense
+              fallback={
+                <div
+                  className="dashboardLazyPlaceholderGroup dashboardLazyPlaceholderGroup--trends"
+                  aria-busy="true"
+                  aria-label="Loading trend charts"
+                >
+                  <DashboardSectionSkeleton section="trends" />
+                </div>
+              }
+            >
+              <>
+                <DashboardRevenueTrend monthly={sectionData.monthly} />
+                <DashboardCustomerSegments segments={sectionData.segments} navigate={navigate} />
+              </>
+            </Suspense>
           )}
         </DeferredDashboardSection>
       </div>
@@ -219,13 +233,25 @@ export default function Dashboard() {
         refreshToken={refreshToken}
       >
         {(sectionData) => (
-          <DashboardGeoHeatmap
-            geoDistribution={sectionData.geo_distribution}
-            topCities={sectionData.top_cities || []}
-            kpis={kpis}
-            navigate={navigate}
-            timeframe={timeframe}
-          />
+          <Suspense
+            fallback={
+              <div
+                className="dashboardLazyPlaceholderGroup dashboardLazyPlaceholderGroup--geography"
+                aria-busy="true"
+                aria-label="Loading geographic chart"
+              >
+                <DashboardSectionSkeleton section="geography" />
+              </div>
+            }
+          >
+            <DashboardGeoHeatmap
+              geoDistribution={sectionData.geo_distribution}
+              topCities={sectionData.top_cities || []}
+              kpis={kpis}
+              navigate={navigate}
+              timeframe={timeframe}
+            />
+          </Suspense>
         )}
       </DeferredDashboardSection>
     </Page>

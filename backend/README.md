@@ -39,8 +39,20 @@ Run its tests with:
 pytest
 ```
 
-CI runs `pytest -m "not integration"` so database-backed tests stay local. Default
-account creation is disabled unless `ALLOW_BOOTSTRAP_USERS=true` is explicitly
-set. When enabled, the backend creates accounts only for missing usernames and
-never overwrites existing roles. Disable it after initial setup, especially in
-shared or production environments.
+CI runs the non-integration tests and a self-contained MySQL/Redis smoke test
+(`pytest -m integration tests/test_ci_services_integration.py`). The rest of
+the integration suite uses the existing Olist dataset and is not run against
+the empty CI database.
+
+Login failures are stored in process memory by default, which is appropriate
+for local single-process development. Configure `RATE_LIMIT_REDIS_URL` to share
+rate-limit state across workers or application instances; configured Redis
+failures prevent the application from starting rather than silently disabling
+rate limiting. Set `TRUSTED_PROXY_HOSTS` to a comma-separated list of proxy IPs
+or CIDRs before relying on `X-Forwarded-For`. Forwarded client addresses are
+ignored unless the immediate peer matches one of those trusted networks.
+
+Default account creation is disabled unless `ALLOW_BOOTSTRAP_USERS=true` is
+explicitly set. When enabled, the backend creates accounts only for missing
+usernames and never overwrites existing roles. Disable it after initial setup,
+especially in shared or production environments.

@@ -14,11 +14,16 @@ from .core.config import (
     ALLOW_BOOTSTRAP_USERS,
     VIEWER_USERNAME,
     VIEWER_PASSWORD,
+    RATE_LIMIT_REDIS_URL,
     SECRET,
     ALGO,
     pwd,
 )
 from .core.database import SessionLocal, engine
+from .api.auth.login_rate_limit import (
+    RedisLoginAttemptLimiter,
+    login_attempt_limiter,
+)
 from .core.permissions import (
     require_campaign_data_access,
     require_clv_delivery_access,
@@ -55,6 +60,10 @@ from .api.model_evaluation.router import router as model_evaluation_router
 # ------------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if RATE_LIMIT_REDIS_URL:
+        if not isinstance(login_attempt_limiter, RedisLoginAttemptLimiter):
+            raise RuntimeError("Redis login rate limiting is not configured correctly.")
+        login_attempt_limiter.check_connection()
     Base.metadata.create_all(engine)
     if "access_pages" not in {
         column["name"] for column in inspect(engine).get_columns("ci_users")

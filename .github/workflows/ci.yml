@@ -19,19 +19,50 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - run: npm run lint
       - run: npm test
       - run: npm run build
 
   backend:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+          MYSQL_DATABASE: customer_sphere_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-root-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     defaults:
       run:
         working-directory: backend
     env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ci-root-password
+      DB_NAME: customer_sphere_ci
+      ANALYTICS_DB_NAME: customer_sphere_ci
       JWT_SECRET_KEY: ci-only-secret-key-not-for-production-use
       ADMIN_PASSWORD: ci-admin-password
       VIEWER_PASSWORD: ci-viewer-password
       ALLOW_BOOTSTRAP_USERS: "false"
+      RATE_LIMIT_REDIS_URL: redis://127.0.0.1:6379/0
+      CUSTOMER_INTELLIGENCE_ROOT: ${{ runner.temp }}/customer-intelligence
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,5 +72,4 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
       - run: pytest -m "not integration"
-        env:
-          CUSTOMER_INTELLIGENCE_ROOT: ${{ runner.temp }}/customer-intelligence
+      - run: pytest -m integration tests/test_ci_services_integration.py

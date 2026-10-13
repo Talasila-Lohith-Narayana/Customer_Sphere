@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import jwt
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from app.core.config import SECRET, ALGO, pwd
+from app.core.config import SECRET, ALGO, TRUSTED_PROXY_HOSTS, pwd
 from app.core.auth import admin_auth, auth
 from app.core.database import get_db
 from app.models import AppUser
@@ -17,7 +17,7 @@ from app.schemas import (
     UserUpdateResult,
 )
 from app.core.permissions import DEFAULT_VIEWER_ACCESS, get_user_access_pages
-from app.api.auth.login_rate_limit import login_attempt_limiter
+from app.api.auth.login_rate_limit import get_client_ip, login_attempt_limiter
 
 router = APIRouter(tags=["auth"])
 
@@ -28,7 +28,7 @@ def login(x: Login, request: Request, db: Session = Depends(get_db)):
     Returns: JWT token, username, and role (admin or viewer/analyst).
     UI Component: Login page (`Login.jsx`).
     """
-    client_host = request.client.host if request.client else "unknown"
+    client_host = get_client_ip(request, TRUSTED_PROXY_HOSTS)
     retry_after = login_attempt_limiter.retry_after(client_host)
     if retry_after is not None:
         raise HTTPException(

@@ -79,7 +79,7 @@ The existing Olist source tables are not replaced or migrated by the application
 ## Prerequisites
 
 - Python 3.10 or newer
-- Node.js 18 or newer and npm
+- Node.js 18.18 or newer and npm
 - An accessible MySQL server containing the existing Olist database
 - Customer intelligence model files when using the analytics/model features
 
@@ -111,6 +111,8 @@ ADMIN_PASSWORD=change-this-password
 VIEWER_USERNAME=analyst
 VIEWER_PASSWORD=change-this-password
 ALLOW_BOOTSTRAP_USERS=false
+RATE_LIMIT_REDIS_URL=
+TRUSTED_PROXY_HOSTS=
 ```
 
 Analytics/model configuration is optional for the core dashboard, but required
@@ -130,6 +132,12 @@ unique values for the default account passwords. Default account creation is
 disabled unless `ALLOW_BOOTSTRAP_USERS=true` is explicitly set. Enable it only
 when you intentionally need the configured admin/viewer accounts created; turn
 it off again after initial setup in shared environments.
+For multi-worker or multi-instance deployments, set `RATE_LIMIT_REDIS_URL` to
+a Redis instance so login-attempt state is shared. `TRUSTED_PROXY_HOSTS` accepts
+a comma-separated list of proxy IPs/CIDRs; forwarded client IP headers are
+used only when the connecting peer is on that trusted list. Without Redis,
+login rate limiting is process-local and is intended for single-process local
+development.
 
 ### Frontend
 
@@ -138,6 +146,8 @@ cd frontend
 npm install
 cp .env.example .env
 ```
+
+Run the frontend linter with `npm run lint`.
 
 The frontend API URL is configured with:
 
