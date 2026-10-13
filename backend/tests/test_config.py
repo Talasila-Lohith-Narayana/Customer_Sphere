@@ -59,4 +59,5 @@ def test_env_flag_parses_common_boolean_strings(monkeypatch, value, expected):
 
 def test_env_flag_honors_default_when_unset(monkeypatch):
     monkeypatch.delenv("ALLOW_BOOTSTRAP_USERS", raising=False)
+    assert env_flag("ALLOW_BOOTSTRAP_USERS") is False
     assert env_flag("ALLOW_BOOTSTRAP_USERS", default=True) is True

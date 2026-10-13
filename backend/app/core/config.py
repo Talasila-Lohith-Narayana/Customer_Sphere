@@ -55,8 +55,8 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 VIEWER_USERNAME = os.getenv("VIEWER_USERNAME", "analyst")
 VIEWER_PASSWORD = os.getenv("VIEWER_PASSWORD")
 
-# Create missing default accounts on startup. Existing roles are never overwritten.
-ALLOW_BOOTSTRAP_USERS = env_flag("ALLOW_BOOTSTRAP_USERS", default=True)
+# Create missing default accounts only when explicitly enabled.
+ALLOW_BOOTSTRAP_USERS = env_flag("ALLOW_BOOTSTRAP_USERS", default=False)
 
 if not ADMIN_PASSWORD:
     raise RuntimeError("ADMIN_PASSWORD must be set in the environment or .env file.")

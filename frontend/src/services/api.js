@@ -26,6 +26,24 @@ api.interceptors.response.use(
     const { status, data } = error.response;
     const detail = data?.detail;
 
+    if (status === 429) {
+      const retryAfterValue =
+        error.response.headers?.get?.("retry-after") ??
+        error.response.headers?.["retry-after"];
+      const retryAfterSeconds = Number(retryAfterValue);
+      if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+        const retryTime = new Date(Date.now() + retryAfterSeconds * 1000)
+          .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        return Promise.reject(
+          new Error(`Too many failed login attempts. You can try again at ${retryTime}.`)
+        );
+      }
+      if (typeof detail === "string" && detail.trim()) {
+        return Promise.reject(new Error(detail));
+      }
+      return Promise.reject(new Error("Too many failed login attempts. Please try again later."));
+    }
+
     // 2. Handle Pydantic validation error lists with field names
     if (Array.isArray(detail)) {
       const messages = detail.map((err) => {

@@ -40,5 +40,7 @@ pytest
 ```
 
 CI runs `pytest -m "not integration"` so database-backed tests stay local. Default
-accounts are created on startup only when `ALLOW_BOOTSTRAP_USERS` is true and the
-usernames do not already exist; existing roles are never overwritten.
+account creation is disabled unless `ALLOW_BOOTSTRAP_USERS=true` is explicitly
+set. When enabled, the backend creates accounts only for missing usernames and
+never overwrites existing roles. Disable it after initial setup, especially in
+shared or production environments.

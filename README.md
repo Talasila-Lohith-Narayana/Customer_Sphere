@@ -110,7 +110,7 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=change-this-password
 VIEWER_USERNAME=analyst
 VIEWER_PASSWORD=change-this-password
-ALLOW_BOOTSTRAP_USERS=true
+ALLOW_BOOTSTRAP_USERS=false
 ```
 
 Analytics/model configuration is optional for the core dashboard, but required
@@ -126,9 +126,10 @@ MODEL_PATH=
 
 Do not commit `.env` files or real credentials. `JWT_SECRET_KEY` must be at
 least 32 characters and cannot be a placeholder such as `change-me`. Use long,
-unique values for the default account passwords. Set
-`ALLOW_BOOTSTRAP_USERS=false` after the first successful start in any shared
-environment so restarts cannot recreate default accounts.
+unique values for the default account passwords. Default account creation is
+disabled unless `ALLOW_BOOTSTRAP_USERS=true` is explicitly set. Enable it only
+when you intentionally need the configured admin/viewer accounts created; turn
+it off again after initial setup in shared environments.
 
 ### Frontend
 
@@ -169,10 +170,11 @@ documentation at:
 - Swagger UI: `http://127.0.0.1:8000/docs`
 - ReDoc: `http://127.0.0.1:8000/redoc`
 
-When `ALLOW_BOOTSTRAP_USERS` is true, the backend creates the configured default
-administrator and viewer accounts on startup only if those usernames are missing.
-Existing accounts keep their current roles. Change the default passwords before
-using the application outside local development.
+When `ALLOW_BOOTSTRAP_USERS` is explicitly set to true, the backend creates the
+configured default administrator and viewer accounts on startup only if those
+usernames are missing. It is false by default, and existing accounts keep their
+current roles. Change the default passwords before using the application outside
+local development.
 
 ## Application pages
 

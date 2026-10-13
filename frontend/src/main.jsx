@@ -12,7 +12,7 @@ import { ACCESS_PAGE_PATHS } from "./accessPages";
 import "./styles.css";
 
 // Page components
-import Dashboard from "./pages/Dashboard";
+const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Customer = lazy(() => import("./pages/Customer"));
 const Customers = lazy(() => import("./pages/Customers"));
 const Products = lazy(() => import("./pages/Products"));

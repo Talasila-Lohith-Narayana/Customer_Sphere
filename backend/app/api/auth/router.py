@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import json
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import jwt
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -17,19 +17,31 @@ from app.schemas import (
     UserUpdateResult,
 )
 from app.core.permissions import DEFAULT_VIEWER_ACCESS, get_user_access_pages
+from app.api.auth.login_rate_limit import login_attempt_limiter
 
 router = APIRouter(tags=["auth"])
 
 @router.post("/api/auth/login")
-def login(x: Login, db: Session = Depends(get_db)):
+def login(x: Login, request: Request, db: Session = Depends(get_db)):
     """
     Authenticates username and password.
     Returns: JWT token, username, and role (admin or viewer/analyst).
     UI Component: Login page (`Login.jsx`).
     """
+    client_host = request.client.host if request.client else "unknown"
+    retry_after = login_attempt_limiter.retry_after(client_host)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed login attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
     u = db.query(AppUser).filter_by(username=x.username).first()
     if not u or not pwd.verify(x.password, u.password_hash):
+        login_attempt_limiter.record_failure(client_host)
         raise HTTPException(401, "Invalid username or password")
+    login_attempt_limiter.clear(client_host)
     token = jwt.encode(
         {
             "sub": u.username,

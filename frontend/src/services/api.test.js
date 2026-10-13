@@ -45,6 +45,30 @@ describe("API Service Layer", () => {
     vi.clearAllMocks();
   });
 
+  it("shows the local retry time for rate-limited requests", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-13T10:00:00.000Z"));
+    const error = {
+      response: {
+        status: 429,
+        data: { detail: "Too many failed login attempts. Try again later." },
+        headers: { "retry-after": "120" },
+      },
+    };
+    const expectedTime = new Date(Date.now() + 120_000).toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    try {
+      await expect(globalThis.__api_handlers.responseError(error)).rejects.toThrow(
+        `Too many failed login attempts. You can try again at ${expectedTime}.`
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   describe("authService", () => {
     it("calls /auth/login with credentials", async () => {
       const creds = { username: "admin", password: "password123" };
