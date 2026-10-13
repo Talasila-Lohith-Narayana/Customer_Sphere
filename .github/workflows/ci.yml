@@ -62,7 +62,6 @@ jobs:
       VIEWER_PASSWORD: ci-viewer-password
       ALLOW_BOOTSTRAP_USERS: "false"
       RATE_LIMIT_REDIS_URL: redis://127.0.0.1:6379/0
-      CUSTOMER_INTELLIGENCE_ROOT: ${{ runner.temp }}/customer-intelligence
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -72,4 +71,8 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
       - run: pytest -m "not integration"
+        env:
+          CUSTOMER_INTELLIGENCE_ROOT: ${{ runner.temp }}/customer-intelligence
       - run: pytest -m integration tests/test_ci_services_integration.py
+        env:
+          CUSTOMER_INTELLIGENCE_ROOT: ${{ runner.temp }}/customer-intelligence
