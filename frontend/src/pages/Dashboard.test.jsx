@@ -192,13 +192,13 @@ describe("Dashboard Page Orchestrator", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    const initialRequestCount = summarySpy.mock.calls.length;
-    expect(initialRequestCount).toBeGreaterThan(0);
+    expect(screen.getByText("Total Customers")).toBeInTheDocument();
+    summarySpy.mockClear();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(60_000);
     });
-    expect(summarySpy).toHaveBeenCalledTimes(initialRequestCount + 1);
+    expect(summarySpy).toHaveBeenCalledTimes(1);
   });
 
   it("refreshes dashboard data when another tab reports a data change", async () => {
