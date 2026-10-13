@@ -1288,8 +1288,9 @@ button {
 .shell aside.collapsed .sidebarToggleBtn {
   top: 24px;
   right: -13px;
-  height: 34px;
-  border-radius: 17px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
 }
 
 /* Sidebar Minimize / Expand Arrow Button */
@@ -2833,6 +2834,10 @@ em {
   padding: 28px;
 }
 
+.filterCategoryField {
+  grid-column: span 2;
+}
+
 .filterModalTitle {
   display: flex;
   align-items: center;
@@ -2862,8 +2867,20 @@ em {
 
 .filterModalGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px 14px;
+}
+
+.filterModalGrid .filterField {
+  min-width: 0;
+}
+
+.filterModalGrid input,
+.filterModalGrid select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .filterModalGrid .filterField label {
@@ -3166,7 +3183,6 @@ em {
     justify-content: center;
   }
 
-  .user div:last-child,
   .sideBottom button {
     font-size: 0;
   }
@@ -4847,9 +4863,12 @@ em {
 
 @media (max-width: 600px) {
 
-  .kpis,
+  .kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .features {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .filters {
@@ -4881,7 +4900,47 @@ em {
   }
 
   .filterModalGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .filterModalGrid .filterCategoryField {
+    grid-column: 1 / -1;
+  }
+
+  .dashHeroStats {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .dashHeroStatItem {
+    min-width: 0;
+  }
+
+  .dashHeroStatItem b {
+    overflow-wrap: anywhere;
+  }
+
+  .kpi {
+    min-width: 0;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .kpiContent {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .kpiValue {
+    font-size: clamp(16px, 5vw, 20px);
+    overflow-wrap: anywhere;
+  }
+
+  .kpiIconWrapper {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
   }
 
   .clearFilters {
@@ -6593,5 +6652,74 @@ em {
 
   .userAccessOptions {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .shell main,
+  .page,
+  .panel {
+    min-width: 0;
+  }
+
+  .page {
+    padding: 20px 14px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .header > div:first-child {
+    min-width: 0;
+  }
+
+  .header .connected {
+    align-self: flex-start;
+  }
+
+  .customerHeaderActions {
+    flex-wrap: wrap;
+  }
+
+  .customerHeaderActions .btn {
+    flex: 1 1 120px;
+  }
+
+  .customerDetailTabs {
+    flex-wrap: wrap;
+    justify-content: flex-start !important;
+    gap: 8px;
+  }
+
+  .customerDetailTabList {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .customerDetailTabs > .btn {
+    margin: 0 !important;
+  }
+
+  .profile {
+    align-items: flex-start;
+  }
+
+  .profileText {
+    flex: 1 1 calc(100% - 76px);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .profile .actions {
+    flex: 1 1 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
   }
 }

@@ -241,8 +241,8 @@ export default function Customer() {
         ))}
       </div>
 
-      <div className="tabs" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center" }}>
+      <div className="tabs customerDetailTabs" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div className="customerDetailTabList" style={{ display: "flex", alignItems: "center" }}>
           {[
             ["overview", "Overview", TrendingUp],
             ["ai-insights", "AI Insights", BrainCircuit],

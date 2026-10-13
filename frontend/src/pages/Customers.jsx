@@ -383,7 +383,7 @@ export default function Customers() {
           <h1>Customers</h1>
           <p>Search and explore customer value across your Olist dataset.</p>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div className="customerHeaderActions" style={{ display: "flex", gap: 10, alignItems: "center" }}>
           {isAdmin && (
             <button
               type="button"

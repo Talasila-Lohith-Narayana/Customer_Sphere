@@ -220,7 +220,7 @@ const handleExport = async () => {
       </div>
 
       {/* Filter and Search Bar in single unified row */}
-      <div className="filters" style={{ display: "flex", flexWrap: "nowrap", gap: 10, alignItems: "center", position: "relative", zIndex: 30 }}>
+      <div className="filters" style={{ display: "flex", gap: 10, alignItems: "center", position: "relative", zIndex: 30 }}>
         {/* Full-text Search */}
         <div className="search" style={{ flex: 1, minWidth: 180 }}>
           <Search size={16} />

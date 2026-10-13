@@ -56,7 +56,7 @@ export default function ProductFilterModal({
 
         <div className="filterModalGrid">
           {/* Category */}
-          <div className="filterField" style={{ gridColumn: "span 2" }}>
+          <div className="filterField filterCategoryField">
             <label htmlFor="modal-product-cat">Product Category</label>
             <select
               id="modal-product-cat"
