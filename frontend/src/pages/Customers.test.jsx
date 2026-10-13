@@ -218,8 +218,8 @@ describe("Customers Directory Page", () => {
     });
 
     // Click table header for Location sorting (toggles desc, asc, clear)
-    const locationTh = screen.getByText(/Location/i);
-    fireEvent.click(locationTh);
+    const getLocationHeader = () => screen.getByRole("button", { name: /^Location/i });
+    fireEvent.click(getLocationHeader());
     await waitFor(() => {
       expect(mockList).toHaveBeenCalledWith(expect.objectContaining({
         sort_by: "city",
@@ -227,7 +227,7 @@ describe("Customers Directory Page", () => {
       }));
     });
 
-    fireEvent.click(locationTh);
+    fireEvent.click(getLocationHeader());
     await waitFor(() => {
       expect(mockList).toHaveBeenCalledWith(expect.objectContaining({
         sort_by: "city",

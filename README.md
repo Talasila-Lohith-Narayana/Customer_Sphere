@@ -105,11 +105,12 @@ DB_USER=root
 DB_PASSWORD=YOUR_MYSQL_PASSWORD
 DB_NAME=YOUR_EXISTING_DATABASE_NAME
 ANALYTICS_DB_NAME=YOUR_ANALYTICS_DATABASE_NAME
-JWT_SECRET_KEY=replace-with-a-long-random-secret
+JWT_SECRET_KEY=use-a-unique-secret-at-least-32-characters
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=change-this-password
 VIEWER_USERNAME=analyst
 VIEWER_PASSWORD=change-this-password
+ALLOW_BOOTSTRAP_USERS=true
 ```
 
 Analytics/model configuration is optional for the core dashboard, but required
@@ -123,8 +124,11 @@ CUSTOMER_INTELLIGENCE_OUTPUTS_DIR=
 MODEL_PATH=
 ```
 
-Do not commit `.env` files or real credentials. Use long, unique values for
-`JWT_SECRET_KEY` and the default account passwords.
+Do not commit `.env` files or real credentials. `JWT_SECRET_KEY` must be at
+least 32 characters and cannot be a placeholder such as `change-me`. Use long,
+unique values for the default account passwords. Set
+`ALLOW_BOOTSTRAP_USERS=false` after the first successful start in any shared
+environment so restarts cannot recreate default accounts.
 
 ### Frontend
 
@@ -165,8 +169,9 @@ documentation at:
 - Swagger UI: `http://127.0.0.1:8000/docs`
 - ReDoc: `http://127.0.0.1:8000/redoc`
 
-The backend creates the configured default administrator and viewer accounts
-when it starts if they do not already exist. Change their passwords before
+When `ALLOW_BOOTSTRAP_USERS` is true, the backend creates the configured default
+administrator and viewer accounts on startup only if those usernames are missing.
+Existing accounts keep their current roles. Change the default passwords before
 using the application outside local development.
 
 ## Application pages
@@ -225,6 +230,9 @@ cd backend
 source .venv/bin/activate
 pytest
 ```
+
+Tests that talk to the live MySQL database are marked `integration`. CI runs the
+rest with `pytest -m "not integration"`.
 
 Run all frontend tests:
 

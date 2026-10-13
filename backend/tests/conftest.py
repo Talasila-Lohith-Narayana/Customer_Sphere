@@ -1,16 +1,32 @@
 from datetime import datetime, timedelta, timezone
 import pytest
-from fastapi.testclient import TestClient
 from jose import jwt
 
-from app.main import app
 from app.core.config import SECRET, ALGO, ADMIN_USERNAME, VIEWER_USERNAME
-from app.core.database import SessionLocal
+
+INTEGRATION_FIXTURES = {
+    "client",
+    "db_session",
+    "admin_token",
+    "admin_headers",
+    "viewer_token",
+    "viewer_headers",
+}
+
+
+def pytest_collection_modifyitems(config, items):
+    """Mark tests that need the live MySQL database so CI can skip them."""
+    for item in items:
+        if INTEGRATION_FIXTURES.intersection(getattr(item, "fixturenames", ())):
+            item.add_marker(pytest.mark.integration)
 
 
 @pytest.fixture(scope="session")
 def client():
     """Session-level TestClient instance."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
     with TestClient(app) as test_client:
         yield test_client
 
@@ -18,6 +34,8 @@ def client():
 @pytest.fixture(scope="session")
 def db_session():
     """Provides a database session for tests that inspect or verify database state directly."""
+    from app.core.database import SessionLocal
+
     db = SessionLocal()
     try:
         yield db

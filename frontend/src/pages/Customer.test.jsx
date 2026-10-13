@@ -84,6 +84,7 @@ function setupDefaultMocks() {
   vi.spyOn(ApiModule.customerService, "reviews").mockResolvedValue({ items: [mockReview] });
   vi.spyOn(ApiModule.customerService, "interactions").mockResolvedValue([mockInteraction]);
   vi.spyOn(ApiModule.customerService, "auditLogs").mockResolvedValue({ items: [mockAuditLog] });
+  vi.spyOn(ApiModule.predictionService, "get").mockResolvedValue(null);
 }
 
 describe("Customer Page Orchestrator", () => {
@@ -101,6 +102,7 @@ describe("Customer Page Orchestrator", () => {
     vi.spyOn(ApiModule.customerService, "reviews").mockReturnValue(new Promise(() => {}));
     vi.spyOn(ApiModule.customerService, "interactions").mockReturnValue(new Promise(() => {}));
     vi.spyOn(ApiModule.customerService, "auditLogs").mockReturnValue(new Promise(() => {}));
+    vi.spyOn(ApiModule.predictionService, "get").mockReturnValue(new Promise(() => {}));
 
     render(
       <MemoryRouter initialEntries={["/customers/c_123"]}>

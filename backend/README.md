@@ -38,3 +38,7 @@ Run its tests with:
 ```bash
 pytest
 ```
+
+CI runs `pytest -m "not integration"` so database-backed tests stay local. Default
+accounts are created on startup only when `ALLOW_BOOTSTRAP_USERS` is true and the
+usernames do not already exist; existing roles are never overwritten.

@@ -175,7 +175,7 @@ describe("Dashboard Page Orchestrator", () => {
     await waitFor(() => expect(sectionSpy).toHaveBeenCalledTimes(1));
   });
 
-  it("refreshes dashboard data every two minutes", async () => {
+  it("refreshes dashboard data every minute", async () => {
     vi.useFakeTimers();
     const summarySpy = vi.spyOn(ApiModule.dashboardService, "summary").mockResolvedValue(
       mockDashboardData
@@ -196,7 +196,7 @@ describe("Dashboard Page Orchestrator", () => {
     expect(initialRequestCount).toBeGreaterThan(0);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(120_000);
+      await vi.advanceTimersByTimeAsync(60_000);
     });
     expect(summarySpy).toHaveBeenCalledTimes(initialRequestCount + 1);
   });

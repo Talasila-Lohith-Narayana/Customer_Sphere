@@ -7,16 +7,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from jose import jwt, JWTError
 from sqlalchemy import inspect, text
 
+from .core.bootstrap import ensure_bootstrap_users
 from .core.config import (
     ADMIN_USERNAME,
     ADMIN_PASSWORD,
+    ALLOW_BOOTSTRAP_USERS,
     VIEWER_USERNAME,
     VIEWER_PASSWORD,
     SECRET,
     ALGO,
     pwd,
 )
-from .core.database import engine, get_db
+from .core.database import SessionLocal, engine
 from .core.permissions import (
     require_campaign_data_access,
     require_clv_delivery_access,
@@ -26,7 +28,7 @@ from .core.permissions import (
     require_page_access,
     require_products_area_access,
 )
-from .models import Base, AppUser
+from .models import Base
 
 # Import all domain API routers
 from .api.auth.router import router as auth_router
@@ -59,38 +61,19 @@ async def lifespan(app: FastAPI):
     }:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE ci_users ADD COLUMN access_pages TEXT"))
-    db = next(get_db())
 
-    # Default users are checked without running table migrations or cache rebuilds.
-    # Those operations belong in a separate maintenance task because they can
-    # block startup behind long-running database queries.
-    user = db.query(AppUser).filter_by(username=ADMIN_USERNAME).first()
-    if not user:
-        db.add(
-            AppUser(
-                username=ADMIN_USERNAME, password_hash=pwd.hash(ADMIN_PASSWORD), role="admin"
-            )
+    # Default users are created only when missing. Existing roles are left unchanged
+    # so a restart cannot demote or promote an account that an administrator edited.
+    with SessionLocal() as db:
+        ensure_bootstrap_users(
+            db,
+            enabled=ALLOW_BOOTSTRAP_USERS,
+            admin_username=ADMIN_USERNAME,
+            admin_password=ADMIN_PASSWORD,
+            viewer_username=VIEWER_USERNAME,
+            viewer_password=VIEWER_PASSWORD,
+            password_hasher=pwd,
         )
-        db.commit()
-    elif user.role != "admin":
-        user.role = "admin"
-        db.commit()
-
-    # 4. Create default Analyst (Viewer) user if not present
-    viewer = db.query(AppUser).filter_by(username=VIEWER_USERNAME).first()
-    if not viewer:
-        db.add(
-            AppUser(
-                username=VIEWER_USERNAME,
-                password_hash=pwd.hash(VIEWER_PASSWORD),
-                role="viewer",
-            )
-        )
-        db.commit()
-    elif viewer.role != "viewer":
-        viewer.role = "viewer"
-        db.commit()
-    db.close()
     yield
 
 
