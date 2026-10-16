@@ -1274,6 +1274,19 @@ button {
   justify-content: center;
 }
 
+.shell aside.collapsed .sideBottom .user > div:not(.avatar),
+.shell aside.collapsed .sideBottom .user b,
+.shell aside.collapsed .sideBottom .user span,
+.shell aside.collapsed .brand > :not(.brandIcon),
+.shell aside.collapsed .sideThemeBtn > span,
+.shell aside.collapsed .sideSignOutBtn > span,
+.shell aside.collapsed .profileSwitcherHeading,
+.shell aside.collapsed .profileSwitcherError,
+.shell aside.collapsed .profileSwitcher:not(.compact) select,
+.shell aside.collapsed .profileSwitcher:not(.compact) {
+  display: none !important;
+}
+
 .shell aside.collapsed .sideBottom .profileSwitcher.compact {
   box-sizing: border-box;
   width: 35px;

@@ -1,8 +1,28 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { ACCESS_PAGES, DEFAULT_VIEWER_ACCESS } from "../accessPages";
 
 // Create Context for holding auth state
 const AuthContext = createContext(null);
+
+function decodeJwtPayload(token) {
+  if (!token || typeof token !== "string") return null;
+
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const decoded = atob(padded)
+      .split("")
+      .map((char) => `%${(`00${char.charCodeAt(0).toString(16)}`).slice(-2)}`)
+      .join("");
+
+    return JSON.parse(decodeURIComponent(decoded));
+  } catch {
+    return null;
+  }
+}
 
 function getSessionAccessPages(session) {
   if (Array.isArray(session?.access_pages)) return session.access_pages;
@@ -34,6 +54,38 @@ export function AuthProvider({ children }) {
       return DEFAULT_VIEWER_ACCESS;
     }
   });
+
+  const clearCurrentSession = () => {
+    localStorage.removeItem("ci_token");
+    localStorage.removeItem("ci_user");
+    localStorage.removeItem("ci_role");
+    localStorage.removeItem("ci_access_pages");
+    setToken(null);
+    setUser(null);
+    setRole("viewer");
+    setAccessPages(DEFAULT_VIEWER_ACCESS);
+  };
+
+  useEffect(() => {
+    if (!token) return undefined;
+
+    const payload = decodeJwtPayload(token);
+    const expiresAt = payload?.exp ? Number(payload.exp) * 1000 : null;
+
+    if (!expiresAt || !Number.isFinite(expiresAt)) return undefined;
+
+    const timeRemaining = expiresAt - Date.now();
+    if (timeRemaining <= 0) {
+      clearCurrentSession();
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      clearCurrentSession();
+    }, timeRemaining);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [token]);
 
   const login = (session) => {
     const sessionAccessPages = getSessionAccessPages(session);
@@ -97,19 +149,41 @@ export function AuthProvider({ children }) {
       setAccessPages(sessionAccessPages);
     }
   };
-const logout = (usernameToLogout = null) => {
-    if (!usernameToLogout || usernameToLogout === user) {
-      localStorage.removeItem("ci_token");
-      localStorage.removeItem("ci_user");
-      localStorage.removeItem("ci_role");
-      localStorage.removeItem("ci_access_pages");
-      setToken(null);
-      setUser(null);
-      setRole(null);
-      setAccessPages([]);
+
+  const logout = (usernameToLogout = null) => {
+    const targetUsername = usernameToLogout ?? user;
+
+    if (usernameToLogout && usernameToLogout !== user) {
+      const updatedAccounts = { ...accounts };
+      delete updatedAccounts[usernameToLogout];
+
+      if (Object.keys(updatedAccounts).length === 0) {
+        localStorage.removeItem("ci_accounts");
+        setAccounts({});
+      } else {
+        localStorage.setItem("ci_accounts", JSON.stringify(updatedAccounts));
+        setAccounts(updatedAccounts);
+      }
+      return;
     }
+
+    if (!targetUsername) return;
+
+    const updatedAccounts = { ...accounts };
+    delete updatedAccounts[targetUsername];
+
+    if (Object.keys(updatedAccounts).length === 0) {
+      localStorage.removeItem("ci_accounts");
+      setAccounts({});
+    } else {
+      localStorage.setItem("ci_accounts", JSON.stringify(updatedAccounts));
+      setAccounts(updatedAccounts);
+    }
+
+    clearCurrentSession();
   };
-const logoutAll = () => {
+
+  const logoutAll = () => {
     localStorage.removeItem("ci_accounts");
     localStorage.removeItem("ci_token");
     localStorage.removeItem("ci_user");
@@ -118,10 +192,11 @@ const logoutAll = () => {
     setAccounts({});
     setToken(null);
     setUser(null);
-    setRole(null);
-    setAccessPages([]);
+    setRole("viewer");
+    setAccessPages(DEFAULT_VIEWER_ACCESS);
   };
-const switchToAccount = (targetUsername) => {
+
+  const switchToAccount = (targetUsername) => {
     const targetSession = accounts[targetUsername];
     if (!targetSession || !targetSession.access_token) {
       throw new Error(`Account ${targetUsername} is not logged in.`);
@@ -136,7 +211,8 @@ const switchToAccount = (targetUsername) => {
     setRole(targetSession.role);
     setAccessPages(sessionAccessPages);
   };
-const loginAndSwitch = async (credentials) => {
+
+  const loginAndSwitch = async (credentials) => {
     const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api"}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

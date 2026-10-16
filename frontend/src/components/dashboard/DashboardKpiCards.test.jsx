@@ -31,6 +31,7 @@ describe("DashboardKpiCards Component", () => {
     expect(screen.getByText("Avg Order Value")).toBeInTheDocument();
     expect(screen.getByText("Avg Fulfillment")).toBeInTheDocument();
     expect(screen.getByText("Repeat Rate")).toBeInTheDocument();
+    expect(screen.getByTitle(/yearly counts can overlap/i)).toBeInTheDocument();
   });
 
   it("displays properly formatted and localized metric values", () => {

@@ -232,6 +232,30 @@ describe("AuthContext and AuthProvider", () => {
     expect(screen.getByTestId("isAuth").textContent).toBe("yes");
   });
 
+  it("removes a specific cached account without disturbing the active session", () => {
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    );
+
+    act(() => {
+      screen.getByText("Login Admin").click();
+    });
+    act(() => {
+      screen.getByText("Login Analyst").click();
+    });
+
+    act(() => {
+      latestAuth.logout("admin_user");
+    });
+
+    expect(screen.getByTestId("user").textContent).toBe("analyst_user");
+    expect(screen.getByTestId("isAuth").textContent).toBe("yes");
+    expect(JSON.parse(localStorage.getItem("ci_accounts")).analyst_user).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem("ci_accounts")).admin_user).toBeUndefined();
+  });
+
   it("clears current session on logout", () => {
     render(
       <AuthProvider>

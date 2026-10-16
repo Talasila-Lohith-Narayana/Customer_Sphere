@@ -161,7 +161,16 @@ export default function DashboardKpiCards({ kpis = {}, repeatRate, navigate, com
           >
             <div className="kpiContent">
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span className="kpiLabel">{m.label}</span>
+                <span
+                  className="kpiLabel"
+                  title={
+                    m.label === "Total Customers"
+                      ? "Counts unique customers in the selected period. Yearly counts can overlap when a customer is active in multiple years."
+                      : undefined
+                  }
+                >
+                  {m.label}
+                </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap" }}>
                 <b className="kpiValue">{m.value}</b>
