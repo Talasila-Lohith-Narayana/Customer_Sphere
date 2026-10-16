@@ -29,7 +29,7 @@ def auth(
         .filter_by(username=payload.get("sub"), role=payload.get("role"))
         .first()
     )
-    if account is None:
+    if account is None or payload.get("token_version", 0) != account.token_version:
         raise HTTPException(401, "Invalid or expired token. Please log in again.")
     return {
         **payload,

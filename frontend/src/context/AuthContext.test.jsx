@@ -2,6 +2,11 @@ import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import { AuthProvider, useAuth } from "./AuthContext";
+import { authService } from "../services/api";
+
+vi.mock("../services/api", () => ({
+  authService: { validateSession: vi.fn().mockResolvedValue({ valid: true }) },
+}));
 
 let latestAuth = null;
 
@@ -275,6 +280,82 @@ describe("AuthContext and AuthProvider", () => {
     expect(screen.getByTestId("user").textContent).toBe("guest");
     expect(screen.getByTestId("isAuth").textContent).toBe("no");
     expect(localStorage.getItem("ci_token")).toBeNull();
+  });
+
+  it("clears a session when the API reports that its token was revoked", () => {
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    );
+
+    act(() => {
+      screen.getByText("Login Admin").click();
+    });
+    const revokedToken = localStorage.getItem("ci_token");
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("auth-session-invalid", {
+          detail: { token: revokedToken },
+        }),
+      );
+    });
+
+    expect(screen.getByTestId("user").textContent).toBe("guest");
+    expect(screen.getByTestId("isAuth").textContent).toBe("no");
+    expect(screen.getByRole("alertdialog")).toHaveTextContent(
+      "Your credentials or page access were changed",
+    );
+    expect(localStorage.getItem("ci_token")).toBeNull();
+    expect(localStorage.getItem("ci_accounts")).toBeNull();
+  });
+
+  it("clears and notifies the active session when another tab revokes it", () => {
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    );
+
+    act(() => {
+      screen.getByText("Login Admin").click();
+    });
+
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "ci_session_revoked",
+          newValue: JSON.stringify({ username: "admin_user", nonce: "test" }),
+        }),
+      );
+    });
+
+    expect(screen.getByTestId("user").textContent).toBe("guest");
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Please sign in again");
+    expect(localStorage.getItem("ci_token")).toBeNull();
+  });
+
+  it("periodically validates an authenticated session while the tab is visible", async () => {
+    vi.useFakeTimers();
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    );
+
+    act(() => {
+      screen.getByText("Login Admin").click();
+    });
+    authService.validateSession.mockClear();
+
+    await act(async () => {
+      vi.advanceTimersByTime(30_000);
+      await Promise.resolve();
+    });
+
+    expect(authService.validateSession).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 
   it("clears all accounts on logoutAll", () => {

@@ -46,6 +46,7 @@ def login(x: Login, request: Request, db: Session = Depends(get_db)):
         {
             "sub": u.username,
             "role": u.role,
+            "token_version": u.token_version,
             "exp": datetime.now(timezone.utc) + timedelta(hours=8),
         },
         SECRET,
@@ -83,6 +84,11 @@ def list_profiles(
 ):
     users = db.query(AppUser).order_by(AppUser.username).all()
     return [{"username": user.username, "role": user.role} for user in users]
+
+
+@router.get("/api/auth/session")
+def validate_session(_: dict = Depends(auth)):
+    return {"valid": True}
 
 
 @router.post(
@@ -136,6 +142,7 @@ def update_user(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found.")
 
+    previous_access_pages = get_user_access_pages(user)
     renamed_username = data.username is not None and data.username != username
     if renamed_username:
         existing_user = db.query(AppUser).filter_by(username=data.username).first()
@@ -151,6 +158,14 @@ def update_user(
 
     if data.access_pages is not None:
         user.access_pages = json.dumps(data.access_pages)
+
+    access_pages_changed = (
+        data.access_pages is not None
+        and set(get_user_access_pages(user)) != set(previous_access_pages)
+    )
+    sessions_revoked = data.password is not None or access_pages_changed
+    if sessions_revoked:
+        user.token_version += 1
 
     try:
         db.commit()
@@ -168,6 +183,7 @@ def update_user(
             {
                 "sub": user.username,
                 "role": requester["role"],
+                "token_version": user.token_version,
                 "exp": requester["exp"],
             },
             SECRET,
@@ -178,6 +194,7 @@ def update_user(
         "role": user.role,
         "access_pages": get_user_access_pages(user),
         "access_token": access_token,
+        "sessions_revoked": sessions_revoked,
     }
 
 

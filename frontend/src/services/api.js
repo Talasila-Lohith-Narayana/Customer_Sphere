@@ -26,6 +26,19 @@ api.interceptors.response.use(
     const { status, data } = error.response;
     const detail = data?.detail;
 
+    if (status === 401) {
+      const authorization =
+        error.config?.headers?.get?.("Authorization") ??
+        error.config?.headers?.Authorization ??
+        error.config?.headers?.authorization;
+      const token = localStorage.getItem("ci_token");
+      if (token && authorization === `Bearer ${token}`) {
+        window.dispatchEvent(
+          new CustomEvent("auth-session-invalid", { detail: { token } }),
+        );
+      }
+    }
+
     if (status === 429) {
       const retryAfterValue =
         error.response.headers?.get?.("retry-after") ??
@@ -92,6 +105,8 @@ export const authService = {
   login: (credentials) => data(api.post("/auth/login", credentials)),
   /** Fetch account names and roles available in the profile switcher */
   profiles: () => data(api.get("/auth/profiles")),
+  /** Validate that the current token has not been revoked */
+  validateSession: () => data(api.get("/auth/session")),
 };
 
 /** Administrator-managed application accounts */

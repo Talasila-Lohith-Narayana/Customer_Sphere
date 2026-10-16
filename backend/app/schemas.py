@@ -62,6 +62,7 @@ class ProfileSummary(BaseModel):
 
 class UserUpdateResult(UserSummary):
     access_token: str | None = None
+    sessions_revoked: bool = False
 
 
 class UserUpdate(BaseModel):

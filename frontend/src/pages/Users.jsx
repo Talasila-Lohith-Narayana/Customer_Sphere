@@ -8,6 +8,7 @@ import { useToast } from "../context/ToastContext";
 import { userService } from "../services/api";
 import DataTable from "../components/DataTable";
 import { ACCESS_PAGES, DEFAULT_VIEWER_ACCESS } from "../accessPages";
+import { announceSessionRevocation } from "../services/sessionEvents";
 
 const emptyForm = { username: "", password: "", role: "viewer", access_pages: [] };
 
@@ -101,7 +102,20 @@ export default function Users() {
     }
     try {
       const updated = await userService.update(editingUser.username, changes);
-      updateAccountAccess?.(updated.username, updated.access_pages);
+      if (updated.sessions_revoked) {
+        announceSessionRevocation(editingUser.username);
+        if (updated.username !== editingUser.username) {
+          announceSessionRevocation(updated.username);
+        }
+      } else {
+        updateAccountAccess?.(updated.username, updated.access_pages);
+        if (editingUser.username === currentUser) {
+          updateCurrentSession?.({
+            ...updated,
+            access_token: updated.access_token,
+          });
+        }
+      }
       setUsers((current) =>
         current
           .map((account) =>
@@ -116,12 +130,6 @@ export default function Users() {
           .sort((left, right) => left.username.localeCompare(right.username)),
       );
       window.dispatchEvent(new Event("profiles-updated"));
-      if (editingUser.username === currentUser) {
-        updateCurrentSession({
-          ...updated,
-          access_token: updated.access_token,
-        });
-      }
       setEditingUser(null);
       setEditForm({ username: "", password: "", access_pages: [] });
       toast.success(`User "${updated.username}" updated.`);
@@ -378,9 +386,6 @@ export default function Users() {
               />
               <small>Enter at least 8 characters to change the password.</small>
             </label>
-            <p className="filterHint">
-              Password changes do not terminate sessions that are already signed in.
-            </p>
             <fieldset className="userAccessFieldset">
               <legend>Page access</legend>
               <div className="userAccessOptions">

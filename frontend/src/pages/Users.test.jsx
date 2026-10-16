@@ -139,11 +139,15 @@ describe("User management page", () => {
       username: "renamed_analyst",
       role: "viewer",
       access_pages: ["dashboard", "customers", "products", "audit_logs"],
+      sessions_revoked: true,
     });
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    const logout = vi.fn();
     useAuth.mockReturnValue({
       isAdmin: true,
       user: "admin",
       updateCurrentSession: vi.fn(),
+      logout,
     });
 
     render(
@@ -171,7 +175,71 @@ describe("User management page", () => {
       });
     });
     expect(await screen.findByText("renamed_analyst")).toBeInTheDocument();
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "auth-session-revoked",
+        detail: expect.objectContaining({ username: "analyst" }),
+      }),
+    );
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "auth-session-revoked",
+        detail: expect.objectContaining({ username: "renamed_analyst" }),
+      }),
+    );
+    expect(logout).not.toHaveBeenCalled();
+    dispatchSpy.mockRestore();
     expect(toast.success).toHaveBeenCalledWith('User "renamed_analyst" updated.');
+  });
+
+  it("logs out the current administrator when they change their password", async () => {
+    userService.list.mockResolvedValue([
+      { username: "admin", role: "admin", access_pages: [] },
+      {
+        username: "analyst",
+        role: "viewer",
+        access_pages: ["dashboard", "customers", "products", "audit_logs"],
+      },
+    ]);
+    userService.update.mockResolvedValue({
+      username: "admin",
+      role: "admin",
+      access_pages: ["dashboard", "customers", "products", "analytics", "campaigns", "model", "audit_logs"],
+      sessions_revoked: true,
+    });
+    const logout = vi.fn();
+    const updateCurrentSession = vi.fn();
+    useAuth.mockReturnValue({
+      isAdmin: true,
+      user: "admin",
+      logout,
+      updateCurrentSession,
+    });
+
+    render(
+      <MemoryRouter>
+        <Users />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("admin");
+    fireEvent.click(screen.getByRole("button", { name: "Edit admin" }));
+    const editDialog = screen.getByRole("dialog", { name: "Edit admin" });
+    fireEvent.change(within(editDialog).getByLabelText("Username"), {
+      target: { value: "admin" },
+    });
+    fireEvent.change(within(editDialog).getByLabelText(/New password/), {
+      target: { value: "replacement-password" },
+    });
+    fireEvent.submit(
+      within(editDialog).getByRole("button", { name: /save changes/i }).closest("form"),
+    );
+
+    await waitFor(() => {
+      expect(localStorage.getItem("ci_session_revoked")).toContain('"username":"admin"');
+    });
+    expect(logout).not.toHaveBeenCalled();
+    expect(updateCurrentSession).not.toHaveBeenCalled();
   });
 
   it("edits a viewer's page permissions", async () => {
@@ -187,6 +255,7 @@ describe("User management page", () => {
       username: "analyst",
       role: "viewer",
       access_pages: ["dashboard", "analytics"],
+      sessions_revoked: true,
     });
     const updateAccountAccess = vi.fn();
     useAuth.mockReturnValue({
@@ -218,7 +287,8 @@ describe("User management page", () => {
         access_pages: ["dashboard", "analytics"],
       });
     });
-    expect(updateAccountAccess).toHaveBeenCalledWith("analyst", ["dashboard", "analytics"]);
+    expect(localStorage.getItem("ci_session_revoked")).toContain('"username":"analyst"');
+    expect(updateAccountAccess).not.toHaveBeenCalled();
     expect(await screen.findByText("Dashboard, Analytics")).toBeInTheDocument();
   });
 
@@ -234,7 +304,7 @@ describe("User management page", () => {
     await screen.findByText("analyst");
     fireEvent.click(screen.getByRole("button", { name: "Delete analyst" }));
     expect(screen.getByRole("dialog", { name: "Delete user?" })).toBeInTheDocument();
-    expect(screen.getByText(/active sessions will be revoked/i)).toBeInTheDocument();
+    expect(screen.queryByText(/password changes do not terminate sessions/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Delete user" }));
 

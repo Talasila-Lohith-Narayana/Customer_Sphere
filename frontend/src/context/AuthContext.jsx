@@ -1,5 +1,17 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
+import { AlertTriangle } from "lucide-react";
 import { ACCESS_PAGES, DEFAULT_VIEWER_ACCESS } from "../accessPages";
+import { authService } from "../services/api";
+import {
+  SESSION_REVOKED_EVENT,
+  SESSION_REVOKED_STORAGE_KEY,
+} from "../services/sessionEvents";
 
 // Create Context for holding auth state
 const AuthContext = createContext(null);
@@ -54,8 +66,9 @@ export function AuthProvider({ children }) {
       return DEFAULT_VIEWER_ACCESS;
     }
   });
+  const [sessionRevoked, setSessionRevoked] = useState(false);
 
-  const clearCurrentSession = () => {
+  const clearCurrentSession = useCallback(() => {
     localStorage.removeItem("ci_token");
     localStorage.removeItem("ci_user");
     localStorage.removeItem("ci_role");
@@ -64,7 +77,91 @@ export function AuthProvider({ children }) {
     setUser(null);
     setRole("viewer");
     setAccessPages(DEFAULT_VIEWER_ACCESS);
-  };
+  }, []);
+
+  const invalidateUserSession = useCallback((affectedUsername) => {
+    if (!affectedUsername) return;
+    const updatedAccounts = { ...accounts };
+    if (Object.hasOwn(updatedAccounts, affectedUsername)) {
+      delete updatedAccounts[affectedUsername];
+      if (Object.keys(updatedAccounts).length === 0) {
+        localStorage.removeItem("ci_accounts");
+      } else {
+        localStorage.setItem("ci_accounts", JSON.stringify(updatedAccounts));
+      }
+      setAccounts(updatedAccounts);
+    }
+
+    if (user !== affectedUsername) return;
+    clearCurrentSession();
+    setSessionRevoked(true);
+  }, [accounts, clearCurrentSession, user]);
+
+  useEffect(() => {
+    const handleInvalidSession = (event) => {
+      if (!token || event.detail?.token !== token) return;
+      invalidateUserSession(user);
+      if (user) {
+        localStorage.setItem(
+          SESSION_REVOKED_STORAGE_KEY,
+          JSON.stringify({ username: user, nonce: `${Date.now()}-${Math.random()}` }),
+        );
+      }
+    };
+
+    window.addEventListener("auth-session-invalid", handleInvalidSession);
+    return () =>
+      window.removeEventListener("auth-session-invalid", handleInvalidSession);
+  }, [invalidateUserSession, token, user]);
+
+  useEffect(() => {
+    const handleRevocation = (event) => {
+      invalidateUserSession(event.detail?.username);
+    };
+    const handleStorage = (event) => {
+      if (event.key !== SESSION_REVOKED_STORAGE_KEY || !event.newValue) return;
+      try {
+        invalidateUserSession(JSON.parse(event.newValue).username);
+      } catch (error) {
+        console.error("Could not read the session revocation notification.", error);
+      }
+    };
+
+    window.addEventListener(SESSION_REVOKED_EVENT, handleRevocation);
+    window.addEventListener("storage", handleStorage);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && token) {
+        authService.validateSession().catch((error) => {
+          if (!error.message?.toLowerCase().includes("session has expired")
+            && !error.message?.toLowerCase().includes("invalid or expired token")) {
+            console.error("Could not verify the current session.", error);
+          }
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener(SESSION_REVOKED_EVENT, handleRevocation);
+      window.removeEventListener("storage", handleStorage);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [invalidateUserSession, token]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      authService.validateSession().catch((error) => {
+        if (!error.message?.toLowerCase().includes("session has expired")
+          && !error.message?.toLowerCase().includes("invalid or expired token")) {
+          console.error("Could not verify the current session.", error);
+        }
+      });
+    }, 30_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [token]);
 
   useEffect(() => {
     if (!token) return undefined;
@@ -85,7 +182,7 @@ export function AuthProvider({ children }) {
     }, timeRemaining);
 
     return () => window.clearTimeout(timeoutId);
-  }, [token]);
+  }, [token, clearCurrentSession]);
 
   const login = (session) => {
     const sessionAccessPages = getSessionAccessPages(session);
@@ -103,6 +200,7 @@ export function AuthProvider({ children }) {
     setUser(session.username);
     setRole(session.role);
     setAccessPages(sessionAccessPages);
+    setSessionRevoked(false);
   };
 
   const updateCurrentSession = (session) => {
@@ -194,6 +292,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     setRole("viewer");
     setAccessPages(DEFAULT_VIEWER_ACCESS);
+    setSessionRevoked(false);
   };
 
   const switchToAccount = (targetUsername) => {
@@ -228,27 +327,61 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        token,
-        user,
-        role,
-        accessPages,
-        accounts,
-        isAdmin: role === "admin",
-        hasAccess: (page) => role === "admin" || accessPages.includes(page),
-        login,
-        updateCurrentSession,
-        updateAccountAccess,
-        logout,
-        logoutAll,
-        switchToAccount,
-        loginAndSwitch,
-        isAuthenticated: Boolean(token),
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+    <>
+      <AuthContext.Provider
+        value={{
+          token,
+          user,
+          role,
+          accessPages,
+          accounts,
+          isAdmin: role === "admin",
+          hasAccess: (page) => role === "admin" || accessPages.includes(page),
+          login,
+          updateCurrentSession,
+          updateAccountAccess,
+          logout,
+          logoutAll,
+          switchToAccount,
+          loginAndSwitch,
+          isAuthenticated: Boolean(token),
+        }}
+      >
+        {children}
+      </AuthContext.Provider>
+      {sessionRevoked && (
+        <div
+          className="modalBg"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="session-revoked-title"
+          aria-describedby="session-revoked-message"
+        >
+          <div className="modal" style={{ maxWidth: 440 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <AlertTriangle size={20} color="#ef4444" aria-hidden="true" />
+              <h2 id="session-revoked-title" style={{ margin: 0, fontSize: 18 }}>
+                Please sign in again
+              </h2>
+            </div>
+            <p id="session-revoked-message">
+              Your credentials or page access were changed. For your security,
+              you have been signed out. Please log in again to continue.
+            </p>
+            <div className="actions">
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => setSessionRevoked(false)}
+                autoFocus
+              >
+                Sign in again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 export function useAuth() {

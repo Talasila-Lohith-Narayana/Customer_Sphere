@@ -65,11 +65,19 @@ async def lifespan(app: FastAPI):
             raise RuntimeError("Redis login rate limiting is not configured correctly.")
         login_attempt_limiter.check_connection()
     Base.metadata.create_all(engine)
-    if "access_pages" not in {
+    user_columns = {
         column["name"] for column in inspect(engine).get_columns("ci_users")
-    }:
-        with engine.begin() as connection:
+    }
+    with engine.begin() as connection:
+        if "access_pages" not in user_columns:
             connection.execute(text("ALTER TABLE ci_users ADD COLUMN access_pages TEXT"))
+        if "token_version" not in user_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE ci_users ADD COLUMN token_version "
+                    "INTEGER NOT NULL DEFAULT 0"
+                )
+            )
 
     # Default users are created only when missing. Existing roles are left unchanged
     # so a restart cannot demote or promote an account that an administrator edited.

@@ -69,6 +69,32 @@ describe("API Service Layer", () => {
     }
   });
 
+  it("notifies auth context when the active bearer token is rejected", async () => {
+    const token = "test-token";
+    localStorage.setItem("ci_token", token);
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    const error = {
+      config: { headers: { Authorization: `Bearer ${token}` } },
+      response: {
+        status: 401,
+        data: { detail: "Invalid or expired token. Please log in again." },
+      },
+    };
+
+    await expect(
+      globalThis.__api_handlers.responseError(error),
+    ).rejects.toThrow("Invalid or expired token.");
+
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "auth-session-invalid",
+        detail: { token },
+      }),
+    );
+    dispatchSpy.mockRestore();
+    localStorage.clear();
+  });
+
   describe("authService", () => {
     it("calls /auth/login with credentials", async () => {
       const creds = { username: "admin", password: "password123" };
@@ -79,6 +105,11 @@ describe("API Service Layer", () => {
     it("fetches the available profile directory", async () => {
       await authService.profiles();
       expect(axios.create().get).toHaveBeenCalledWith("/auth/profiles");
+    });
+
+    it("validates the current session", async () => {
+      await authService.validateSession();
+      expect(axios.create().get).toHaveBeenCalledWith("/auth/session");
     });
   });
 

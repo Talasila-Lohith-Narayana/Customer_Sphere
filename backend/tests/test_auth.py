@@ -42,6 +42,12 @@ def test_login_viewer_success(client):
     assert data["username"] == VIEWER_USERNAME
 
 
+def test_session_validation_endpoint(client, admin_headers):
+    response = client.get("/api/auth/session", headers=admin_headers)
+    assert response.status_code == 200
+    assert response.json() == {"valid": True}
+
+
 def test_login_wrong_password(client):
     """Verifies that login fails with 401 if the password is incorrect."""
     response = client.post(
@@ -156,6 +162,15 @@ def test_user_page_access_is_returned_on_login_and_enforced(client, admin_header
         )
         assert update_response.status_code == 200
         assert update_response.json()["access_pages"] == ["analytics"]
+        assert update_response.json()["sessions_revoked"] is True
+        assert client.get("/api/auth/profiles", headers=scoped_headers).status_code == 401
+        login_response = client.post(
+            "/api/auth/login",
+            json={"username": username, "password": password},
+        )
+        scoped_headers = {
+            "Authorization": f"Bearer {login_response.json()['access_token']}"
+        }
         assert client.get("/api/products", headers=scoped_headers).status_code == 403
         for path in (
             "/api/analytics/clv/summary",
@@ -187,6 +202,15 @@ def test_user_page_access_is_returned_on_login_and_enforced(client, admin_header
                 json={"access_pages": [page]},
             )
             assert update_response.status_code == 200
+            assert update_response.json()["sessions_revoked"] is True
+            assert client.get("/api/auth/profiles", headers=scoped_headers).status_code == 401
+            login_response = client.post(
+                "/api/auth/login",
+                json={"username": username, "password": password},
+            )
+            scoped_headers = {
+                "Authorization": f"Bearer {login_response.json()['access_token']}"
+            }
             assert client.get(allowed_path, headers=scoped_headers).status_code != 403
             assert client.get(denied_path, headers=scoped_headers).status_code == 403
 
@@ -196,6 +220,15 @@ def test_user_page_access_is_returned_on_login_and_enforced(client, admin_header
             json={"access_pages": ["customers"]},
         )
         assert update_response.status_code == 200
+        assert update_response.json()["sessions_revoked"] is True
+        assert client.get("/api/auth/profiles", headers=scoped_headers).status_code == 401
+        login_response = client.post(
+            "/api/auth/login",
+            json={"username": username, "password": password},
+        )
+        scoped_headers = {
+            "Authorization": f"Bearer {login_response.json()['access_token']}"
+        }
         for path in (
             "/api/analytics/customers/test-customer/clv",
             "/api/analytics/customers/test-customer/delivery",
@@ -216,6 +249,15 @@ def test_user_page_access_is_returned_on_login_and_enforced(client, admin_header
             json={"access_pages": ["model"]},
         )
         assert update_response.status_code == 200
+        assert update_response.json()["sessions_revoked"] is True
+        assert client.get("/api/auth/profiles", headers=scoped_headers).status_code == 401
+        login_response = client.post(
+            "/api/auth/login",
+            json={"username": username, "password": password},
+        )
+        scoped_headers = {
+            "Authorization": f"Bearer {login_response.json()['access_token']}"
+        }
         for path in (
             "/api/analytics/churn/summary",
             "/api/analytics/churn/top-features",
@@ -361,6 +403,14 @@ def test_admin_can_update_username_and_password(client, admin_headers):
             },
         )
         assert create_response.status_code == 201
+        old_login = client.post(
+            "/api/auth/login",
+            json={"username": original_username, "password": initial_password},
+        )
+        assert old_login.status_code == 200
+        old_headers = {
+            "Authorization": f"Bearer {old_login.json()['access_token']}"
+        }
 
         update_response = client.patch(
             f"/api/auth/users/{original_username}",
@@ -370,7 +420,9 @@ def test_admin_can_update_username_and_password(client, admin_headers):
         assert update_response.status_code == 200
         assert update_response.json()["username"] == updated_username
         assert update_response.json()["role"] == "viewer"
+        assert update_response.json()["sessions_revoked"] is True
         assert "password" not in update_response.json()
+        assert client.get("/api/auth/profiles", headers=old_headers).status_code == 401
 
         assert client.post(
             "/api/auth/login",
@@ -593,11 +645,11 @@ def _api_operations():
 
 
 def test_api_operation_inventory_is_complete():
-    """The application exposes the documented 60-operation API surface."""
+    """The application exposes the documented 61-operation API surface."""
     from app.main import app
 
     operations = _api_operations()
-    assert len(operations) == 60
+    assert len(operations) == 61
     removed_paths = {
         "/api/health",
         "/api/analytics/clv/by-segment",

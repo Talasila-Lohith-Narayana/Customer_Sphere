@@ -17,6 +17,7 @@ class AppUser(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False, default="viewer")
     access_pages = Column(Text, nullable=True)
+    token_version = Column(Integer, nullable=False, default=0, server_default="0")
 
 
 class ConsumerInteraction(Base):
