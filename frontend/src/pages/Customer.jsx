@@ -82,7 +82,7 @@ export default function Customer() {
     try {
       await customerService.removeOrders(id, orderIds);
       publishDashboardDataChanged();
-      clearSelection();
+      clearSelection?.();
       toast.success(`${orderIds.length} order${orderIds.length === 1 ? "" : "s"} deleted successfully.`);
       await load();
       setTab("orders");
@@ -91,6 +91,13 @@ export default function Customer() {
     } finally {
       setBulkOrderDeleteLoading(false);
     }
+  };
+
+  const normalizeList = (value) => {
+    if (Array.isArray(value)) return value;
+    if (Array.isArray(value?.items)) return value.items;
+    if (Array.isArray(value?.data)) return value.data;
+    return [];
   };
 
   const load = async () => {
@@ -107,12 +114,12 @@ export default function Customer() {
           predictionService.get(id).catch(() => null),
         ]);
       setData({
-        detail,
-        orders: orders.items,
-        products: products.items,
-        reviews: reviews.items,
-        interactions,
-        auditLogs: auditLogs.items,
+        detail: detail || {},
+        orders: normalizeList(orders),
+        products: normalizeList(products),
+        reviews: normalizeList(reviews),
+        interactions: normalizeList(interactions),
+        auditLogs: normalizeList(auditLogs),
         predictions,
       });
     } catch (requestError) {
@@ -155,8 +162,13 @@ export default function Customer() {
       </Page>
     );
 
-  const customer = data.detail;
+  const customer = data.detail || {};
   const predictions = data.predictions;
+  const customerIdentifier = customer.customer_unique_id || customer.customer_id || "Customer";
+  const heroInitial =
+    typeof customer.customer_city === "string" && customer.customer_city.trim()
+      ? customer.customer_city.trim()[0].toUpperCase()
+      : customerIdentifier.charAt(0)?.toUpperCase() || "C";
 
   const mlClv = predictions?.clv?.predicted_clv;
   const realizedSpend = Number(customer.monetary_total || 0);
@@ -207,13 +219,13 @@ export default function Customer() {
       </button>
 
       <div className="profile">
-        <div className="heroAvatar">{customer.customer_city?.[0]}</div>
+        <div className="heroAvatar">{heroInitial}</div>
         <div className="profileText">
           <span>CONSUMER PROFILE · {activeSegment}</span>
-          <h1>{customer.customer_unique_id}</h1>
+          <h1>{customerIdentifier}</h1>
           <p>
-            <MapPin size={14} /> {customer.customer_city},{" "}
-            {customer.customer_state}
+            <MapPin size={14} /> {customer.customer_city || "Unknown city"},{" "}
+            {customer.customer_state || "Unknown state"}
           </p>
         </div>
         {isAdmin && (
@@ -437,7 +449,7 @@ export default function Customer() {
       {showDeleteConfirm && (
         <ConfirmModal
           title="Delete Customer Profile?"
-          message={`Are you sure you want to delete customer ${customer.customer_unique_id}? Customers with active order history cannot be deleted.`}
+          message={`Are you sure you want to delete customer ${customerIdentifier}? Customers with active order history cannot be deleted.`}
           confirmLabel="Delete Customer"
           isDanger={true}
           loading={deleteLoading}
