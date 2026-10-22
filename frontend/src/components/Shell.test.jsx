@@ -157,6 +157,22 @@ describe("Shell Navigation & Layout Component", () => {
     expect(mockToggleTheme).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the mode button visible and usable when the sidebar is collapsed", () => {
+    localStorage.setItem("sidebar_collapsed", "true");
+
+    render(
+      <MemoryRouter>
+        <Shell />
+      </MemoryRouter>
+    );
+
+    const themeToggleBtn = screen.getByTitle(/switch to dark mode/i);
+    expect(themeToggleBtn.querySelector("svg")).toBeInTheDocument();
+
+    fireEvent.click(themeToggleBtn);
+    expect(mockToggleTheme).toHaveBeenCalledTimes(1);
+  });
+
   it("opens and closes AuditLogModal when clicking Activity Logs button", () => {
     render(
       <MemoryRouter>

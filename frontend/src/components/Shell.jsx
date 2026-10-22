@@ -299,10 +299,8 @@ export default function Shell() {
             className="sideThemeBtn"
             title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
           >
-            <span style={{ display: "flex", alignItems: "center", gap: 7, justifyContent: collapsed ? "center" : "flex-start", width: collapsed ? "100%" : "auto" }}>
-              {isDark ? <Sun size={15} color="#f59e0b" /> : <Moon size={15} color="#93c5fd" />}
-              {!collapsed && (isDark ? "Light Mode" : "Dark Mode")}
-            </span>
+            {isDark ? <Sun size={15} color="#f59e0b" /> : <Moon size={15} color="#93c5fd" />}
+            {!collapsed && <span>{isDark ? "Light Mode" : "Dark Mode"}</span>}
             {!collapsed && (
               <span style={{ fontSize: 10, background: isDark ? "#334155" : "#0f172a", padding: "2px 6px", borderRadius: 4, color: "#94a3b8" }}>
                 {theme.toUpperCase()}
