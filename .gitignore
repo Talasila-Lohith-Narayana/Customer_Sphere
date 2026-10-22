@@ -33,3 +33,4 @@ frontend/coverage/
 *.sqlite3
 API_REFERENCE.md
 test-reports/
+docs/
