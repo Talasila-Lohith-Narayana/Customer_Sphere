@@ -365,6 +365,7 @@ const handleExport = async () => {
             page={page}
             pageCount={data.total_pages}
             totalItems={data.total}
+            pageSize={limit}
             itemLabel="available product"
             onPageChange={setPage}
           />

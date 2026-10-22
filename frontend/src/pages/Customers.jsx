@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, Check, CheckSquare, Download, Filter, Plus, Search, Square, Tag, Trash2 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { customerService } from "../services/api";
@@ -62,6 +62,29 @@ const initialFilterState = {
 // In-memory cache preserved during client-side route navigation, cleared on browser page refresh
 let customersNavigationCache = { ...initialFilterState };
 
+function getCustomerPage(cache, params) {
+  const key = JSON.stringify(params);
+  const cachedPage = cache.get(key);
+  if (cachedPage) return cachedPage;
+
+  const request = customerService.list(params)
+    .then((result) => {
+      if (cache.get(key) === request) {
+        cache.set(key, Promise.resolve(result));
+        while (cache.size > 3) {
+          cache.delete(cache.keys().next().value);
+        }
+      }
+      return result;
+    })
+    .catch((requestError) => {
+      if (cache.get(key) === request) cache.delete(key);
+      throw requestError;
+    });
+  cache.set(key, request);
+  return request;
+}
+
 export default function Customers() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -77,6 +100,8 @@ export default function Customers() {
   const [paramSortBy, paramSortDir] = paramSort ? paramSort.split("-") : ["", ""];
 
   const [query, setQuery] = useState(paramState || paramSegment || paramActivity || paramRating.length || paramSort ? "" : customersNavigationCache.query);
+  const queryRef = useRef(query);
+  queryRef.current = query;
   const [state, setState] = useState(paramState || (paramSegment || paramActivity || paramRating.length || paramSort ? "" : customersNavigationCache.state));
   const [segment, setSegment] = useState(paramSegment || (paramState || paramActivity || paramRating.length || paramSort ? "" : customersNavigationCache.segment));
   const [activity, setActivity] = useState(paramActivity || (paramState || paramSegment || paramRating.length || paramSort ? "" : customersNavigationCache.activity));
@@ -100,6 +125,8 @@ export default function Customers() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const sortMenuRef = useRef(null);
+  const customerPageCacheRef = useRef(new Map());
+  const latestLoadRef = useRef(0);
 
   // Sync state if URL search parameters change while staying on page, resetting other filters cleanly
   useEffect(() => {
@@ -210,6 +237,7 @@ export default function Customers() {
       setShowBulkModal(false);
       setSelectedIds([]);
       toast.success(`Segment updated for ${selectedIds.length} customer(s).`);
+      customerPageCacheRef.current.clear();
       await load();
     } catch (err) {
       toast.error(`Bulk update failed: ${err.message}`);
@@ -233,6 +261,7 @@ export default function Customers() {
         toast.warning(`${res.skipped_count} customer(s) skipped — they have order history.`);
       }
       setSelectedIds([]);
+      customerPageCacheRef.current.clear();
       await load();
     } catch (err) {
       toast.error(`Bulk delete failed: ${err.message}`);
@@ -268,35 +297,45 @@ export default function Customers() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-  const load = () => {
+  const load = useCallback((requestedPage = page) => {
+    const requestId = ++latestLoadRef.current;
     setError("");
-    return customerService
-      .list({
-        q: query,
-        state,
-        segment,
-        activity,
-        rating: ratings.length ? ratings.join(",") : undefined,
-        churn_risk: churnRisk.length ? churnRisk.join(",") : undefined,
-        max_recency: maxRecency || undefined,
-        min_spend: minSpend || undefined,
-        min_orders: minOrders || undefined,
-        sort_by: sortBy || undefined,
-        sort_dir: sortDir || undefined,
-        include_churn: false,
-        page,
-        page_size: 12,
+    const params = {
+      q: queryRef.current,
+      state,
+      segment,
+      activity,
+      rating: ratings.length ? ratings.join(",") : undefined,
+      churn_risk: churnRisk.length ? churnRisk.join(",") : undefined,
+      max_recency: maxRecency || undefined,
+      min_spend: minSpend || undefined,
+      min_orders: minOrders || undefined,
+      sort_by: sortBy || undefined,
+      sort_dir: sortDir || undefined,
+      include_churn: false,
+      page: requestedPage,
+      page_size: 12,
+    };
+    return getCustomerPage(customerPageCacheRef.current, params)
+      .then((result) => {
+        if (requestId === latestLoadRef.current) setData(result);
+        if (requestedPage < result.pages) {
+          getCustomerPage(customerPageCacheRef.current, { ...params, page: requestedPage + 1 }).catch((prefetchError) => {
+            console.warn("Could not preload the next customer page.", prefetchError);
+          });
+        }
       })
-      .then(setData)
-      .catch((requestError) => setError(requestError.message));
-  };
+      .catch((requestError) => {
+        if (requestId === latestLoadRef.current) setError(requestError.message);
+      });
+  }, [page, state, segment, activity, ratings, churnRisk, maxRecency, minSpend, minOrders, sortBy, sortDir]);
   useEffect(() => {
     load();
-  }, [page, state, segment, activity, ratings, churnRisk, maxRecency, minSpend, minOrders, sortBy, sortDir]);
+  }, [load]);
   const search = (event) => {
     event.preventDefault();
     setPage(1);
-    load();
+    load(1);
   };
   const clearFilters = () => {
     setState("");
@@ -557,7 +596,7 @@ export default function Customers() {
       )}
 
       {error ? (
-        <ErrorState message={error} retry={load} />
+        <ErrorState message={error} retry={() => load()} />
       ) : !data ? (
         <LoadingState />
       ) : !data.items.length ? (
@@ -582,6 +621,7 @@ export default function Customers() {
             page={page}
             pageCount={data.pages}
             totalItems={data.total}
+            pageSize={data.page_size}
             itemLabel="unique customer"
             onPageChange={setPage}
           />
@@ -593,10 +633,11 @@ export default function Customers() {
           save={async (payload) => {
             await customerService.create(payload);
             publishDashboardDataChanged();
-            setShowForm(false);
-            toast.success("Customer created successfully.");
-            setPage(1);
-            await load();
+           customerPageCacheRef.current.clear();
+           setShowForm(false);
+           toast.success("Customer created successfully.");
+           setPage(1);
+           await load(1);
           }}
         />
       )}

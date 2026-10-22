@@ -248,7 +248,13 @@ describe("Customers Directory Page", () => {
   });
 
   it("handles pagination: next and previous page controls", async () => {
-    const mockList = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
+    const pageTwoList = {
+      ...mockCustomersList,
+      items: [{ ...mockCustomersList.items[0], customer_unique_id: "uid_page_two" }],
+    };
+    const mockList = vi.spyOn(ApiModule.customerService, "list").mockImplementation(({ page }) =>
+      Promise.resolve(page === 2 ? pageTwoList : mockCustomersList)
+    );
 
     render(
       <MemoryRouter>
@@ -259,26 +265,23 @@ describe("Customers Directory Page", () => {
     await waitFor(() => {
       expect(screen.getByText("uid_111111")).toBeInTheDocument();
     });
-
-    const nextBtn = screen.getByTitle("Next page");
-    expect(nextBtn).not.toBeDisabled();
-    fireEvent.click(nextBtn);
-
     await waitFor(() => {
       expect(mockList).toHaveBeenCalledWith(expect.objectContaining({
         page: 2,
       }));
     });
 
+    const nextBtn = screen.getByTitle("Next page");
+    expect(nextBtn).not.toBeDisabled();
+    fireEvent.click(nextBtn);
+
+    expect(await screen.findByText("uid_page_two")).toBeInTheDocument();
+
     const prevBtn = screen.getByTitle("Previous page");
     expect(prevBtn).not.toBeDisabled();
     fireEvent.click(prevBtn);
 
-    await waitFor(() => {
-      expect(mockList).toHaveBeenCalledWith(expect.objectContaining({
-        page: 1,
-      }));
-    });
+    expect(await screen.findByText("uid_111111")).toBeInTheDocument();
   });
 
   it("exports customer data to CSV and handles failure", async () => {

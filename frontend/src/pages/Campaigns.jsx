@@ -144,6 +144,7 @@ export default function Campaigns() {
                       page={page}
                       pageCount={Math.ceil(data.total / data.page_size)}
                       totalItems={data.total}
+                      pageSize={data.page_size}
                       itemLabel="targeted customer"
                       onPageChange={setPage}
                     />
