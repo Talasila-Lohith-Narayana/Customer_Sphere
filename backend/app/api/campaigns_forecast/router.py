@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app.api.campaigns_forecast import repository as repo
@@ -17,6 +17,7 @@ from app.api.campaigns_forecast.schemas import (
     SegmentCampaign,
     SegmentCampaignsRow,
 )
+from app.core.permissions import require_any_page_access, require_page
 from app.segmentation.customer_intelligence.campaign_engine.campaign_rules_loader import (
     load_campaign_rules_config,
 )
@@ -52,7 +53,7 @@ def _explain(code: str) -> str:
 # Campaigns
 # ======================================================================
 @router.get("/campaigns/active", response_model=ActiveCampaignsResponse)
-def campaigns_active():
+def campaigns_active(_: dict = Depends(require_any_page_access("analytics", "campaigns"))):
  
     rows = _db(repo.active_campaigns)
     campaigns = [ActiveCampaign(**row) for row in rows]
@@ -67,7 +68,7 @@ def campaigns_active():
 
 
 @router.get("/campaigns/by-segment", response_model=list[SegmentCampaignsRow])
-def campaigns_by_segment():
+def campaigns_by_segment(_: dict = Depends(require_any_page_access("analytics", "campaigns"))):
     """Which campaigns each customer segment is getting, with counts (for a stacked bar / table)."""
     rows = _db(repo.campaigns_by_segment)
     grouped: dict[str, SegmentCampaignsRow] = {}
@@ -93,6 +94,7 @@ def campaign_customers(
     campaign_name: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
+    _: dict = Depends(require_any_page_access("analytics", "campaigns")),
 ):
     """Customers targeted by one campaign (highest churn probability first) for drill-down."""
     total = _db(repo.campaign_customer_count, campaign_name)
@@ -109,7 +111,10 @@ def campaign_customers(
 
 
 @router.post("/campaigns/evaluate", response_model=EvaluateResponse)
-def campaigns_evaluate(payload: EvaluateRequest):
+def campaigns_evaluate(
+    payload: EvaluateRequest,
+    _: dict = Depends(require_page("customers")),
+):
     """Suggest a campaign (and why) for one customer.
 
     - With `customer_unique_id`: returns the stored recommendation; if the customer isn't

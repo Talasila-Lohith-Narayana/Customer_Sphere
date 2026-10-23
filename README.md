@@ -130,6 +130,10 @@ CUSTOMER_INTELLIGENCE_ROOT=/absolute/path/to/customer-intelligence-platform
 CUSTOMER_INTELLIGENCE_OUTPUTS_DIR=
 # Optional; absolute path or path relative to CUSTOMER_INTELLIGENCE_ROOT
 MODEL_PATH=
+# Optional; cache churn feature summaries for 30 seconds (0 disables the cache)
+CHURN_PREDICTION_CACHE_TTL_SECONDS=30
+# Optional; cache complete model overview responses for 30 seconds (0 disables)
+CHURN_OVERVIEW_CACHE_TTL_SECONDS=30
 ```
 
 Do not commit `.env` files or real credentials. `JWT_SECRET_KEY` must be at

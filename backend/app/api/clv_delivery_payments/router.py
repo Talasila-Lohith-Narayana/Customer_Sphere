@@ -4,10 +4,11 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 
 from app.core.database import ANALYTICS_DB_NAME, engine
+from app.core.permissions import require_any_page_access, require_page
 
 load_dotenv()
 
@@ -91,7 +92,7 @@ router = APIRouter(tags=["CLV, Delivery & Payments"])
 
 
 @router.get("/clv/summary")
-def clv_summary():
+def clv_summary(_: dict = Depends(require_page("analytics"))):
     df = q(f"""
         SELECT COUNT(*) AS customers,
                SUM({C['clv_value']}) AS total_clv,
@@ -107,7 +108,7 @@ def clv_summary():
 
 
 @router.get("/customers/byvaluetier")
-def customers_by_value_tier():
+def customers_by_value_tier(_: dict = Depends(require_page("analytics"))):
     df = q(f"""
         SELECT {C['clv_tier']} AS value_tier,
                COUNT(*) AS customers,
@@ -123,7 +124,7 @@ def customers_by_value_tier():
 
 
 @router.get("/customers/{customer_id}/clv")
-def customer_clv(customer_id: str):
+def customer_clv(customer_id: str, _: dict = Depends(require_page("customers"))):
     df = q(f"""
         SELECT c.*, s.{C['seg_label']} AS segment_label,
                p.{C['churn_prob']} AS churn_probability,
@@ -145,7 +146,7 @@ def customer_clv(customer_id: str):
 
 
 @router.get("/delivery/performance")
-def delivery_performance():
+def delivery_performance(_: dict = Depends(require_page("analytics"))):
     """Overall delivery KPIs plus churn probability for on-time vs late customers."""
     base = f"""
         SELECT {CU_KEY} AS customer_id,
@@ -180,7 +181,10 @@ def delivery_performance():
 
 
 @router.get("/customers/{customer_id}/delivery")
-def customer_delivery_performance(customer_id: str):
+def customer_delivery_performance(
+    customer_id: str,
+    _: dict = Depends(require_page("customers")),
+):
     """Return delivery outcomes for one customer_unique_id."""
     df = q(f"""
         SELECT o.{C['orders_order_id']} AS order_id,

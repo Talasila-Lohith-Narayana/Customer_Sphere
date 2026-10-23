@@ -98,6 +98,7 @@ api.interceptors.response.use(
 
 // Helper to extract data payload directly from axios response promises
 const data = (request) => request.then((response) => response.data);
+let churnOverviewRequest = null;
 
 /** Authentication service endpoints */
 export const authService = {
@@ -181,6 +182,14 @@ export const analyticsService = {
   modelImbalanceExperiments: (params = {}) =>
     data(api.get("/analytics/model/imbalance-experiments", { params })),
   /** Fetch aggregate churn rates and counts from stored model predictions */
+  churnOverview: () => {
+    if (!churnOverviewRequest) {
+      churnOverviewRequest = data(api.get("/analytics/churn/overview")).finally(() => {
+        churnOverviewRequest = null;
+      });
+    }
+    return churnOverviewRequest;
+  },
   churnSummary: (params = {}) =>
     data(api.get("/analytics/churn/summary", { params })),
   /** Fetch globally aggregated positive SHAP drivers */

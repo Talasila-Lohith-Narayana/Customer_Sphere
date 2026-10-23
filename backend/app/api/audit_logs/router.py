@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.core.auth import auth
 from app.core.database import get_db
+from app.core.permissions import require_page
 from app.models import AuditLog
 
 router = APIRouter(tags=["audit-logs"])
@@ -12,7 +13,12 @@ router = APIRouter(tags=["audit-logs"])
 # 1. Customer-Specific Audit Logs
 # ------------------------------------------------------------------------------
 @router.get("/api/customers/{cid}/audit-logs")
-def get_audit_logs(cid: str, db: Session = Depends(get_db), _: str = Depends(auth)):
+def get_audit_logs(
+    cid: str,
+    db: Session = Depends(get_db),
+    _: str = Depends(auth),
+    __: dict = Depends(require_page("customers")),
+):
     """
     Fetches compliance audit history specifically for one customer.
     UI Component: Audit trail tab on `Customer.jsx`.
@@ -49,6 +55,7 @@ def get_global_audit_logs(
     end_date: date = None,
     db: Session = Depends(get_db),
     _: str = Depends(auth),
+    __: dict = Depends(require_page("audit_logs")),
 ):
     """
     Fetches all administrative activity and data change history across the entire platform.

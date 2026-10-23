@@ -9,6 +9,7 @@ from app.core.config import ADMIN_USERNAME, ADMIN_PASSWORD, VIEWER_USERNAME, VIE
 from app.core.database import SessionLocal
 from app.models import AppUser
 from app.api.auth.router import delete_user
+from app.main import app
 
 
 def test_login_admin_success(client):
@@ -121,6 +122,53 @@ def test_only_admin_can_manage_users(client, viewer_headers):
             "role": "admin",
         },
     ).status_code == 403
+
+
+def test_viewer_is_forbidden_from_every_mutating_route(client, viewer_headers):
+    non_mutating_post_routes = {
+        "/api/auth/login",
+        "/api/analytics/campaigns/evaluate",
+    }
+    mutation_methods = {"POST", "PUT", "PATCH", "DELETE"}
+    routes_checked = 0
+
+    for app_route in app.routes:
+        effective_candidates = getattr(app_route, "effective_candidates", None)
+        routes = (
+            effective_candidates()
+            if callable(effective_candidates)
+            else (app_route,)
+        )
+
+        for route in routes:
+            if not hasattr(route, "dependant"):
+                continue
+
+            for method in sorted((route.methods or set()) & mutation_methods):
+                if method == "POST" and route.path in non_mutating_post_routes:
+                    continue
+
+                path = route.path
+                for parameter in route.dependant.path_params:
+                    annotation = getattr(parameter, "annotation", None)
+                    if annotation is None:
+                        annotation = getattr(parameter.field_info, "annotation", None)
+                    value = "2147483647" if annotation is int else "viewer-access-test"
+                    path = path.replace(f"{{{parameter.name}}}", value)
+
+                response = client.request(
+                    method,
+                    path,
+                    headers=viewer_headers,
+                    json={},
+                )
+                routes_checked += 1
+                assert response.status_code == 403, (
+                    f"Viewer received {response.status_code} for mutating route "
+                    f"{method} {route.path}; expected 403."
+                )
+
+    assert routes_checked > 0, "No mutating routes were discovered."
 
 
 def test_user_page_access_is_returned_on_login_and_enforced(client, admin_headers):
@@ -645,11 +693,11 @@ def _api_operations():
 
 
 def test_api_operation_inventory_is_complete():
-    """The application exposes the documented 62-operation API surface."""
+    """The application exposes the documented 63-operation API surface."""
     from app.main import app
 
     operations = _api_operations()
-    assert len(operations) == 62
+    assert len(operations) == 63
     removed_paths = {
         "/api/health",
         "/api/analytics/clv/by-segment",

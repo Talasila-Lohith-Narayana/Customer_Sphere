@@ -1,11 +1,16 @@
 import os
 import time
 import logging
+import uuid
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from jose import jwt, JWTError
 from sqlalchemy import inspect, text
+
+from .core.api_responses import error_payload, http_error_code, json_safe
 
 from .core.bootstrap import ensure_bootstrap_users
 from .core.config import (
@@ -105,14 +110,53 @@ logging.basicConfig(
 )
 
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    detail = json_safe(exc.detail)
+    payload = error_payload(http_error_code(exc.status_code), "Request failed", detail)
+    if isinstance(detail, str):
+        payload["detail"] = detail
+        payload["error"]["message"] = detail
+    elif isinstance(detail, (list, dict)):
+        payload["detail"] = detail
+    return JSONResponse(status_code=exc.status_code, content=payload)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    details = json_safe(exc.errors())
+    payload = error_payload(
+        http_error_code(422),
+        "Validation failed",
+        details,
+    )
+    payload["detail"] = details
+    return JSONResponse(status_code=422, content=payload)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled application error for %s %s", request.method, request.url.path)
+    payload = error_payload(
+        http_error_code(500),
+        "An unexpected error occurred.",
+        None,
+    )
+    payload["detail"] = "An unexpected error occurred."
+    return JSONResponse(status_code=500, content=payload)
+
+
 # ------------------------------------------------------------------------------
 # Request Logging Middleware — logs method, path, status, duration, user
 # ------------------------------------------------------------------------------
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
     start = time.perf_counter()
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
     response = await call_next(request)
     duration_ms = round((time.perf_counter() - start) * 1000, 1)
+    response.headers["X-Request-ID"] = request_id
 
     # Extract username from JWT if present (best-effort, no auth enforcement)
     user = "anonymous"
@@ -125,12 +169,13 @@ async def request_logging_middleware(request: Request, call_next):
             user = "invalid-token"
 
     logger.info(
-        "%s %s | %s | %sms | user=%s",
+        "%s %s | %s | %sms | user=%s | request_id=%s",
         request.method,
         request.url.path,
         response.status_code,
         duration_ms,
         user,
+        request_id,
     )
     return response
 
@@ -183,36 +228,13 @@ app.include_router(
     interactions_router,
     dependencies=[Depends(require_page_access("customers"))],
 )
-app.include_router(
-    audit_logs_router,
-    dependencies=[Depends(require_audit_access())],
-)
+app.include_router(audit_logs_router)
 app.include_router(
     predictions_router,
     dependencies=[Depends(require_page_access("customers"))],
 )
-app.include_router(
-    churn_analytics_router,
-    prefix="/api/analytics",
-    dependencies=[Depends(require_customer_analytics_access())],
-)
-app.include_router(
-    campaigns_forecast_router,
-    prefix="/api/analytics",
-    dependencies=[Depends(require_campaign_data_access())],
-)
-app.include_router(
-    cohort_trend_router,
-    prefix="/api/analytics",
-    dependencies=[Depends(require_page_access("analytics"))],
-)
-app.include_router(
-    clv_router,
-    prefix="/api/analytics",
-    dependencies=[Depends(require_clv_delivery_access())],
-)
-app.include_router(
-    model_evaluation_router,
-    prefix="/api/analytics",
-    dependencies=[Depends(require_any_page_access("analytics", "model"))],
-)
+app.include_router(churn_analytics_router, prefix="/api/analytics")
+app.include_router(campaigns_forecast_router, prefix="/api/analytics")
+app.include_router(cohort_trend_router, prefix="/api/analytics")
+app.include_router(clv_router, prefix="/api/analytics")
+app.include_router(model_evaluation_router, prefix="/api/analytics")

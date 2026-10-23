@@ -7,6 +7,7 @@ from sqlalchemy.engine import Engine
 
 from app.api.cohort_trends import schemas as schemas
 from app.api.cohort_trends import services as svc
+from app.core.permissions import require_page
 
 router = APIRouter(tags=["Trends & Cohorts"])
 
@@ -63,6 +64,10 @@ def _cohort_list(df, data) -> dict:
 
 @router.get("/cohort/summary", response_model=schemas.CohortSummaryResponse,
             summary="One summary row per cohort")
-def cohort_summary(r: CohortRange = Depends(), engine: Engine = Depends(get_engine)):
+def cohort_summary(
+    r: CohortRange = Depends(),
+    engine: Engine = Depends(get_engine),
+    _: dict = Depends(require_page("analytics")),
+):
     df = svc.get_cohorts(engine, r.cohort_from, r.cohort_to)
     return _cohort_list(df, svc.cohort_summary(df))

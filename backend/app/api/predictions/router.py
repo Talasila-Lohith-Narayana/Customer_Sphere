@@ -10,8 +10,9 @@ from sqlalchemy import text
 import pandas as pd
 import numpy as np
 
+from app.api.churn_analytics.repository import clear_prediction_values_cache
 from app.core.artifact_paths import get_customer_intelligence_root, get_models_dir
-from app.core.auth import auth
+from app.core.auth import admin_auth, auth
 from app.core.database import ANALYTICS_DB_NAME, get_db
 
 router = APIRouter(prefix="/api/predictions", tags=["AI Predictions"])
@@ -656,7 +657,7 @@ def get_customer_predictions(
 def rescore_customer_manually(
     customer_id_or_unique_id: str,
     db: Session = Depends(get_db),
-    _=Depends(auth),
+    _=Depends(admin_auth),
 ):
     """
     Manually force re-runs the ML prediction model for a customer and returns the fresh score.
@@ -740,4 +741,5 @@ def rescore_customer_manually(
             f"Could not update the segment cache for customer {customer_unique_id!r}"
         )
     db.commit()
+    clear_prediction_values_cache()
     return fresh_predictions

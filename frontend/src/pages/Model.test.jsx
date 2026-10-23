@@ -27,31 +27,20 @@ describe("Model diagnostics", () => {
         pr_auc: 0.5,
       }],
     });
-    vi.spyOn(analyticsService, "churnSummary").mockResolvedValue({
-      total_customers: 50,
-      avg_churn_probability: 0.2,
-      predicted_churn_customers: 5,
-      predicted_churn_rate: 0.1,
-      threshold: 0.5,
-    });
-    vi.spyOn(analyticsService, "churnLastRefresh").mockResolvedValue({
-      last_refreshed_at: "2025-03-01 10:00:00",
-    });
-    vi.spyOn(analyticsService, "churnProbabilityDistribution").mockResolvedValue({
-      total_customers: 0,
-      bins: [],
-    });
-    vi.spyOn(analyticsService, "churnReasonCodeSummary").mockResolvedValue({
-      total_reason_codes: 0,
-      reason_codes: [],
-    });
-    vi.spyOn(analyticsService, "churnTopFeatures").mockResolvedValue({
-      scored_customers: 0,
-      features: [],
-    });
-    vi.spyOn(analyticsService, "churnFeatureImportance").mockResolvedValue({
-      scored_customers: 0,
-      features: [],
+    vi.spyOn(analyticsService, "churnOverview").mockResolvedValue({
+      summary: {
+        total_customers: 50,
+        avg_churn_probability: 0.2,
+        predicted_churn_customers: 5,
+        predicted_churn_rate: 0.1,
+        threshold: 0.5,
+        refreshed_at: "2025-03-01 10:00:00",
+      },
+      last_refresh: { last_refreshed_at: "2025-03-01 10:00:00" },
+      probability_distribution: { total_customers: 0, bins: [] },
+      reason_codes: { total_reason_codes: 0, reason_codes: [] },
+      top_features: { scored_customers: 0, features: [] },
+      feature_importance: { scored_customers: 0, features: [] },
     });
     render(<Model />);
 

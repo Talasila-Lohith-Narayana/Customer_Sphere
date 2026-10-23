@@ -16,12 +16,7 @@ const formatRefreshTimestamp = (value) => {
     timeStyle: "short",
   }).format(date);
 };
-const churnSummaryLoad = () => analyticsService.churnSummary();
-const churnTopFeaturesLoad = () => analyticsService.churnTopFeatures({ limit: 10 });
-const churnImportanceLoad = () => analyticsService.churnFeatureImportance({ limit: 15 });
-const churnRefreshLoad = () => analyticsService.churnLastRefresh();
-const churnDistributionLoad = () => analyticsService.churnProbabilityDistribution();
-const reasonCodesLoad = () => analyticsService.churnReasonCodeSummary();
+const churnOverviewLoad = () => analyticsService.churnOverview();
 
 function Performance({ data }) {
   const metrics = data?.metrics || {};
@@ -292,23 +287,23 @@ export default function Model() {
           <section className="analyticsPageSection tabPanelTransition" aria-labelledby="model-churn-heading">
             <h2 id="model-churn-heading">Stored churn predictions</h2>
             <div className="grid2">
-              <AnalyticsPanel title="Churn overview" sub="Risk volume based on stored customer predictions" load={churnSummaryLoad}>
-                {(data) => <ChurnSummary data={data} />}
+              <AnalyticsPanel title="Churn overview" sub="Risk volume based on stored customer predictions" load={churnOverviewLoad}>
+                {(data) => <ChurnSummary data={data.summary} />}
               </AnalyticsPanel>
-              <AnalyticsPanel title="Prediction refresh" sub="Most recent batch score and prediction distribution" load={churnRefreshLoad}>
-                {(data) => <p className="analyticsMeta modelRefreshTimestamp">{formatRefreshTimestamp(data.last_refreshed_at)}</p>}
+              <AnalyticsPanel title="Prediction refresh" sub="Most recent batch score and prediction distribution" load={churnOverviewLoad}>
+                {(data) => <p className="analyticsMeta modelRefreshTimestamp">{formatRefreshTimestamp(data.last_refresh.last_refreshed_at)}</p>}
               </AnalyticsPanel>
-              <AnalyticsPanel title="Churn probability distribution" sub="Stored customer scores grouped into probability ranges" load={churnDistributionLoad}>
-                {(data) => <ProbabilityDistribution data={data} />}
+              <AnalyticsPanel title="Churn probability distribution" sub="Stored customer scores grouped into probability ranges" load={churnOverviewLoad}>
+                {(data) => <ProbabilityDistribution data={data.probability_distribution} />}
               </AnalyticsPanel>
-              <AnalyticsPanel title="Reason-code summary" sub="Most frequently recorded explanations for churn predictions" load={reasonCodesLoad}>
-                {(data) => <ReasonCodeSummary data={data} />}
+              <AnalyticsPanel title="Reason-code summary" sub="Most frequently recorded explanations for churn predictions" load={churnOverviewLoad}>
+                {(data) => <ReasonCodeSummary data={data.reason_codes} />}
               </AnalyticsPanel>
-              <AnalyticsPanel title="Top positive churn drivers" sub="Features most often pushing risk upward in stored explanations" load={churnTopFeaturesLoad}>
-                {(data) => <ShapFeatureList data={data} valueKey="avg_positive_shap" label="Avg. positive SHAP" />}
+              <AnalyticsPanel title="Top positive churn drivers" sub="Features most often pushing risk upward in stored explanations" load={churnOverviewLoad}>
+                {(data) => <ShapFeatureList data={data.top_features} valueKey="avg_positive_shap" label="Avg. positive SHAP" />}
               </AnalyticsPanel>
-              <AnalyticsPanel title="Global feature importance" sub="Mean absolute SHAP contribution across stored predictions" load={churnImportanceLoad}>
-                {(data) => <ShapFeatureList data={data} valueKey="mean_abs_shap" label="Mean |SHAP|" />}
+              <AnalyticsPanel title="Global feature importance" sub="Mean absolute SHAP contribution across stored predictions" load={churnOverviewLoad}>
+                {(data) => <ShapFeatureList data={data.feature_importance} valueKey="mean_abs_shap" label="Mean |SHAP|" />}
               </AnalyticsPanel>
             </div>
           </section>
@@ -336,23 +331,23 @@ export default function Model() {
             <section className="analyticsPageSection tabPanelTransition" aria-labelledby="model-churn-heading">
               <h2 id="model-churn-heading">Stored churn predictions</h2>
               <div className="grid2">
-                <AnalyticsPanel title="Churn overview" sub="Risk volume based on stored customer predictions" load={churnSummaryLoad}>
-                  {(data) => <ChurnSummary data={data} />}
+                <AnalyticsPanel title="Churn overview" sub="Risk volume based on stored customer predictions" load={churnOverviewLoad}>
+                  {(data) => <ChurnSummary data={data.summary} />}
                 </AnalyticsPanel>
-                <AnalyticsPanel title="Prediction refresh" sub="Most recent batch score and prediction distribution" load={churnRefreshLoad}>
-                  {(data) => <p className="analyticsMeta modelRefreshTimestamp">{formatRefreshTimestamp(data.last_refreshed_at)}</p>}
+                <AnalyticsPanel title="Prediction refresh" sub="Most recent batch score and prediction distribution" load={churnOverviewLoad}>
+                  {(data) => <p className="analyticsMeta modelRefreshTimestamp">{formatRefreshTimestamp(data.last_refresh.last_refreshed_at)}</p>}
                 </AnalyticsPanel>
-                <AnalyticsPanel title="Churn probability distribution" sub="Stored customer scores grouped into probability ranges" load={churnDistributionLoad}>
-                  {(data) => <ProbabilityDistribution data={data} />}
+                <AnalyticsPanel title="Churn probability distribution" sub="Stored customer scores grouped into probability ranges" load={churnOverviewLoad}>
+                  {(data) => <ProbabilityDistribution data={data.probability_distribution} />}
                 </AnalyticsPanel>
-                <AnalyticsPanel title="Reason-code summary" sub="Most frequently recorded explanations for churn predictions" load={reasonCodesLoad}>
-                  {(data) => <ReasonCodeSummary data={data} />}
+                <AnalyticsPanel title="Reason-code summary" sub="Most frequently recorded explanations for churn predictions" load={churnOverviewLoad}>
+                  {(data) => <ReasonCodeSummary data={data.reason_codes} />}
                 </AnalyticsPanel>
-                <AnalyticsPanel title="Top positive churn drivers" sub="Features most often pushing risk upward in stored explanations" load={churnTopFeaturesLoad}>
-                  {(data) => <ShapFeatureList data={data} valueKey="avg_positive_shap" label="Avg. positive SHAP" />}
+                <AnalyticsPanel title="Top positive churn drivers" sub="Features most often pushing risk upward in stored explanations" load={churnOverviewLoad}>
+                  {(data) => <ShapFeatureList data={data.top_features} valueKey="avg_positive_shap" label="Avg. positive SHAP" />}
                 </AnalyticsPanel>
-                <AnalyticsPanel title="Global feature importance" sub="Mean absolute SHAP contribution across stored predictions" load={churnImportanceLoad}>
-                  {(data) => <ShapFeatureList data={data} valueKey="mean_abs_shap" label="Mean |SHAP|" />}
+                <AnalyticsPanel title="Global feature importance" sub="Mean absolute SHAP contribution across stored predictions" load={churnOverviewLoad}>
+                  {(data) => <ShapFeatureList data={data.feature_importance} valueKey="mean_abs_shap" label="Mean |SHAP|" />}
                 </AnalyticsPanel>
               </div>
             </section>

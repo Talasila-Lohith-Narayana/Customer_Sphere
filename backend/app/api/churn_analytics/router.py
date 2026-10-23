@@ -5,11 +5,14 @@ import logging
 from collections import Counter
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy.exc import OperationalError, ProgrammingError
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app.api.churn_analytics import repository as repo
 from app.api.predictions.router import REASON_CODE_MESSAGES
+from app.core.database import get_db
+from app.core.permissions import require_any_page_access, require_page
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Churn Analytics"])
@@ -18,9 +21,12 @@ router = APIRouter(tags=["Churn Analytics"])
 def _db(fn, *args, **kwargs):
     try:
         return fn(*args, **kwargs)
-    except (OperationalError, ProgrammingError) as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Database error in %s", getattr(fn, "__name__", fn))
-        raise HTTPException(status_code=503, detail="A required pipeline table is unavailable.") from exc
+        raise HTTPException(
+            status_code=503,
+            detail="Analytics data is temporarily unavailable.",
+        ) from exc
 
 
 def _decode_json(value: Any, expected_type: type):
@@ -37,17 +43,16 @@ def _decode_json(value: Any, expected_type: type):
     return expected_type()
 
 
-def _shap_records() -> list[dict[str, float]]:
+def _shap_records(db: Session) -> list[dict[str, float]]:
     records = []
-    for row in _db(repo.prediction_values):
+    for row in _db(repo.prediction_values, db):
         values = _decode_json(row.get("shap_values"), dict)
         records.append({str(name): float(value) for name, value in values.items()})
     return records
 
 
-@router.get("/churn/summary")
-def churn_summary(threshold: float = Query(0.5, ge=0, le=1)) -> dict[str, Any]:
-    result = _db(repo.churn_summary, threshold)
+def _churn_summary(threshold: float, db: Session) -> dict[str, Any]:
+    result = _db(repo.churn_summary, threshold, db)
     total = int(result.get("total_customers") or 0)
     predicted = int(result.get("predicted_churn_customers") or 0)
     return {
@@ -64,9 +69,7 @@ def churn_summary(threshold: float = Query(0.5, ge=0, le=1)) -> dict[str, Any]:
     }
 
 
-@router.get("/churn/top-features")
-def churn_top_features(limit: int = Query(10, ge=1, le=100)) -> dict[str, Any]:
-    records = _shap_records()
+def _top_features(records: list[dict[str, float]], limit: int) -> dict[str, Any]:
     totals: Counter[str] = Counter()
     counts: Counter[str] = Counter()
     for record in records:
@@ -86,9 +89,10 @@ def churn_top_features(limit: int = Query(10, ge=1, le=100)) -> dict[str, Any]:
     return {"scored_customers": len(records), "features": features[:limit]}
 
 
-@router.get("/churn/feature-importance-global")
-def global_feature_importance(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
-    records = _shap_records()
+def _global_feature_importance(
+    records: list[dict[str, float]],
+    limit: int,
+) -> dict[str, Any]:
     totals: Counter[str] = Counter()
     counts: Counter[str] = Counter()
     for record in records:
@@ -107,29 +111,8 @@ def global_feature_importance(limit: int = Query(100, ge=1, le=500)) -> dict[str
     return {"scored_customers": len(records), "features": features[:limit]}
 
 
-@router.get("/members/{customer_unique_id}/risk")
-def member_risk(customer_unique_id: str) -> dict[str, Any]:
-    result = _db(repo.risk_for_customer, customer_unique_id)
-    if result is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No risk record found for customer: {customer_unique_id}",
-        )
-    return result
-
-
-@router.get("/data/last-refresh")
-def data_last_refresh() -> dict[str, Any]:
-    result = _db(repo.last_refresh) or {}
-    return {"last_refreshed_at": result.get("last_refreshed_at")}
-
-
-@router.get("/churn/probability-distribution")
-def probability_distribution() -> dict[str, Any]:
-    rows = _db(
-        repo.fetch_all,
-        f"SELECT churn_probability FROM {repo.PREDICTIONS_TABLE}",
-    )
+def _probability_distribution(db: Session) -> dict[str, Any]:
+    rows = _db(repo.probability_distribution, db)
     bins = [
         {
             "range": f"{start / 10:.1f}-{(start + 1) / 10:.1f}",
@@ -140,20 +123,19 @@ def probability_distribution() -> dict[str, Any]:
         for start in range(10)
     ]
     for row in rows:
-        value = row.get("churn_probability")
-        if value is None:
+        probability_bin = row.get("probability_bin")
+        if probability_bin is None:
             continue
-        probability = float(value)
-        if 0 <= probability <= 1:
-            index = min(int(probability * 10), 9)
-            bins[index]["count"] += 1
-    return {"total_customers": len(rows), "bins": bins}
+        bins[int(probability_bin)]["count"] = int(row["customer_count"])
+    return {
+        "total_customers": sum(int(row["customer_count"]) for row in rows),
+        "bins": bins,
+    }
 
 
-@router.get("/churn/reason-codes/summary")
-def reason_codes_summary() -> dict[str, Any]:
+def _reason_codes_summary(db: Session) -> dict[str, Any]:
     counts: Counter[str] = Counter()
-    for row in _db(repo.prediction_values):
+    for row in _db(repo.prediction_values, db):
         counts.update(_decode_json(row.get("reason_codes"), list))
     summary = [
         {
@@ -172,9 +154,100 @@ def reason_codes_summary() -> dict[str, Any]:
     return {"total_reason_codes": sum(counts.values()), "reason_codes": summary}
 
 
+@router.get("/churn/summary")
+def churn_summary(
+    db: Session = Depends(get_db),
+    threshold: float = Query(0.5, ge=0, le=1),
+    _: dict = Depends(require_page("model")),
+) -> dict[str, Any]:
+    return _churn_summary(threshold, db)
+
+
+@router.get("/churn/overview")
+def churn_overview(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_page("model")),
+) -> dict[str, Any]:
+    def load_overview() -> dict[str, Any]:
+        summary = _churn_summary(0.5, db)
+        records = _shap_records(db)
+        return {
+            "summary": summary,
+            "last_refresh": {"last_refreshed_at": summary["refreshed_at"]},
+            "probability_distribution": _probability_distribution(db),
+            "reason_codes": _reason_codes_summary(db),
+            "top_features": _top_features(records, 10),
+            "feature_importance": _global_feature_importance(records, 15),
+        }
+
+    return _db(repo.cached_churn_overview, load_overview)
+
+
+@router.get("/churn/top-features")
+def churn_top_features(
+    db: Session = Depends(get_db),
+    limit: int = Query(10, ge=1, le=100),
+    _: dict = Depends(require_any_page_access("analytics", "model")),
+) -> dict[str, Any]:
+    return _top_features(_shap_records(db), limit)
+
+
+@router.get("/churn/feature-importance-global")
+def global_feature_importance(
+    db: Session = Depends(get_db),
+    limit: int = Query(100, ge=1, le=500),
+    _: dict = Depends(require_any_page_access("analytics", "model")),
+) -> dict[str, Any]:
+    return _global_feature_importance(_shap_records(db), limit)
+
+
+@router.get("/members/{customer_unique_id}/risk")
+def member_risk(
+    customer_unique_id: str,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_page("customers")),
+) -> dict[str, Any]:
+    result = _db(repo.risk_for_customer, customer_unique_id, db)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No risk record found for customer: {customer_unique_id}",
+        )
+    return result
+
+
+@router.get("/data/last-refresh")
+def data_last_refresh(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_any_page_access("analytics", "model")),
+) -> dict[str, Any]:
+    result = _db(repo.last_refresh, db) or {}
+    return {"last_refreshed_at": result.get("last_refreshed_at")}
+
+
+@router.get("/churn/probability-distribution")
+def probability_distribution(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_any_page_access("analytics", "model")),
+) -> dict[str, Any]:
+    return _probability_distribution(db)
+
+
+@router.get("/churn/reason-codes/summary")
+def reason_codes_summary(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_any_page_access("analytics", "model")),
+) -> dict[str, Any]:
+    return _reason_codes_summary(db)
+
+
 @router.get("/customers/{customer_unique_id}/explanation")
-def customer_explanation(customer_unique_id: str) -> dict[str, Any]:
-    row = _db(repo.prediction_for_customer, customer_unique_id)
+def customer_explanation(
+    customer_unique_id: str,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_page("customers")),
+) -> dict[str, Any]:
+    row = _db(repo.prediction_for_customer, customer_unique_id, db)
     if row is None:
         raise HTTPException(
             status_code=404,

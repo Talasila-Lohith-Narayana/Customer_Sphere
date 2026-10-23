@@ -154,6 +154,16 @@ describe("API Service Layer", () => {
   });
 
   describe("analyticsService", () => {
+    it("shares one in-flight churn overview request", async () => {
+      const first = analyticsService.churnOverview();
+      const second = analyticsService.churnOverview();
+
+      expect(first).toBe(second);
+      await Promise.all([first, second]);
+      expect(axios.create().get).toHaveBeenCalledTimes(1);
+      expect(axios.create().get).toHaveBeenCalledWith("/analytics/churn/overview");
+    });
+
     it("calls analytics reporting endpoints", async () => {
       await analyticsService.clvSummary();
       await analyticsService.valueTiers();
