@@ -224,6 +224,11 @@ export const productsService = {
 export const customerService = {
   /** List customers with search, filtering, sorting, and pagination */
   list: (params) => data(api.get("/customers", { params })),
+  /** Check whether a customer unique ID is available */
+  isUniqueIdAvailable: (customerUniqueId) =>
+    data(api.get("/customers/id-availability", {
+      params: { customer_unique_id: customerUniqueId },
+    })),
   /** Create a new customer profile */
   create: (payload) => data(api.post("/customers", payload)),
   /** Get full customer detail including metrics, behavior signals, and payment preferences */

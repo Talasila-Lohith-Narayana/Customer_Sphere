@@ -215,6 +215,22 @@ def customers(
 # ------------------------------------------------------------------------------
 # 2. Add New Customer Profile (Admin Only)
 # ------------------------------------------------------------------------------
+@router.get("/api/customers/id-availability")
+def customer_id_availability(
+    customer_unique_id: str = Query(min_length=1, max_length=32),
+    db: Session = Depends(get_db),
+    _: str = Depends(admin_auth),
+):
+    existing = db.execute(
+        text(
+            "SELECT 1 FROM customers "
+            "WHERE customer_unique_id = :unique_id LIMIT 1"
+        ),
+        {"unique_id": customer_unique_id.strip()},
+    ).fetchone()
+    return {"available": existing is None}
+
+
 @router.post("/api/customers")
 def add_customer(
     x: CustomerIn, db: Session = Depends(get_db), u: dict = Depends(admin_auth)

@@ -630,6 +630,7 @@ export default function Customers() {
       {showForm && (
         <CustomerModal
           close={() => setShowForm(false)}
+          checkIdAvailable={customerService.isUniqueIdAvailable}
           save={async (payload) => {
             await customerService.create(payload);
             publishDashboardDataChanged();

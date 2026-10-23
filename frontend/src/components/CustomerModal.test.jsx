@@ -32,6 +32,59 @@ describe("CustomerModal Component", () => {
     ).toBeInTheDocument();
   });
 
+  it("generates a random ID and retries when it already exists", async () => {
+    const checkIdAvailable = vi.fn()
+      .mockResolvedValueOnce({ available: false })
+      .mockResolvedValueOnce({ available: true });
+    let randomByte = 0;
+    vi.spyOn(window.crypto, "getRandomValues").mockImplementation((bytes) => {
+      bytes.fill(randomByte);
+      randomByte += 1;
+      return bytes;
+    });
+
+    render(
+      <CustomerModal
+        customer={null}
+        close={vi.fn()}
+        save={vi.fn()}
+        checkIdAvailable={checkIdAvailable}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate random ID" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Customer Unique ID")).toHaveValue("01".repeat(16));
+    });
+    expect(checkIdAvailable).toHaveBeenNthCalledWith(1, "00".repeat(16));
+    expect(checkIdAvailable).toHaveBeenNthCalledWith(2, "01".repeat(16));
+  });
+
+  it("shows an error when random ID generation fails", async () => {
+    const checkIdAvailable = vi.fn().mockResolvedValue({ available: false });
+    vi.spyOn(window.crypto, "getRandomValues").mockImplementation((bytes) => {
+      bytes.fill(0);
+      return bytes;
+    });
+
+    render(
+      <CustomerModal
+        customer={null}
+        close={vi.fn()}
+        save={vi.fn()}
+        checkIdAvailable={checkIdAvailable}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate random ID" }));
+
+    expect(
+      await screen.findByText("Could not generate an unused ID. Please try again.")
+    ).toBeInTheDocument();
+    expect(checkIdAvailable).toHaveBeenCalledTimes(5);
+  });
+
   it("validates zip code, city, and state code errors", () => {
     const { container } = render(<CustomerModal customer={null} close={vi.fn()} save={vi.fn()} />);
 

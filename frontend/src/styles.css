@@ -3038,6 +3038,20 @@ em {
   margin-bottom: 14px;
 }
 
+.customerIdField {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.customerIdField label {
+  margin-bottom: 0;
+}
+
+.customerIdGenerateButton {
+  justify-self: start;
+}
+
 .modal input,
 .modal select,
 .modal textarea,

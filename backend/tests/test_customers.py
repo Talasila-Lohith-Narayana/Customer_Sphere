@@ -52,6 +52,38 @@ def test_customer_list_keeps_churn_details_by_default(client, admin_headers):
     assert "churn_risk_level" in item
 
 
+def test_customer_id_availability_checks_existing_and_new_ids(client, admin_headers):
+    existing_customer = client.get(
+        "/api/customers?page_size=1",
+        headers=admin_headers,
+    ).json()["items"][0]
+    existing_response = client.get(
+        "/api/customers/id-availability",
+        params={"customer_unique_id": existing_customer["customer_unique_id"]},
+        headers=admin_headers,
+    )
+    new_id_response = client.get(
+        "/api/customers/id-availability",
+        params={"customer_unique_id": uuid.uuid4().hex},
+        headers=admin_headers,
+    )
+
+    assert existing_response.status_code == 200
+    assert existing_response.json() == {"available": False}
+    assert new_id_response.status_code == 200
+    assert new_id_response.json() == {"available": True}
+
+
+def test_viewers_cannot_check_customer_id_availability(client, viewer_headers):
+    response = client.get(
+        "/api/customers/id-availability",
+        params={"customer_unique_id": "candidate-id"},
+        headers=viewer_headers,
+    )
+
+    assert response.status_code == 403
+
+
 def test_customer_churn_filter_keeps_details_when_excluded(client, admin_headers):
     response = client.get(
         "/api/customers?page_size=1&churn_risk=high&include_churn=false",

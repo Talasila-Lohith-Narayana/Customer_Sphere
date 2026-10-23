@@ -23,7 +23,7 @@ const SEGMENT_OPTIONS = [
   "Low Risk",
 ];
 
-export default function CustomerModal({ customer, close, save }) {
+export default function CustomerModal({ customer, close, save, checkIdAvailable }) {
   // Pre-fill form if editing an existing customer, otherwise use empty template
   const [form, setForm] = useState(
     customer
@@ -38,11 +38,36 @@ export default function CustomerModal({ customer, close, save }) {
   );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [generatingId, setGeneratingId] = useState(false);
 
   // Helper to update specific form field
   const update = (field, value) =>
     setForm((current) => ({ ...current, [field]: value }));
-async function submit(event) {
+
+  const generateCustomerId = async () => {
+    setGeneratingId(true);
+    setError("");
+    try {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const bytes = window.crypto.getRandomValues(new Uint8Array(16));
+        const candidate = Array.from(bytes, (byte) =>
+          byte.toString(16).padStart(2, "0")
+        ).join("");
+        const { available } = await checkIdAvailable(candidate);
+        if (available) {
+          update("customer_unique_id", candidate);
+          return;
+        }
+      }
+      throw new Error("Could not generate an unused ID. Please try again.");
+    } catch (generationError) {
+      setError(generationError.message);
+    } finally {
+      setGeneratingId(false);
+    }
+  };
+
+  async function submit(event) {
     event.preventDefault();
     const cleanState = form.customer_state.trim().toUpperCase();
     const cleanUid = form.customer_unique_id.trim();
@@ -94,9 +119,11 @@ async function submit(event) {
         </button>
         <p className="eyebrow">CUSTOMER DIRECTORY</p>
         <h2>{customer ? "Edit customer" : "Add customer"}</h2>
-        <label>
-          Customer Unique ID
+        <div className="customerIdField">
+          <label htmlFor="customer-unique-id">Customer Unique ID</label>
           <input
+            id="customer-unique-id"
+            aria-label="Customer Unique ID"
             maxLength="32"
             value={form.customer_unique_id}
             onChange={(event) =>
@@ -104,7 +131,17 @@ async function submit(event) {
             }
             placeholder="e.g. 00172711b30d52eea8b313a7f2cced02"
           />
-        </label>
+          {!customer && checkIdAvailable && (
+            <button
+              type="button"
+              className="btn secondary customerIdGenerateButton"
+              onClick={generateCustomerId}
+              disabled={busy || generatingId}
+            >
+              {generatingId ? "Checking IDs..." : "Generate random ID"}
+            </button>
+          )}
+        </div>
 
         {customer && (
           <label>

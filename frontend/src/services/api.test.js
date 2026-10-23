@@ -263,6 +263,15 @@ describe("API Service Layer", () => {
       expect(res).toEqual({ success: true });
     });
 
+    it("checks customer unique ID availability", async () => {
+      const res = await customerService.isUniqueIdAvailable("candidate-id");
+      expect(res).toEqual({ success: true });
+      expect(axios.create().get).toHaveBeenCalledWith(
+        "/customers/id-availability",
+        { params: { customer_unique_id: "candidate-id" } },
+      );
+    });
+
     it("creates a customer profile", async () => {
       const res = await customerService.create({ name: "John Doe" });
       expect(res).toEqual({ success: true });
