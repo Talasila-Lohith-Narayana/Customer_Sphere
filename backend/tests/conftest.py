@@ -3,6 +3,7 @@ import pytest
 from jose import jwt
 
 from app.core.config import SECRET, ALGO, ADMIN_USERNAME, VIEWER_USERNAME
+from app.models import AppUser
 
 INTEGRATION_FIXTURES = {
     "client",
@@ -44,11 +45,20 @@ def db_session():
 
 
 @pytest.fixture(scope="session")
-def admin_token():
+def admin_token(db_session):
     """Generates a valid JWT token with admin privileges."""
+    account = (
+        db_session.query(AppUser)
+        .filter_by(username=ADMIN_USERNAME, role="admin")
+        .first()
+    )
+    if account is None:
+        raise RuntimeError(f"Configured admin test account {ADMIN_USERNAME!r} is missing.")
+
     payload = {
         "sub": ADMIN_USERNAME,
         "role": "admin",
+        "token_version": account.token_version,
         "exp": datetime.now(timezone.utc) + timedelta(hours=2),
     }
     return jwt.encode(payload, SECRET, algorithm=ALGO)
@@ -61,11 +71,20 @@ def admin_headers(admin_token):
 
 
 @pytest.fixture(scope="session")
-def viewer_token():
+def viewer_token(db_session):
     """Generates a valid JWT token with viewer (analyst) read-only privileges."""
+    account = (
+        db_session.query(AppUser)
+        .filter_by(username=VIEWER_USERNAME, role="viewer")
+        .first()
+    )
+    if account is None:
+        raise RuntimeError(f"Configured viewer test account {VIEWER_USERNAME!r} is missing.")
+
     payload = {
         "sub": VIEWER_USERNAME,
         "role": "viewer",
+        "token_version": account.token_version,
         "exp": datetime.now(timezone.utc) + timedelta(hours=2),
     }
     return jwt.encode(payload, SECRET, algorithm=ALGO)
