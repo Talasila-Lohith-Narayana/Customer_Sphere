@@ -73,6 +73,7 @@ jobs:
       - run: pytest -m "not integration"
         env:
           CUSTOMER_INTELLIGENCE_ROOT: ${{ runner.temp }}/customer-intelligence
+      - run: alembic upgrade head
       - run: pytest -m integration tests/test_ci_services_integration.py
         env:
           CUSTOMER_INTELLIGENCE_ROOT: ${{ runner.temp }}/customer-intelligence

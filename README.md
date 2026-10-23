@@ -149,6 +149,23 @@ used only when the connecting peer is on that trusted list. Without Redis,
 login rate limiting is process-local and is intended for single-process local
 development.
 
+### Database migrations
+
+Apply pending database schema migrations from the `backend` directory after
+installing dependencies and configuring `backend/.env`:
+
+```bash
+alembic upgrade head
+```
+
+Run this once for an existing installation before starting the updated
+application. The initial migration creates missing application tables and adds
+missing authentication columns without replacing existing tables or user data.
+For future schema changes, generate a revision with
+`alembic revision --autogenerate -m "describe schema change"`, review the
+generated migration, then apply it with `alembic upgrade head`. Application
+startup no longer creates or alters tables automatically.
+
 ### Frontend
 
 ```bash
@@ -172,6 +189,7 @@ Start the backend in one terminal:
 ```bash
 cd backend
 source .venv/bin/activate
+alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 

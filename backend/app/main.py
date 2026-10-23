@@ -3,12 +3,12 @@ import time
 import logging
 import uuid
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from jose import jwt, JWTError
-from sqlalchemy import inspect, text
 
 from .core.api_responses import error_payload, http_error_code, json_safe
 
@@ -38,8 +38,6 @@ from .core.permissions import (
     require_page_access,
     require_products_area_access,
 )
-from .models import Base
-
 # Import all domain API routers
 from .api.auth.router import router as auth_router
 from .api.dashboard.router import router as dashboard_router
@@ -69,21 +67,6 @@ async def lifespan(app: FastAPI):
         if not isinstance(login_attempt_limiter, RedisLoginAttemptLimiter):
             raise RuntimeError("Redis login rate limiting is not configured correctly.")
         login_attempt_limiter.check_connection()
-    Base.metadata.create_all(engine)
-    user_columns = {
-        column["name"] for column in inspect(engine).get_columns("ci_users")
-    }
-    with engine.begin() as connection:
-        if "access_pages" not in user_columns:
-            connection.execute(text("ALTER TABLE ci_users ADD COLUMN access_pages TEXT"))
-        if "token_version" not in user_columns:
-            connection.execute(
-                text(
-                    "ALTER TABLE ci_users ADD COLUMN token_version "
-                    "INTEGER NOT NULL DEFAULT 0"
-                )
-            )
-
     # Default users are created only when missing. Existing roles are left unchanged
     # so a restart cannot demote or promote an account that an administrator edited.
     with SessionLocal() as db:
@@ -110,8 +93,8 @@ logging.basicConfig(
 )
 
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     detail = json_safe(exc.detail)
     payload = error_payload(http_error_code(exc.status_code), "Request failed", detail)
     if isinstance(detail, str):
@@ -119,7 +102,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         payload["error"]["message"] = detail
     elif isinstance(detail, (list, dict)):
         payload["detail"] = detail
-    return JSONResponse(status_code=exc.status_code, content=payload)
+    # Preserve headers set by the raiser (e.g. Retry-After on 429, WWW-Authenticate on 401).
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=payload,
+        headers=getattr(exc, "headers", None),
+    )
 
 
 @app.exception_handler(RequestValidationError)

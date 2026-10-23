@@ -90,3 +90,41 @@ def test_cors_exposes_retry_after_header_to_frontend():
         if middleware.cls is CORSMiddleware
     )
     assert cors_middleware.kwargs["expose_headers"] == ["Retry-After"]
+
+
+class _BlockedLimiter:
+    """Stub limiter that reports every client as locked out for 900 seconds."""
+
+    def retry_after(self, key):
+        return 900
+
+
+def test_login_429_keeps_retry_after_header_and_structured_error(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    monkeypatch.setattr("app.api.auth.router.login_attempt_limiter", _BlockedLimiter())
+
+    # No `with` block: lifespan (and the database) is not started; the limiter
+    # rejects the request before any query runs.
+    response = TestClient(app).post(
+        "/api/auth/login", json={"username": "someone", "password": "wrong-password"}
+    )
+
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "900"
+    body = response.json()
+    assert body["detail"] == "Too many failed login attempts. Try again later."
+    assert body["error"]["code"] == "RATE_LIMITED"
+
+
+def test_unknown_route_404_uses_structured_error_format():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    response = TestClient(app).get("/api/this-route-does-not-exist")
+
+    assert response.status_code == 404
+    body = response.json()
+    assert body["status"] == "error"
+    assert body["error"]["code"] == "NOT_FOUND"
