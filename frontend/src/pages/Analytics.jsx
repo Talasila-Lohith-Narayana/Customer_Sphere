@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import AnalyticsPanel from "../components/analytics/AnalyticsPanel";
+import AnalyticsRefreshControls from "../components/analytics/AnalyticsRefreshControls";
+import useAnalyticsRefresh from "../components/analytics/useAnalyticsRefresh";
 import { Page } from "../components/States";
 import { analyticsService } from "../services/api";
 import DataTable from "../components/DataTable";
@@ -32,12 +34,13 @@ const formatTimestamp = (value) => {
   return Number.isNaN(parsed.getTime()) ? String(value) : dateTime.format(parsed);
 };
 
-function Metric({ label, value, detail }) {
+function Metric({ label, value, detail, definition }) {
   return (
-    <div className="analyticsMetric">
+    <div className="analyticsMetric" title={definition}>
       <span>{label}</span>
       <strong>{value}</strong>
       {detail && <small>{detail}</small>}
+      {definition && <small className="analyticsMetricDefinition">{definition}</small>}
     </div>
   );
 }
@@ -75,13 +78,26 @@ function DeliveryOverview({ data }) {
   return (
     <>
       <div className="analyticsMetrics analyticsMetricsCompact">
-        <Metric label="Delivered orders" value={number.format(summary.delivered_orders || 0)} />
+        <Metric
+          label="Delivered orders"
+          value={number.format(summary.delivered_orders || 0)}
+          definition="Orders with a recorded delivery completion."
+        />
         <Metric
           label="Average delivery"
           value={`${Number(summary.avg_delivery_days || 0).toFixed(1)} days`}
+          definition="Average elapsed time from purchase to delivery."
         />
-        <Metric label="On time" value={`${Number(summary.on_time_pct || 0).toFixed(1)}%`} />
-        <Metric label="Late" value={`${Number(summary.late_pct || 0).toFixed(1)}%`} />
+        <Metric
+          label="On time"
+          value={`${Number(summary.on_time_pct || 0).toFixed(1)}%`}
+          definition="Share of delivered orders that arrived by the estimated date."
+        />
+        <Metric
+          label="Late"
+          value={`${Number(summary.late_pct || 0).toFixed(1)}%`}
+          definition="Share of delivered orders that arrived after the estimated date."
+        />
       </div>
       <div className="analyticsRows analyticsStatusRows">
         {statuses.map((status) => (
@@ -103,15 +119,15 @@ function DeliveryOverview({ data }) {
 
 function ClvOverview({ data }) {
   const metrics = [
-    ["Customers with CLV", number.format(data?.customers || 0)],
-    ["Average CLV", formatClv(data?.avg_clv)],
-    ["Median CLV", formatClv(data?.median_clv)],
-    ["Total projected CLV", formatClv(data?.total_clv)],
+    ["Customers with CLV", number.format(data?.customers || 0), "Customers with an estimated lifetime value."],
+    ["Average CLV", formatClv(data?.avg_clv), "Mean predicted customer lifetime value (R$)."],
+    ["Median CLV", formatClv(data?.median_clv), "Middle predicted customer lifetime value (R$)."],
+    ["Total projected CLV", formatClv(data?.total_clv), "Sum of predicted customer lifetime values (R$)."],
   ];
   return (
     <div className="analyticsMetrics clvMetrics">
-      {metrics.map(([label, value]) => (
-        <Metric key={label} label={label} value={value} />
+      {metrics.map(([label, value, definition]) => (
+        <Metric key={label} label={label} value={value} definition={definition} />
       ))}
     </div>
   );
@@ -258,6 +274,13 @@ function ChurnDefinition({ data }) {
 
 export default function Analytics() {
   const [view, setView] = useState("value");
+  const {
+    panelProps,
+    refreshing,
+    disabled: refreshDisabled,
+    lastUpdated,
+    refresh,
+  } = useAnalyticsRefresh();
 
   return (
     <Page>
@@ -267,7 +290,14 @@ export default function Analytics() {
             <p className="eyebrow">CUSTOMER INTELLIGENCE</p>
             <h1>Analytics</h1>
             <p>Explore customer value, retention, campaign reach, and model diagnostics.</p>
+            <p className="analyticsPageContext">Percentages are shown as rates; CLV values use Brazilian reais (R$). Cohort retention is measured from each customer&apos;s first-purchase month.</p>
           </div>
+          <AnalyticsRefreshControls
+            refreshing={refreshing}
+            disabled={refreshDisabled}
+            lastUpdated={lastUpdated}
+            onRefresh={refresh}
+          />
         </div>
 
         <div className="tabs modelTabs" role="tablist" aria-label="Analytics sections">
@@ -314,6 +344,7 @@ export default function Analytics() {
             <h2 id="analytics-value-heading">Customer value and retention</h2>
             <div className="grid2 analyticsPageGrid">
               <AnalyticsPanel
+                {...panelProps}
                 title="Lifetime value overview"
                 sub="Predicted value across customers"
                 load={analyticsService.clvSummary}
@@ -321,6 +352,7 @@ export default function Analytics() {
                 {(data) => <ClvOverview data={data} />}
               </AnalyticsPanel>
               <AnalyticsPanel
+                {...panelProps}
                 title="Value tiers"
                 sub="Customer distribution by predicted value tier"
                 load={analyticsService.valueTiers}
@@ -328,6 +360,7 @@ export default function Analytics() {
                 {(data) => <ValueTierOverview data={data} />}
               </AnalyticsPanel>
               <AnalyticsPanel
+                {...panelProps}
                 title="Delivery performance"
                 sub="Delivered order speed and on-time rate"
                 load={analyticsService.deliveryPerformance}
@@ -342,6 +375,7 @@ export default function Analytics() {
           <section className="analyticsPageSection tabPanelTransition" aria-labelledby="analytics-cohort-heading">
             <h2 id="analytics-cohort-heading">Cohort summary</h2>
             <AnalyticsPanel
+              {...panelProps}
               title="Acquisition cohort summary"
               sub="Retention and repeat purchasing by first-purchase month"
               load={analyticsService.cohortSummary}
@@ -356,6 +390,7 @@ export default function Analytics() {
             <h2 id="analytics-campaign-heading">Campaigns</h2>
             <div className="grid2 analyticsPageGrid">
               <AnalyticsPanel
+                {...panelProps}
                 title="Active campaign reach"
                 sub="Current campaign count, targeting volume, and priority customers"
                 load={analyticsService.activeCampaigns}
@@ -372,6 +407,7 @@ export default function Analytics() {
                 )}
               </AnalyticsPanel>
               <AnalyticsPanel
+                {...panelProps}
                 title="Campaign allocation by segment"
                 sub="Campaign targeting distribution across customer segments"
                 load={analyticsService.campaignsBySegment}
@@ -387,6 +423,7 @@ export default function Analytics() {
             <h2 id="analytics-model-heading">Model diagnostics</h2>
             <div className="grid2 analyticsPageGrid">
               <AnalyticsPanel
+                {...panelProps}
                 title="Active model"
                 sub="Current model metadata and inference features"
                 load={analyticsService.modelVersion}
@@ -394,6 +431,7 @@ export default function Analytics() {
                 {(data) => <ModelOverview data={data} />}
               </AnalyticsPanel>
               <AnalyticsPanel
+                {...panelProps}
                 title="Calibration quality"
                 sub="Test-set probability calibration before and after calibration"
                 load={analyticsService.modelCalibration}
@@ -401,6 +439,7 @@ export default function Analytics() {
                 {(data) => <CalibrationOverview data={data} />}
               </AnalyticsPanel>
               <AnalyticsPanel
+                {...panelProps}
                 title="Churn definition"
                 sub="How churn labels and censored customers are defined"
                 load={analyticsService.churnDefinition}

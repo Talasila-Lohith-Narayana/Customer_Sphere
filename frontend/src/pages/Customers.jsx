@@ -370,6 +370,25 @@ export default function Customers() {
     minSpend,
     minOrders,
   ].filter(Boolean).length;
+  const activeFilterChips = [
+    ...(state ? [{ label: `State: ${state}`, remove: () => setState("") }] : []),
+    ...(segment ? [{ label: `Segment: ${segment}`, remove: () => setSegment("") }] : []),
+    ...(activity ? [{
+      label: activity === "active" ? "Has orders" : "No orders",
+      remove: () => setActivity(""),
+    }] : []),
+    ...ratings.map((rating) => ({
+      label: `Rating: ${rating} star${rating === 1 ? "" : "s"}`,
+      remove: () => setRatings((current) => current.filter((value) => value !== rating)),
+    })),
+    ...churnRisk.map((risk) => ({
+      label: `Churn risk: ${risk}`,
+      remove: () => setChurnRisk((current) => current.filter((value) => value !== risk)),
+    })),
+    ...(maxRecency ? [{ label: `Max recency: ${maxRecency} days`, remove: () => setMaxRecency("") }] : []),
+    ...(minSpend ? [{ label: `Min spend: R$ ${minSpend}`, remove: () => setMinSpend("") }] : []),
+    ...(minOrders ? [{ label: `Min orders: ${minOrders}`, remove: () => setMinOrders("") }] : []),
+  ];
   const toggleSort = (field) => {
     if (sortBy === field) {
       if (sortDir === "desc") {
@@ -542,6 +561,27 @@ export default function Customers() {
           Filters{activeFilterCount > 0 && <b>{activeFilterCount}</b>}
         </button>
       </form>
+      {activeFilterChips.length > 0 && (
+        <div className="activeFilterChips" aria-label="Active customer filters">
+          {activeFilterChips.map(({ label, remove }) => (
+            <button
+              type="button"
+              className="activeFilterChip"
+              key={label}
+              onClick={() => {
+                remove();
+                setPage(1);
+              }}
+              aria-label={`Remove ${label} filter`}
+            >
+              {label}<span aria-hidden="true">×</span>
+            </button>
+          ))}
+          <button type="button" className="clearActiveFilters" onClick={clearFilters}>
+            Clear filters
+          </button>
+        </div>
+      )}
       {/* Bulk Operations Toolbar */}
       {selectedIds.length > 0 && (
         <div

@@ -4179,6 +4179,8 @@ em {
 
 .dataTableWrap {
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.6);
@@ -4186,9 +4188,111 @@ em {
 
 .dataTable {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
   font-size: 11px;
   text-align: left;
+}
+
+.dataTable:focus-visible {
+  outline: 3px solid #60a5fa;
+  outline-offset: -3px;
+}
+
+.table {
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.activeFilterChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: -6px 0 16px;
+}
+
+.activeFilterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line, #dce2ea);
+  border-radius: 999px;
+  background: var(--card-bg, #fff);
+  color: var(--text-main, #27364a);
+  font: inherit;
+  font-size: 11px;
+}
+
+.activeFilterChip:hover {
+  border-color: #94a3b8;
+}
+
+.activeFilterChip span {
+  color: var(--text-muted, #64748b);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.clearActiveFilters {
+  padding: 5px 7px;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.analyticsRefreshControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.analyticsLastUpdated {
+  color: var(--text-muted, #64748b);
+  font-size: 11px;
+  text-align: right;
+}
+
+.analyticsPageContext {
+  max-width: 680px;
+  color: var(--text-muted, #64748b);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.analyticsMetricDefinition {
+  color: var(--text-muted, #64748b);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.dashboardSectionIntro {
+  margin: 20px 0 12px;
+}
+
+.dashboardSectionIntro h2 {
+  margin: 0 0 4px;
+  color: var(--text-main, #0f172a);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.dashboardSectionIntro p {
+  margin: 0;
+  color: var(--text-muted, #64748b);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dashboardSectionIntro--geography {
+  margin-top: 28px;
 }
 
 .dataTable th,
@@ -4196,6 +4300,45 @@ em {
   padding: 10px 10px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.22);
   white-space: nowrap;
+}
+
+[data-theme="dark"] .activeFilterChip {
+  border-color: var(--card-border, #334155);
+  background: var(--card-bg, #0f172a);
+  color: var(--text-main, #e2e8f0);
+}
+
+[data-theme="dark"] .analyticsMetricDefinition,
+[data-theme="dark"] .analyticsLastUpdated,
+[data-theme="dark"] .analyticsPageContext,
+[data-theme="dark"] .dashboardSectionIntro p {
+  color: var(--text-muted, #94a3b8);
+}
+
+[data-theme="dark"] .dashboardSectionIntro h2 {
+  color: var(--text-main, #f1f5f9);
+}
+
+@media (max-width: 720px) {
+  .analyticsRefreshControls {
+    justify-content: space-between;
+  }
+
+  .analyticsLastUpdated {
+    text-align: left;
+  }
+
+  .table > table {
+    min-width: 720px;
+  }
+
+  .analyticsDashboardPage .dataTableWrap:not(.calibrationTableWrap) .dataTable {
+    min-width: 640px;
+  }
+
+  .analyticsPageContext {
+    margin-bottom: 0;
+  }
 }
 
 .calibrationTableWrap {

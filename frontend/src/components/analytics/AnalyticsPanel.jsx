@@ -8,20 +8,33 @@ export default function AnalyticsPanel({
   load,
   children,
   preserveDataOnRefresh = false,
+  refreshKey = 0,
+  onLoadStateChange,
+  onLoaded,
 }) {
   const [result, setResult] = useState({ status: "loading", data: null });
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
+    onLoadStateChange?.(title, true);
     setResult((current) =>
       preserveDataOnRefresh && current.data
         ? { ...current, status: "refreshing" }
         : { status: "loading", data: null },
     );
-    load()
+    let request;
+    try {
+      request = load();
+    } catch (error) {
+      request = Promise.reject(error);
+    }
+    request
       .then((data) => {
-        if (active) setResult({ status: "success", data });
+        if (active) {
+          setResult({ status: "success", data });
+          onLoaded?.();
+        }
       })
       .catch((error) => {
         if (active) {
@@ -31,11 +44,23 @@ export default function AnalyticsPanel({
             data: preserveDataOnRefresh ? current.data : null,
           }));
         }
+      })
+      .finally(() => {
+        if (active) onLoadStateChange?.(title, false);
       });
     return () => {
       active = false;
+      onLoadStateChange?.(title, false);
     };
-  }, [attempt, load, preserveDataOnRefresh]);
+  }, [
+    attempt,
+    load,
+    onLoaded,
+    onLoadStateChange,
+    preserveDataOnRefresh,
+    refreshKey,
+    title,
+  ]);
 
   return (
     <Panel title={title} sub={sub}>

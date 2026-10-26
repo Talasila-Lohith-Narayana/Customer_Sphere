@@ -27,7 +27,7 @@ describe("Model diagnostics", () => {
         pr_auc: 0.5,
       }],
     });
-    vi.spyOn(analyticsService, "churnOverview").mockResolvedValue({
+    const churnOverview = vi.spyOn(analyticsService, "churnOverview").mockResolvedValue({
       summary: {
         total_customers: 50,
         avg_churn_probability: 0.2,
@@ -47,6 +47,12 @@ describe("Model diagnostics", () => {
     expect(await screen.findByText("Scored customers")).toBeInTheDocument();
     expect(await screen.findByText("20.0%", { selector: "strong" })).toBeInTheDocument();
     expect(await screen.findByText("Mar 1, 2025, 10:00 AM")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Refresh analytics data" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Refresh analytics data" }));
+    await waitFor(() => {
+      expect(churnOverview).toHaveBeenCalledTimes(12);
+      expect(screen.getByRole("button", { name: "Refresh analytics data" })).toBeEnabled();
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Advanced diagnostics" }));
 

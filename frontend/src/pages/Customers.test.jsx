@@ -144,6 +144,30 @@ describe("Customers Directory Page", () => {
     });
   });
 
+  it("removes an individual active filter chip without clearing other filters", async () => {
+    const listSpy = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
+
+    render(
+      <MemoryRouter initialEntries={["/customers?state=SP&segment=High%20Risk"]}>
+        <Routes>
+          <Route path="/customers" element={<Customers />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("uid_111111")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Segment: High Risk filter" }));
+
+    await waitFor(() => {
+      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({
+        state: "SP",
+        segment: "",
+      }));
+    });
+    expect(screen.queryByRole("button", { name: "Remove Segment: High Risk filter" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove State: SP filter" })).toBeInTheDocument();
+  });
+
   it("filters search input and triggers list with query on submit", async () => {
     const mockList = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
 

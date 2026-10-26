@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import AnalyticsPanel from "../components/analytics/AnalyticsPanel";
+import AnalyticsRefreshControls from "../components/analytics/AnalyticsRefreshControls";
+import useAnalyticsRefresh from "../components/analytics/useAnalyticsRefresh";
 import { Page, Panel } from "../components/States";
 import { analyticsService } from "../services/api";
 import DataTable from "../components/DataTable";
@@ -230,6 +232,13 @@ function ReasonCodeSummary({ data }) {
 
 export default function Model() {
   const [view, setView] = useState("overview");
+  const {
+    panelProps,
+    refreshing,
+    disabled: refreshDisabled,
+    lastUpdated,
+    refresh,
+  } = useAnalyticsRefresh();
 
   return (
     <Page>
@@ -240,6 +249,12 @@ export default function Model() {
             <h1>Model diagnostics</h1>
             <p>Inspect churn risk, model reports, experiment records, and observed feature behavior.</p>
           </div>
+          <AnalyticsRefreshControls
+            refreshing={refreshing}
+            disabled={refreshDisabled}
+            lastUpdated={lastUpdated}
+            onRefresh={refresh}
+          />
         </div>
         <div className="modelPageSummary" aria-label="Model summary highlights">
           <div className="modelSummaryCard">
@@ -287,22 +302,22 @@ export default function Model() {
           <section className="analyticsPageSection tabPanelTransition" aria-labelledby="model-churn-heading">
             <h2 id="model-churn-heading">Stored churn predictions</h2>
             <div className="grid2">
-              <AnalyticsPanel title="Churn overview" sub="Risk volume based on stored customer predictions" load={churnOverviewLoad}>
+              <AnalyticsPanel {...panelProps} title="Churn overview" sub="Risk volume based on stored customer predictions" load={churnOverviewLoad}>
                 {(data) => <ChurnSummary data={data.summary} />}
               </AnalyticsPanel>
-              <AnalyticsPanel title="Prediction refresh" sub="Most recent batch score and prediction distribution" load={churnOverviewLoad}>
+              <AnalyticsPanel {...panelProps} title="Prediction refresh" sub="Most recent batch score and prediction distribution" load={churnOverviewLoad}>
                 {(data) => <p className="analyticsMeta modelRefreshTimestamp">{formatRefreshTimestamp(data.last_refresh.last_refreshed_at)}</p>}
               </AnalyticsPanel>
-              <AnalyticsPanel title="Churn probability distribution" sub="Stored customer scores grouped into probability ranges" load={churnOverviewLoad}>
+              <AnalyticsPanel {...panelProps} title="Churn probability distribution" sub="Stored customer scores grouped into probability ranges" load={churnOverviewLoad}>
                 {(data) => <ProbabilityDistribution data={data.probability_distribution} />}
               </AnalyticsPanel>
-              <AnalyticsPanel title="Reason-code summary" sub="Most frequently recorded explanations for churn predictions" load={churnOverviewLoad}>
+              <AnalyticsPanel {...panelProps} title="Reason-code summary" sub="Most frequently recorded explanations for churn predictions" load={churnOverviewLoad}>
                 {(data) => <ReasonCodeSummary data={data.reason_codes} />}
               </AnalyticsPanel>
-              <AnalyticsPanel title="Top positive churn drivers" sub="Features most often pushing risk upward in stored explanations" load={churnOverviewLoad}>
+              <AnalyticsPanel {...panelProps} title="Top positive churn drivers" sub="Features most often pushing risk upward in stored explanations" load={churnOverviewLoad}>
                 {(data) => <ShapFeatureList data={data.top_features} valueKey="avg_positive_shap" label="Avg. positive SHAP" />}
               </AnalyticsPanel>
-              <AnalyticsPanel title="Global feature importance" sub="Mean absolute SHAP contribution across stored predictions" load={churnOverviewLoad}>
+              <AnalyticsPanel {...panelProps} title="Global feature importance" sub="Mean absolute SHAP contribution across stored predictions" load={churnOverviewLoad}>
                 {(data) => <ShapFeatureList data={data.feature_importance} valueKey="mean_abs_shap" label="Mean |SHAP|" />}
               </AnalyticsPanel>
             </div>
@@ -313,13 +328,13 @@ export default function Model() {
           <section className="analyticsPageSection tabPanelTransition" aria-labelledby="model-evaluation-heading">
             <h2 id="model-evaluation-heading">Model evaluation and feature behavior</h2>
             <div className="grid2">
-              <AnalyticsPanel title="Model test performance" sub="Reported metrics for the evaluated test split" load={analyticsService.modelPerformance}>
+              <AnalyticsPanel {...panelProps} title="Model test performance" sub="Reported metrics for the evaluated test split" load={analyticsService.modelPerformance}>
                 {(data) => <Performance data={data} />}
               </AnalyticsPanel>
-              <AnalyticsPanel title="Model comparison" sub="Comparison of logistic regression and LightGBM reports" load={analyticsService.modelComparison}>
+              <AnalyticsPanel {...panelProps} title="Model comparison" sub="Comparison of logistic regression and LightGBM reports" load={analyticsService.modelComparison}>
                 {(data) => <ModelComparison data={data} />}
               </AnalyticsPanel>
-              <AnalyticsPanel title="Class-imbalance experiments" sub="Reported performance across imbalance strategies" load={analyticsService.modelImbalanceExperiments}>
+              <AnalyticsPanel {...panelProps} title="Class-imbalance experiments" sub="Reported performance across imbalance strategies" load={analyticsService.modelImbalanceExperiments}>
                 {(data) => <ImbalanceExperiments data={data} />}
               </AnalyticsPanel>
             </div>
@@ -331,35 +346,35 @@ export default function Model() {
             <section className="analyticsPageSection tabPanelTransition" aria-labelledby="model-churn-heading">
               <h2 id="model-churn-heading">Stored churn predictions</h2>
               <div className="grid2">
-                <AnalyticsPanel title="Churn overview" sub="Risk volume based on stored customer predictions" load={churnOverviewLoad}>
+                <AnalyticsPanel {...panelProps} title="Churn overview" sub="Risk volume based on stored customer predictions" load={churnOverviewLoad}>
                   {(data) => <ChurnSummary data={data.summary} />}
                 </AnalyticsPanel>
-                <AnalyticsPanel title="Prediction refresh" sub="Most recent batch score and prediction distribution" load={churnOverviewLoad}>
+                <AnalyticsPanel {...panelProps} title="Prediction refresh" sub="Most recent batch score and prediction distribution" load={churnOverviewLoad}>
                   {(data) => <p className="analyticsMeta modelRefreshTimestamp">{formatRefreshTimestamp(data.last_refresh.last_refreshed_at)}</p>}
                 </AnalyticsPanel>
-                <AnalyticsPanel title="Churn probability distribution" sub="Stored customer scores grouped into probability ranges" load={churnOverviewLoad}>
+                <AnalyticsPanel {...panelProps} title="Churn probability distribution" sub="Stored customer scores grouped into probability ranges" load={churnOverviewLoad}>
                   {(data) => <ProbabilityDistribution data={data.probability_distribution} />}
                 </AnalyticsPanel>
-                <AnalyticsPanel title="Reason-code summary" sub="Most frequently recorded explanations for churn predictions" load={churnOverviewLoad}>
+                <AnalyticsPanel {...panelProps} title="Reason-code summary" sub="Most frequently recorded explanations for churn predictions" load={churnOverviewLoad}>
                   {(data) => <ReasonCodeSummary data={data.reason_codes} />}
                 </AnalyticsPanel>
-                <AnalyticsPanel title="Top positive churn drivers" sub="Features most often pushing risk upward in stored explanations" load={churnOverviewLoad}>
+                <AnalyticsPanel {...panelProps} title="Top positive churn drivers" sub="Features most often pushing risk upward in stored explanations" load={churnOverviewLoad}>
                   {(data) => <ShapFeatureList data={data.top_features} valueKey="avg_positive_shap" label="Avg. positive SHAP" />}
                 </AnalyticsPanel>
-                <AnalyticsPanel title="Global feature importance" sub="Mean absolute SHAP contribution across stored predictions" load={churnOverviewLoad}>
+                <AnalyticsPanel {...panelProps} title="Global feature importance" sub="Mean absolute SHAP contribution across stored predictions" load={churnOverviewLoad}>
                   {(data) => <ShapFeatureList data={data.feature_importance} valueKey="mean_abs_shap" label="Mean |SHAP|" />}
                 </AnalyticsPanel>
               </div>
             </section>
             <section className="analyticsPageSection tabPanelTransition" aria-labelledby="model-evaluation-heading">              <h2 id="model-evaluation-heading">Model evaluation and feature behavior</h2>
               <div className="grid2">
-                <AnalyticsPanel title="Model test performance" sub="Reported metrics for the evaluated test split" load={analyticsService.modelPerformance}>
+                <AnalyticsPanel {...panelProps} title="Model test performance" sub="Reported metrics for the evaluated test split" load={analyticsService.modelPerformance}>
                   {(data) => <Performance data={data} />}
                 </AnalyticsPanel>
-                <AnalyticsPanel title="Model comparison" sub="Comparison of logistic regression and LightGBM reports" load={analyticsService.modelComparison}>
+                <AnalyticsPanel {...panelProps} title="Model comparison" sub="Comparison of logistic regression and LightGBM reports" load={analyticsService.modelComparison}>
                   {(data) => <ModelComparison data={data} />}
                 </AnalyticsPanel>
-                <AnalyticsPanel title="Class-imbalance experiments" sub="Reported performance across imbalance strategies" load={analyticsService.modelImbalanceExperiments}>
+                <AnalyticsPanel {...panelProps} title="Class-imbalance experiments" sub="Reported performance across imbalance strategies" load={analyticsService.modelImbalanceExperiments}>
                   {(data) => <ImbalanceExperiments data={data} />}
                 </AnalyticsPanel>
               </div>

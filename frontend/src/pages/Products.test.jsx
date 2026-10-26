@@ -132,6 +132,26 @@ describe("Products Catalog Page", () => {
     });
   });
 
+  it("removes a product filter chip and refreshes the catalog", async () => {
+    const catalogSpy = vi.spyOn(ApiModule.productsService, "catalog").mockResolvedValue(mockProductsData);
+
+    render(
+      <MemoryRouter initialEntries={["/products?category=watches_gifts"]}>
+        <Routes>
+          <Route path="/products" element={<Products />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("prod_111")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Category: watches gifts filter" }));
+
+    await waitFor(() => {
+      expect(catalogSpy).toHaveBeenLastCalledWith(expect.objectContaining({ category: undefined }));
+    });
+    expect(screen.queryByRole("button", { name: "Remove Category: watches gifts filter" })).not.toBeInTheDocument();
+  });
+
   it("renders product table and catalog items", async () => {
     vi.spyOn(ApiModule.productsService, "catalog").mockResolvedValue(
       mockProductsData

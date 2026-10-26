@@ -178,6 +178,35 @@ const handleExport = async () => {
 
   const activeSort = sortOptions.find((s) => s.key === sortKey) || sortOptions[0];
   const activeFiltersCount = Object.values(filters).filter(Boolean).length;
+  const activeFilterChips = [
+    ...(debouncedSearch ? [{
+      label: `Search: ${debouncedSearch}`,
+      remove: () => {
+        setSearch("");
+        setDebouncedSearch("");
+      },
+    }] : []),
+    ...(filters.category ? [{
+      label: `Category: ${filters.category.replace(/_/g, " ")}`,
+      remove: () => setFilters((current) => ({ ...current, category: "" })),
+    }] : []),
+    ...(filters.minPrice ? [{
+      label: `Min price: R$ ${filters.minPrice}`,
+      remove: () => setFilters((current) => ({ ...current, minPrice: "" })),
+    }] : []),
+    ...(filters.maxPrice ? [{
+      label: `Max price: R$ ${filters.maxPrice}`,
+      remove: () => setFilters((current) => ({ ...current, maxPrice: "" })),
+    }] : []),
+    ...(filters.minUnits ? [{
+      label: `Min units: ${filters.minUnits}`,
+      remove: () => setFilters((current) => ({ ...current, minUnits: "" })),
+    }] : []),
+    ...(filters.minRating ? [{
+      label: `Min rating: ${filters.minRating} stars`,
+      remove: () => setFilters((current) => ({ ...current, minRating: "" })),
+    }] : []),
+  ];
 
   const sortableHeader = (label, key) => <button type="button" className="tableSortButton" onClick={() => toggleSort(key)}>{label} {renderSortIcon(key)}</button>;
   const columns = [
@@ -336,6 +365,37 @@ const handleExport = async () => {
           )}
         </div>
       </div>
+
+      {activeFilterChips.length > 0 && (
+        <div className="activeFilterChips" aria-label="Active product filters">
+          {activeFilterChips.map(({ label, remove }) => (
+            <button
+              type="button"
+              className="activeFilterChip"
+              key={label}
+              onClick={() => {
+                remove();
+                setPage(1);
+              }}
+              aria-label={`Remove ${label} filter`}
+            >
+              {label}<span aria-hidden="true">×</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className="clearActiveFilters"
+            onClick={() => {
+              setSearch("");
+              setDebouncedSearch("");
+              setFilters({ category: "", minPrice: "", maxPrice: "", minUnits: "", minRating: "" });
+              setPage(1);
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
+      )}
 
       {/* Filter Modal Dialog */}
       {showFilterModal && (

@@ -172,6 +172,10 @@ export default function Dashboard() {
       )}
 
       {/* KPI Cards Grid with Interactive Shortcuts */}
+      <div className="dashboardSectionIntro">
+        <h2>Business at a glance</h2>
+        <p>Headline totals use the selected time period; repeat rate is the share of customers with more than one order.</p>
+      </div>
       {data ? (
         <DashboardKpiCards
           kpis={kpis}
@@ -195,6 +199,10 @@ export default function Dashboard() {
       )}
 
       {/* Primary Visualizations */}
+      <div className="dashboardSectionIntro">
+        <h2>Trends and customer mix</h2>
+        <p>Monthly revenue and customer segments help show how purchasing behavior changes over time.</p>
+      </div>
       <div className="grid2">
         <DeferredDashboardSection
           key={`trends-${JSON.stringify(deferredParams)}`}
@@ -225,6 +233,10 @@ export default function Dashboard() {
       </div>
 
       {/* Brazilian Territorial Geolocation Heatmap */}
+      <div className="dashboardSectionIntro dashboardSectionIntro--geography">
+        <h2>Where customers shop</h2>
+        <p>Explore the distribution of customers and orders across Brazilian states and cities.</p>
+      </div>
       <DeferredDashboardSection
         key={`geography-${JSON.stringify(deferredParams)}`}
         section="geography"

@@ -88,6 +88,7 @@ describe("Analytics page", () => {
     expect(screen.getByText("High value")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "Cohort summary" }));
+    await waitFor(() => expect(analyticsService.cohortSummary).toHaveBeenCalled());
     expect(await screen.findByText("Aug 2018")).toBeInTheDocument();
     expect(await screen.findByText("Nov 2017")).toBeInTheDocument();
     expect(await screen.findByText("All 10 acquisition months · newest first")).toBeInTheDocument();
@@ -140,5 +141,28 @@ describe("Analytics page", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Customer value and retention" }));
     expect(screen.getByText("Value tiers")).toBeInTheDocument();
+  });
+
+  it("reloads the selected analytics section and reports when data was loaded", async () => {
+    const clvSummary = vi.spyOn(analyticsService, "clvSummary").mockResolvedValue({
+      customers: 10,
+      avg_clv: 25,
+      median_clv: 20,
+      total_clv: 250,
+    });
+    vi.spyOn(analyticsService, "valueTiers").mockResolvedValue([]);
+    vi.spyOn(analyticsService, "deliveryPerformance").mockResolvedValue({ summary: {}, by_delivery_status: [] });
+
+    render(<Analytics />);
+
+    await screen.findByText("R$ 25.00");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Refresh analytics data" })).toBeEnabled());
+    expect(screen.getByText(/^Last loaded:/)).not.toHaveTextContent("Not loaded yet");
+    fireEvent.click(screen.getByRole("button", { name: "Refresh analytics data" }));
+
+    await waitFor(() => {
+      expect(clvSummary).toHaveBeenCalledTimes(2);
+      expect(screen.getByRole("button", { name: "Refresh analytics data" })).toBeEnabled();
+    });
   });
 });

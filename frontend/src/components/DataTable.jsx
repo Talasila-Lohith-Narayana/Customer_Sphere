@@ -20,9 +20,19 @@ export default function DataTable({
     columns,
     features: tableFeatures({}),
   });
+  const getColumnLabel = (column) => {
+    const header = column.columnDef.header;
+    return typeof header === "string"
+      ? header
+      : column.id.replaceAll("_", " ");
+  };
 
   return (
-    <table className="dataTable">
+    <table
+      className="dataTable"
+      tabIndex={0}
+      aria-label="Data table. Scroll horizontally to view more columns."
+    >
       <thead>
         {table.getHeaderGroups().map((headerGroup) => (
           <tr key={headerGroup.id}>
@@ -41,7 +51,7 @@ export default function DataTable({
           table.getRowModel().rows.map((row) => (
             <tr key={row.id} {...(getRowProps ? getRowProps(row.original) : {})}>
               {row.getAllCells().map((cell) => (
-                <td key={cell.id}>
+                <td key={cell.id} data-label={getColumnLabel(cell.column)}>
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
               ))}
