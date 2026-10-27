@@ -1,5 +1,5 @@
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
 import Customers from "./Customers";
@@ -17,6 +17,7 @@ vi.mock("../context/ToastContext", () => ({
 }));
 
 const mockNavigate = vi.fn();
+const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom");
   return {
@@ -86,6 +87,14 @@ const mockCustomersList = {
 };
 
 describe("Customers Directory Page", () => {
+  afterEach(() => {
+    if (originalClipboardDescriptor) {
+      Object.defineProperty(navigator, "clipboard", originalClipboardDescriptor);
+    } else {
+      delete navigator.clipboard;
+    }
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
@@ -130,12 +139,79 @@ describe("Customers Directory Page", () => {
     });
   });
 
-  it("renders empty state message when no customers match filters", async () => {
-    vi.spyOn(ApiModule.customerService, "list").mockResolvedValue({
+  it("explains an empty filtered result and lets users clear filters", async () => {
+    const listSpy = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue({
       items: [],
       total: 0,
       page: 1,
       pages: 1,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/customers?q=missing"]}>
+        <Routes>
+          <Route path="/customers" element={<CustomersWithSearchParams />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("No customers found")).toBeInTheDocument();
+    expect(screen.getByText("Try removing a filter or broadening your search.")).toBeInTheDocument();
+    fireEvent.click(
+      within(document.querySelector(".customerEmptyState")).getByRole("button", {
+        name: "Clear filters",
+      })
+    );
+
+    await waitFor(() => {
+      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({ q: "" }));
+      expect(screen.getByTestId("customer-search-params")).not.toHaveTextContent("q=missing");
+    });
+  });
+
+  it("shows model risk thresholds and keeps customer IDs copyable in the directory", async () => {
+    vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
+
+    render(
+      <MemoryRouter>
+        <Customers />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("uid_111111")).toBeInTheDocument();
+    expect(screen.getByRole("note", { name: "Model-predicted churn risk thresholds" })).toBeInTheDocument();
+    expect(screen.getByText("30–<70%")).toBeInTheDocument();
+    expect(document.querySelector(".customerDirectoryTable .dataTable")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy customer ID uid_111111" })).toBeInTheDocument();
+  });
+
+  it("copies the full customer ID without opening the customer row", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
+
+    render(
+      <MemoryRouter>
+        <Customers />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Copy customer ID uid_111111" }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("uid_111111");
+      expect(mockToast.success).toHaveBeenCalledWith("Customer ID copied.");
+    });
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("explains unscored risk and links to the profile for scoring options", async () => {
+    vi.spyOn(ApiModule.customerService, "list").mockResolvedValue({
+      ...mockCustomersList,
+      items: [{ ...mockCustomersList.items[0], segment: "Unscored" }],
     });
 
     render(
@@ -144,9 +220,9 @@ describe("Customers Directory Page", () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => {
-      expect(screen.getByText("No customers match these filters.")).toBeInTheDocument();
-    });
+    expect(await screen.findByText("Unscored")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open profile for scoring options" }));
+    expect(mockNavigate).toHaveBeenCalledWith("/customers/uid_111111");
   });
 
   it("reads legacy risk URLs and maps them to model probability filters", async () => {

@@ -14,6 +14,7 @@ export default function DataTable({
   data = [],
   emptyMessage = "No data available.",
   getRowProps,
+  ariaLabel = "Data table. Scroll horizontally to view more columns.",
 }) {
   const table = useTable({
     data,
@@ -31,7 +32,7 @@ export default function DataTable({
     <table
       className="dataTable"
       tabIndex={0}
-      aria-label="Data table. Scroll horizontally to view more columns."
+      aria-label={ariaLabel}
     >
       <thead>
         {table.getHeaderGroups().map((headerGroup) => (

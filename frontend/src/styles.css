@@ -2305,7 +2305,7 @@ th {
 
 .customerOrderCount {
   display: block;
-  text-align: right;
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2399,6 +2399,163 @@ th {
 
 .customerDirectoryTable .customerOrderCount {
   text-align: center;
+}
+
+.customerDirectoryIdentity {
+  min-width: 0;
+  width: 100%;
+}
+
+.customerDirectoryIdentity .avatar {
+  flex: 0 0 auto;
+}
+
+.customerDirectoryIdentity .customerIdWrap {
+  flex: 1 1 auto;
+  width: 0;
+}
+
+.customerDirectoryIdentity .customerId {
+  display: block;
+  cursor: help;
+}
+
+.copyCustomerId {
+  display: inline-grid;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  opacity: 0.72;
+}
+
+.copyCustomerId:hover,
+.copyCustomerId:focus-visible {
+  border-color: var(--line, #cbd5e1);
+  background: var(--surface-subtle, #f8fafc);
+  color: var(--text-main, #0f172a);
+  opacity: 1;
+}
+
+.copyCustomerId:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.customerRiskCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.customerRiskUnscored {
+  color: var(--text-muted, #64748b);
+}
+
+.customerUnscoredHint {
+  color: var(--text-muted, #64748b);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.customerUnscoredAction {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.4;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.customerUnscoredAction:hover {
+  color: #1d4ed8;
+}
+
+.customerUnscoredAction:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.customerRiskLegend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px 16px;
+  margin: 0 0 12px;
+  padding: 10px 13px;
+  border: 1px solid var(--card-border, #e2e8f0);
+  border-radius: 10px;
+  background: var(--card-bg, #fff);
+  color: var(--text-muted, #64748b);
+  font-size: 11px;
+}
+
+.customerRiskLegend > strong {
+  color: var(--text-main, #334155);
+  font-size: 11px;
+}
+
+.customerRiskLegend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.customerRiskLegend b {
+  color: var(--text-main, #334155);
+  font-variant-numeric: tabular-nums;
+}
+
+.customerRiskLegend .churnDot {
+  width: 7px;
+  height: 7px;
+  flex-basis: 7px;
+}
+
+.activeFilterChips {
+  align-items: center;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--card-border, #dce2ea);
+  border-radius: 11px;
+  background: var(--surface-subtle, #f8fafc);
+}
+
+.activeFilterChipsHeading {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  margin-right: 3px;
+  color: var(--text-main, #334155);
+  font-size: 11px;
+}
+
+.activeFilterChipsHeading > span {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  place-items: center;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .tableSortButton:hover {
@@ -4394,14 +4551,48 @@ em {
 }
 
 .clearActiveFilters {
-  padding: 5px 7px;
-  border: 0;
-  background: transparent;
+  padding: 6px 9px;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 7px;
+  background: var(--card-bg, #fff);
   color: #2563eb;
   font: inherit;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.clearActiveFilters:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.customerEmptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 34px 20px;
+  border: 1px dashed var(--card-border, #cbd5e1);
+  border-radius: 14px;
+  background: var(--card-bg, #fff);
+  color: var(--text-muted, #64748b);
+  text-align: center;
+}
+
+.customerEmptyState > svg {
+  color: #94a3b8;
+}
+
+.customerEmptyState > strong {
+  color: var(--text-main, #334155);
+  font-size: 14px;
+}
+
+.customerEmptyState > span {
+  max-width: 400px;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .analyticsRefreshControls {
@@ -4504,6 +4695,157 @@ em {
 
   .analyticsPageContext {
     margin-bottom: 0;
+  }
+
+  .customerDirectoryTable {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .customerDirectoryTable .dataTable {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    table-layout: auto;
+  }
+
+  .customerDirectoryTable .dataTable thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .customerDirectoryTable .dataTable tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .customerDirectoryTable .dataTable tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 11px 14px;
+    margin: 0;
+    padding: 14px;
+    border: 1px solid var(--card-border, #e2e8f0);
+    border-radius: 12px;
+    background: var(--card-bg, #fff);
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+  }
+
+  .customerDirectoryTable .dataTable tbody tr:hover {
+    background: var(--card-bg, #fff);
+  }
+
+  .customerDirectoryTable .dataTable td {
+    display: flex;
+    width: auto !important;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .customerDirectoryTable .dataTable td::before {
+    color: var(--text-muted, #64748b);
+    content: attr(data-label);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    line-height: 1.3;
+    text-transform: uppercase;
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="select"] {
+    grid-column: 1 / -1;
+    align-items: flex-end;
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="select"]::before {
+    content: none;
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="customer_unique_id"] {
+    grid-column: 1 / -1;
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="customer_unique_id"]::before {
+    content: "Customer";
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="customer_city"]::before {
+    content: "Location";
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="segment"]::before {
+    content: "Model churn risk";
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="customer_unique_id"] .customer {
+    width: 100%;
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="customer_city"],
+  .customerDirectoryTable .dataTable td[data-column="segment"] {
+    grid-column: 1 / -1;
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="frequency"],
+  .customerDirectoryTable .dataTable td[data-column="monetary_total"],
+  .customerDirectoryTable .dataTable td[data-column="avg_review_score"],
+  .customerDirectoryTable .dataTable td[data-column="recency_days"] {
+    text-align: left;
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="frequency"] .customerOrderCount,
+  .customerDirectoryTable .dataTable td[data-column="monetary_total"] .customerNumericValue,
+  .customerDirectoryTable .dataTable td[data-column="avg_review_score"] .customerNumericValue,
+  .customerDirectoryTable .dataTable td[data-column="recency_days"] .customerNumericValue {
+    text-align: left;
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="frequency"]::before {
+    content: "Orders";
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="monetary_total"]::before {
+    content: "Spend";
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="avg_review_score"]::before {
+    content: "Rating";
+  }
+
+  .customerDirectoryTable .dataTable td[data-column="recency_days"]::before {
+    content: "Recency";
+  }
+
+  .customerDirectoryTable .customerOrderCount,
+  .customerDirectoryTable .customerNumericValue {
+    font-size: 12px;
+  }
+
+  .activeFilterChipsHeading {
+    flex-basis: 100%;
+  }
+
+  .clearActiveFilters {
+    margin-left: auto;
+  }
+
+  .customerRiskLegend {
+    gap: 8px 12px;
+  }
+
+  .customerRiskLegend > strong {
+    flex-basis: 100%;
   }
 }
 

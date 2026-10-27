@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Check, CheckSquare, Download, Filter, Plus, Search, Square, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, CheckSquare, Copy, Download, Filter, Plus, Search, Square, Trash2 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { customerService } from "../services/api";
 import { ErrorState, Header, LoadingState, Page } from "../components/States";
@@ -361,6 +361,12 @@ export default function Customers() {
     load(1);
   };
   const clearFilters = () => {
+    const hadAppliedSearch = searchParams.has("q");
+    const hadOtherFilters = Boolean(
+      state || activity || ratings.length || churnRisk.length || maxRecency || minSpend || minOrders
+    );
+    queryRef.current = "";
+    setQuery("");
     setState("");
     setActivity("");
     setRatings([]);
@@ -371,6 +377,7 @@ export default function Customers() {
     setPage(1);
     updateUrl({
       state: "",
+      query: "",
       activity: "",
       ratings: [],
       churnRisk: [],
@@ -378,6 +385,23 @@ export default function Customers() {
       minSpend: "",
       minOrders: "",
     });
+    if (hadAppliedSearch && !hadOtherFilters) load(1);
+  };
+  const copyCustomerId = async (event, customerId) => {
+    event.stopPropagation();
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard access is unavailable in this browser.");
+      }
+      await navigator.clipboard.writeText(customerId);
+      toast.success("Customer ID copied.");
+    } catch (copyError) {
+      toast.error(
+        copyError instanceof Error
+          ? `Could not copy customer ID: ${copyError.message}`
+          : "Could not copy customer ID."
+      );
+    }
   };
   const applyFilters = (filters) => {
     const nextFilters = {
@@ -400,7 +424,9 @@ export default function Customers() {
     updateUrl(nextFilters);
     setShowFilters(false);
   };
+  const appliedSearchQuery = searchParams.get("q") || "";
   const activeFilterCount = [
+    appliedSearchQuery,
     state,
     activity,
     ratings.length > 0,
@@ -410,6 +436,15 @@ export default function Customers() {
     minOrders,
   ].filter(Boolean).length;
   const activeFilterChips = [
+    ...(appliedSearchQuery ? [{
+      label: `Search: ${appliedSearchQuery}`,
+      remove: () => {
+        queryRef.current = "";
+        setQuery("");
+        updateUrl({ query: "" });
+        load(1);
+      },
+    }] : []),
     ...(state ? [{ label: `State: ${state}`, remove: () => {
       setState("");
       updateUrl({ state: "" });
@@ -491,7 +526,30 @@ export default function Customers() {
       header: () => <input type="checkbox" checked={data.items.length > 0 && data.items.every((c) => selectedIds.includes(c.customer_unique_id))} onChange={toggleSelectAll} aria-label="Select all customers" />,
       cell: ({ row }) => <input type="checkbox" checked={selectedIds.includes(row.original.customer_unique_id)} onChange={(e) => toggleSelectOne(e, row.original.customer_unique_id)} aria-label={`Select ${row.original.customer_unique_id}`} />,
     }] : []),
-    { header: "Customer", accessorKey: "customer_unique_id", cell: ({ row }) => <div className="customer"><div className="avatar">{row.original.customer_city?.[0]}</div><div><b title={row.original.customer_unique_id}>{row.original.customer_unique_id}</b></div></div> },
+    {
+      header: "Customer",
+      accessorKey: "customer_unique_id",
+      cell: ({ row }) => {
+        const customerId = row.original.customer_unique_id;
+        return (
+          <div className="customer customerDirectoryIdentity">
+            <div className="avatar">{row.original.customer_city?.[0]}</div>
+            <div className="customerIdWrap">
+              <b className="customerId" title={customerId}>{customerId}</b>
+            </div>
+            <button
+              type="button"
+              className="copyCustomerId"
+              aria-label={`Copy customer ID ${customerId}`}
+              title="Copy customer ID"
+              onClick={(event) => copyCustomerId(event, customerId)}
+            >
+              <Copy size={14} aria-hidden="true" />
+            </button>
+          </div>
+        );
+      },
+    },
     { header: () => sortableHeader("Location", "city"), accessorKey: "customer_city", cell: ({ row }) => `${row.original.customer_city}, ${row.original.customer_state}` },
     {
       header: "Model churn risk",
@@ -499,13 +557,32 @@ export default function Customers() {
       cell: ({ row }) => {
         const label = row.original.segment || "Unscored";
         const riskLevel = row.original.churn_risk_level || label.toLowerCase().split(" ")[0];
+        const isUnscored = label === "Unscored";
         return (
-          <span className="churnRiskLabel">
-            {["high", "medium", "low"].includes(riskLevel) && (
-              <span className={`churnDot ${riskLevel}`} aria-hidden="true" />
+          <div className="customerRiskCell">
+            <span className={`churnRiskLabel${isUnscored ? " customerRiskUnscored" : ""}`}>
+              {["high", "medium", "low"].includes(riskLevel) && (
+                <span className={`churnDot ${riskLevel}`} aria-hidden="true" />
+              )}
+              {label}
+            </span>
+            {isUnscored && (
+              isSelectionMode ? (
+                <span className="customerUnscoredHint">No model prediction is available</span>
+              ) : (
+                <button
+                  type="button"
+                  className="customerUnscoredAction"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    navigate(`/customers/${row.original.customer_unique_id}`);
+                  }}
+                >
+                  Open profile for scoring options
+                </button>
+              )
             )}
-            {label}
-          </span>
+          </div>
         );
       },
     },
@@ -673,6 +750,10 @@ export default function Customers() {
       </form>
       {activeFilterChips.length > 0 && (
         <div className="activeFilterChips" aria-label="Active customer filters">
+          <div className="activeFilterChipsHeading">
+            <strong>Applied filters</strong>
+            <span>{activeFilterCount}</span>
+          </div>
           {activeFilterChips.map(({ label, remove }) => (
             <button
               type="button"
@@ -692,6 +773,12 @@ export default function Customers() {
           </button>
         </div>
       )}
+      <div className="customerRiskLegend" role="note" aria-label="Model-predicted churn risk thresholds">
+        <strong>Predicted churn risk</strong>
+        <span><i className="churnDot low" aria-hidden="true" /> Low <b>&lt;30%</b></span>
+        <span><i className="churnDot medium" aria-hidden="true" /> Medium <b>30–&lt;70%</b></span>
+        <span><i className="churnDot high" aria-hidden="true" /> High <b>≥70%</b></span>
+      </div>
       {/* Bulk Operations Toolbar */}
       {selectedIds.length > 0 && (
         <div
@@ -740,14 +827,28 @@ export default function Customers() {
       {error ? (
         <ErrorState message={error} retry={() => load()} />
       ) : !data ? (
-        <LoadingState />
+        <LoadingState text="Loading customers..." />
       ) : !data.items.length ? (
-        <div className="state">No customers match these filters.</div>
+        <div className="customerEmptyState" role="status">
+          <Search size={20} aria-hidden="true" />
+          <strong>No customers found</strong>
+          <span>
+            {activeFilterCount
+              ? "Try removing a filter or broadening your search."
+              : "There are no customer records to display."}
+          </span>
+          {activeFilterCount > 0 && (
+            <button type="button" className="btn secondary" onClick={clearFilters}>
+              Clear filters
+            </button>
+          )}
+        </div>
       ) : (
         <div className="table customerDirectoryTable">
           <DataTable
             columns={columns}
             data={data.items}
+            ariaLabel="Customer directory"
             getRowProps={(customer) => ({
               onClick: () => {
                 if (isSelectionMode) {
