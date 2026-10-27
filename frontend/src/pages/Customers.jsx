@@ -510,7 +510,7 @@ export default function Customers() {
       },
     },
     {
-      header: () => sortableHeader("Orders", "orders", true),
+      header: () => sortableHeader("Orders", "orders"),
       accessorKey: "frequency",
       cell: ({ row }) => <span className="customerOrderCount">{row.original.frequency}</span>,
     },

@@ -2366,6 +2366,16 @@ th {
   text-align: right;
 }
 
+.customerDirectoryTable .dataTable th[data-column="frequency"],
+.customerDirectoryTable .dataTable td[data-column="frequency"] {
+  text-align: center;
+}
+
+.customerDirectoryTable .dataTable th[data-column="frequency"] .tableSortButton {
+  justify-content: center;
+  width: 100%;
+}
+
 .customerDirectoryTable .customer {
   min-width: 0;
 }
@@ -2385,6 +2395,10 @@ th {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+.customerDirectoryTable .customerOrderCount {
+  text-align: center;
 }
 
 .tableSortButton:hover {
