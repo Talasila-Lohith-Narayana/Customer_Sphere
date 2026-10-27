@@ -18,11 +18,6 @@ campaign, and machine-learning insights in one authenticated workspace.
 - FastAPI OpenAPI/Swagger documentation
 - Loading, error, empty, and validation states throughout the application
 
-## Documentation
-
-- [Architecture](architecture.md) — frontend, backend, data, and request flow
-- [Project flow](flow.md) — user journeys and feature workflows
-- [API reference](API_REFERENCE.md) — API endpoint details
 
 ## Technology stack
 
