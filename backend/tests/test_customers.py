@@ -1,6 +1,7 @@
 import uuid
 
 from app.schemas import CustomerIn
+from app.api.customers import router as customer_router
 
 
 def test_customer_postal_prefix_preserves_leading_zero_and_accepts_legacy_integer():
@@ -16,6 +17,37 @@ def test_customer_postal_prefix_preserves_leading_zero_and_accepts_legacy_intege
     assert prefixed.customer_zip_code_prefix == "01000"
     assert legacy.customer_zip_code_prefix == "1000"
 
+def test_segment_filter_takes_precedence_over_churn_risk_filter():
+    class Result:
+        def scalar(self):
+            return 676
+
+        def fetchall(self):
+            return []
+
+    class Database:
+        def __init__(self):
+            self.statements = []
+
+        def execute(self, statement, params):
+            self.statements.append((str(statement), params))
+            return Result()
+
+    db = Database()
+    response = customer_router.customers(
+        segment="Low Risk",
+        churn_risk="low",
+        include_churn=False,
+        page=1,
+        page_size=12,
+        db=db,
+        _={},
+    )
+
+    assert response["total"] == 676
+    assert len(db.statements) == 2
+    assert all("churn_probability * 100) < 30" not in sql for sql, _ in db.statements)
+    assert all(params.get("segment") == "Low Risk" for _, params in db.statements)
 
 
 

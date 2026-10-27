@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useSearchParams } from "react-router-dom";
 import Customers from "./Customers";
 import * as ApiModule from "../services/api";
 import * as AuthContextModule from "../context/AuthContext";
@@ -24,6 +24,20 @@ vi.mock("react-router-dom", async () => {
     useNavigate: () => mockNavigate,
   };
 });
+
+function DashboardSegmentLink() {
+  const [, setSearchParams] = useSearchParams();
+  return (
+    <button type="button" onClick={() => setSearchParams({ segment: "Low Risk" })}>
+      Filter dashboard segment
+    </button>
+  );
+}
+
+function CurrentSearchParams() {
+  const [params] = useSearchParams();
+  return <output data-testid="customer-search-params">{params.toString()}</output>;
+}
 
 const mockCustomersList = {
   items: [
@@ -166,6 +180,122 @@ describe("Customers Directory Page", () => {
     });
     expect(screen.queryByRole("button", { name: "Remove Segment: High Risk filter" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove State: SP filter" })).toBeInTheDocument();
+  });
+
+  it("clears stale churn-risk filters when a dashboard segment link changes the URL", async () => {
+    const listSpy = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
+
+    render(
+      <MemoryRouter initialEntries={["/customers?state=SP"]}>
+        <DashboardSegmentLink />
+        <Routes>
+          <Route path="/customers" element={<Customers />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("uid_111111")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Low <30%/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Apply filters/i }));
+    await waitFor(() => {
+      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({ churn_risk: "low" }));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Filter dashboard segment" }));
+    await waitFor(() => {
+      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({
+        segment: "Low Risk",
+        churn_risk: undefined,
+      }));
+    });
+  });
+
+  it("clears a previously selected churn-risk filter when choosing a new customer segment", async () => {
+    const listSpy = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
+
+    render(
+      <MemoryRouter initialEntries={["/customers?state=SP"]}>
+        <Routes>
+          <Route path="/customers" element={<Customers />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("uid_111111")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    fireEvent.click(within(document.querySelector(".filterModal")).getByRole("button", { name: /Low <30%/ }));
+    fireEvent.click(within(document.querySelector(".filterModal")).getByRole("button", { name: /Apply filters/i }));
+    await waitFor(() => {
+      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({ churn_risk: "low" }));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    const filterModal = within(document.querySelector(".filterModal"));
+    fireEvent.change(filterModal.getByLabelText("Dashboard RFM segment"), { target: { value: "Low Risk" } });
+    fireEvent.click(filterModal.getByRole("button", { name: /Apply filters/i }));
+
+    await waitFor(() => {
+      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({
+        segment: "Low Risk",
+        churn_risk: undefined,
+      }));
+    });
+  });
+
+  it("keeps segment counts un-narrowed when a stale churn-risk filter is submitted", async () => {
+    const listSpy = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
+
+    render(
+      <MemoryRouter initialEntries={["/customers?segment=Low%20Risk"]}>
+        <Routes>
+          <Route path="/customers" element={<Customers />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("uid_111111")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    const filterModal = within(document.querySelector(".filterModal"));
+    expect(filterModal.getByRole("button", { name: /Low <30%/ })).toBeDisabled();
+    expect(filterModal.getByText("Clear the dashboard segment selection to use this filter.")).toBeInTheDocument();
+    fireEvent.click(filterModal.getByRole("button", { name: /Apply filters/i }));
+
+    await waitFor(() => {
+      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({
+        segment: "Low Risk",
+        churn_risk: undefined,
+      }));
+    });
+  });
+
+  it("writes applied filters to the URL", async () => {
+    const listSpy = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
+
+    render(
+      <MemoryRouter initialEntries={["/customers"]}>
+        <CurrentSearchParams />
+        <Routes>
+          <Route path="/customers" element={<Customers />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await screen.findByText("uid_111111");
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    const filterModal = within(document.querySelector(".filterModal"));
+    fireEvent.change(filterModal.getByLabelText("Dashboard RFM segment"), {
+      target: { value: "Low Risk" },
+    });
+    fireEvent.click(filterModal.getByRole("button", { name: /Apply filters/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customer-search-params")).toHaveTextContent("segment=Low+Risk");
+      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({
+        segment: "Low Risk",
+        churn_risk: undefined,
+      }));
+    });
   });
 
   it("filters search input and triggers list with query on submit", async () => {

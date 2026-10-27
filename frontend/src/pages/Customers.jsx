@@ -85,33 +85,62 @@ function getCustomerPage(cache, params) {
   return request;
 }
 
+function buildCustomerSearchParams(filters) {
+  const params = new URLSearchParams();
+  const values = {
+    q: filters.query,
+    state: filters.state,
+    segment: filters.segment,
+    activity: filters.activity,
+    rating: filters.ratings?.join(","),
+    churn_risk: filters.segment ? "" : filters.churnRisk?.join(","),
+    max_recency: filters.maxRecency,
+    min_spend: filters.minSpend,
+    min_orders: filters.minOrders,
+    sort: filters.sortBy && filters.sortDir ? `${filters.sortBy}-${filters.sortDir}` : "",
+  };
+  Object.entries(values).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") params.set(key, value);
+  });
+  return params;
+}
+
 export default function Customers() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const toast = useToast();
 
   // Read URL query parameters if present (e.g. from Dashboard deep-links)
+  const hasInitialSearchParams = Array.from(searchParams.keys()).length > 0;
   const paramState = searchParams.get("state") || "";
   const paramSegment = searchParams.get("segment") || "";
   const paramActivity = searchParams.get("activity") || "";
-  const paramRating = searchParams.get("rating") ? [parseInt(searchParams.get("rating"), 10)] : [];
+  const paramRating = (searchParams.get("rating") || "")
+    .split(",")
+    .filter(Boolean)
+    .map((value) => parseInt(value, 10))
+    .filter(Number.isFinite);
   const paramSort = searchParams.get("sort") || "";
   const [paramSortBy, paramSortDir] = paramSort ? paramSort.split("-") : ["", ""];
 
-  const [query, setQuery] = useState(paramState || paramSegment || paramActivity || paramRating.length || paramSort ? "" : customersNavigationCache.query);
+  const [query, setQuery] = useState(searchParams.get("q") || (hasInitialSearchParams ? "" : customersNavigationCache.query));
   const queryRef = useRef(query);
   queryRef.current = query;
-  const [state, setState] = useState(paramState || (paramSegment || paramActivity || paramRating.length || paramSort ? "" : customersNavigationCache.state));
-  const [segment, setSegment] = useState(paramSegment || (paramState || paramActivity || paramRating.length || paramSort ? "" : customersNavigationCache.segment));
-  const [activity, setActivity] = useState(paramActivity || (paramState || paramSegment || paramRating.length || paramSort ? "" : customersNavigationCache.activity));
-  const [ratings, setRatings] = useState(paramRating.length ? paramRating : (paramState || paramSegment || paramActivity || paramSort ? [] : customersNavigationCache.ratings));
-  const [maxRecency, setMaxRecency] = useState(paramState || paramSegment || paramActivity || paramRating.length || paramSort ? "" : customersNavigationCache.maxRecency);
-  const [minSpend, setMinSpend] = useState(paramState || paramSegment || paramActivity || paramRating.length || paramSort ? "" : customersNavigationCache.minSpend);
-  const [minOrders, setMinOrders] = useState(paramState || paramSegment || paramActivity || paramRating.length || paramSort ? "" : customersNavigationCache.minOrders);
-  const [churnRisk, setChurnRisk] = useState(paramState || paramSegment || paramActivity || paramRating.length || paramSort ? [] : (customersNavigationCache.churnRisk || []));
-  const [sortBy, setSortBy] = useState(paramSortBy || (paramState || paramSegment || paramActivity || paramRating.length ? "" : customersNavigationCache.sortBy));
-  const [sortDir, setSortDir] = useState(paramSortDir || (paramState || paramSegment || paramActivity || paramRating.length ? "" : customersNavigationCache.sortDir));
+  const [state, setState] = useState(searchParams.get("state") || (hasInitialSearchParams ? "" : customersNavigationCache.state));
+  const [segment, setSegment] = useState(searchParams.get("segment") || (hasInitialSearchParams ? "" : customersNavigationCache.segment));
+  const [activity, setActivity] = useState(searchParams.get("activity") || (hasInitialSearchParams ? "" : customersNavigationCache.activity));
+  const [ratings, setRatings] = useState(paramRating.length ? paramRating : (hasInitialSearchParams ? [] : customersNavigationCache.ratings));
+  const [maxRecency, setMaxRecency] = useState(searchParams.get("max_recency") || (hasInitialSearchParams ? "" : customersNavigationCache.maxRecency));
+  const [minSpend, setMinSpend] = useState(searchParams.get("min_spend") || (hasInitialSearchParams ? "" : customersNavigationCache.minSpend));
+  const [minOrders, setMinOrders] = useState(searchParams.get("min_orders") || (hasInitialSearchParams ? "" : customersNavigationCache.minOrders));
+  const [churnRisk, setChurnRisk] = useState(paramSegment
+    ? []
+    : hasInitialSearchParams
+      ? (searchParams.get("churn_risk") || "").split(",").filter(Boolean)
+      : customersNavigationCache.churnRisk || []);
+  const [sortBy, setSortBy] = useState(paramSortBy || (hasInitialSearchParams ? "" : customersNavigationCache.sortBy));
+  const [sortDir, setSortDir] = useState(paramSortDir || (hasInitialSearchParams ? "" : customersNavigationCache.sortDir));
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
@@ -132,10 +161,18 @@ export default function Customers() {
   useEffect(() => {
     const hasParams = Array.from(searchParams.keys()).length > 0;
     if (hasParams) {
+      setQuery(searchParams.get("q") || "");
       setState(searchParams.get("state") || "");
       setSegment(searchParams.get("segment") || "");
       setActivity(searchParams.get("activity") || "");
-      setRatings(searchParams.get("rating") ? [parseInt(searchParams.get("rating"), 10)] : []);
+      setRatings((searchParams.get("rating") || "")
+        .split(",")
+        .filter(Boolean)
+        .map((value) => parseInt(value, 10))
+        .filter(Number.isFinite));
+      setChurnRisk(searchParams.get("segment")
+        ? []
+        : (searchParams.get("churn_risk") || "").split(",").filter(Boolean));
       const sort = searchParams.get("sort") || "";
       if (sort) {
         const [f, d] = sort.split("-");
@@ -145,10 +182,9 @@ export default function Customers() {
         setSortBy("");
         setSortDir("");
       }
-      setQuery("");
-      setMaxRecency("");
-      setMinSpend("");
-      setMinOrders("");
+      setMaxRecency(searchParams.get("max_recency") || "");
+      setMinSpend(searchParams.get("min_spend") || "");
+      setMinOrders(searchParams.get("min_orders") || "");
       setPage(1);
     }
   }, [searchParams]);
@@ -175,7 +211,7 @@ export default function Customers() {
         segment,
         activity,
         rating: ratings.length ? ratings.join(",") : undefined,
-        churn_risk: churnRisk.length ? churnRisk.join(",") : undefined,
+        churn_risk: segment || !churnRisk.length ? undefined : churnRisk.join(","),
         max_recency: maxRecency || undefined,
         min_spend: minSpend || undefined,
         min_orders: minOrders || undefined,
@@ -306,7 +342,7 @@ export default function Customers() {
       segment,
       activity,
       rating: ratings.length ? ratings.join(",") : undefined,
-      churn_risk: churnRisk.length ? churnRisk.join(",") : undefined,
+      churn_risk: segment || !churnRisk.length ? undefined : churnRisk.join(","),
       max_recency: maxRecency || undefined,
       min_spend: minSpend || undefined,
       min_orders: minOrders || undefined,
@@ -332,9 +368,26 @@ export default function Customers() {
   useEffect(() => {
     load();
   }, [load]);
+  const updateUrl = (overrides = {}) => {
+    setSearchParams(buildCustomerSearchParams({
+      query,
+      state,
+      segment,
+      activity,
+      ratings,
+      churnRisk,
+      maxRecency,
+      minSpend,
+      minOrders,
+      sortBy,
+      sortDir,
+      ...overrides,
+    }), { replace: true });
+  };
   const search = (event) => {
     event.preventDefault();
     setPage(1);
+    updateUrl({ query: queryRef.current });
     load(1);
   };
   const clearFilters = () => {
@@ -347,17 +400,38 @@ export default function Customers() {
     setMinSpend("");
     setMinOrders("");
     setPage(1);
+    updateUrl({
+      state: "",
+      segment: "",
+      activity: "",
+      ratings: [],
+      churnRisk: [],
+      maxRecency: "",
+      minSpend: "",
+      minOrders: "",
+    });
   };
   const applyFilters = (filters) => {
+    const nextFilters = {
+      state: filters.state,
+      segment: filters.segment,
+      activity: filters.activity,
+      ratings: filters.ratings || [],
+      churnRisk: filters.segment ? [] : filters.churnRisk || [],
+      maxRecency: filters.maxRecency,
+      minSpend: filters.minSpend,
+      minOrders: filters.minOrders,
+    };
     setState(filters.state);
     setSegment(filters.segment);
     setActivity(filters.activity);
     setRatings(filters.ratings || []);
-    setChurnRisk(filters.churnRisk || []);
+    setChurnRisk(nextFilters.churnRisk);
     setMaxRecency(filters.maxRecency);
     setMinSpend(filters.minSpend);
     setMinOrders(filters.minOrders);
     setPage(1);
+    updateUrl(nextFilters);
     setShowFilters(false);
   };
   const activeFilterCount = [
@@ -365,43 +439,71 @@ export default function Customers() {
     segment,
     activity,
     ratings.length > 0,
-    churnRisk.length > 0,
+    !segment && churnRisk.length > 0,
     maxRecency,
     minSpend,
     minOrders,
   ].filter(Boolean).length;
   const activeFilterChips = [
-    ...(state ? [{ label: `State: ${state}`, remove: () => setState("") }] : []),
-    ...(segment ? [{ label: `Segment: ${segment}`, remove: () => setSegment("") }] : []),
+    ...(state ? [{ label: `State: ${state}`, remove: () => {
+      setState("");
+      updateUrl({ state: "" });
+    } }] : []),
+    ...(segment ? [{ label: `Segment: ${segment}`, remove: () => {
+      setSegment("");
+      updateUrl({ segment: "", churnRisk });
+    } }] : []),
     ...(activity ? [{
       label: activity === "active" ? "Has orders" : "No orders",
-      remove: () => setActivity(""),
+      remove: () => {
+        setActivity("");
+        updateUrl({ activity: "" });
+      },
     }] : []),
     ...ratings.map((rating) => ({
       label: `Rating: ${rating} star${rating === 1 ? "" : "s"}`,
-      remove: () => setRatings((current) => current.filter((value) => value !== rating)),
+      remove: () => {
+        const nextRatings = ratings.filter((value) => value !== rating);
+        setRatings(nextRatings);
+        updateUrl({ ratings: nextRatings });
+      },
     })),
-    ...churnRisk.map((risk) => ({
+    ...(segment ? [] : churnRisk.map((risk) => ({
       label: `Churn risk: ${risk}`,
-      remove: () => setChurnRisk((current) => current.filter((value) => value !== risk)),
-    })),
-    ...(maxRecency ? [{ label: `Max recency: ${maxRecency} days`, remove: () => setMaxRecency("") }] : []),
-    ...(minSpend ? [{ label: `Min spend: R$ ${minSpend}`, remove: () => setMinSpend("") }] : []),
-    ...(minOrders ? [{ label: `Min orders: ${minOrders}`, remove: () => setMinOrders("") }] : []),
+      remove: () => {
+        const nextChurnRisk = churnRisk.filter((value) => value !== risk);
+        setChurnRisk(nextChurnRisk);
+        updateUrl({ churnRisk: nextChurnRisk });
+      },
+    }))),
+    ...(maxRecency ? [{ label: `Max recency: ${maxRecency} days`, remove: () => {
+      setMaxRecency("");
+      updateUrl({ maxRecency: "" });
+    } }] : []),
+    ...(minSpend ? [{ label: `Min spend: R$ ${minSpend}`, remove: () => {
+      setMinSpend("");
+      updateUrl({ minSpend: "" });
+    } }] : []),
+    ...(minOrders ? [{ label: `Min orders: ${minOrders}`, remove: () => {
+      setMinOrders("");
+      updateUrl({ minOrders: "" });
+    } }] : []),
   ];
   const toggleSort = (field) => {
+    let nextSortBy = field;
+    let nextSortDir = "desc";
     if (sortBy === field) {
       if (sortDir === "desc") {
-        setSortDir("asc");
+        nextSortDir = "asc";
       } else {
-        setSortBy("");
-        setSortDir("");
+        nextSortBy = "";
+        nextSortDir = "";
       }
-    } else {
-      setSortBy(field);
-      setSortDir("desc");
     }
+    setSortBy(nextSortBy);
+    setSortDir(nextSortDir);
     setPage(1);
+    updateUrl({ sortBy: nextSortBy, sortDir: nextSortDir });
   };
 
   const renderSortIcon = (field) => {
@@ -521,6 +623,7 @@ export default function Customers() {
                     setSortBy("");
                     setSortDir("");
                     setPage(1);
+                    updateUrl({ sortBy: "", sortDir: "" });
                     setShowSortMenu(false);
                   }}
                 >
@@ -540,6 +643,7 @@ export default function Customers() {
                       setSortBy(f);
                       setSortDir(d);
                       setPage(1);
+                      updateUrl({ sortBy: f, sortDir: d });
                       setShowSortMenu(false);
                     }}
                   >
@@ -689,7 +793,7 @@ export default function Customers() {
             segment,
             activity,
             ratings,
-            churnRisk,
+            churnRisk: segment ? [] : churnRisk,
             maxRecency,
             minSpend,
             minOrders,
@@ -697,6 +801,7 @@ export default function Customers() {
           states={states}
           segments={segments}
           activityOptions={activityOptions}
+          disableChurnRisk={Boolean(segment)}
           close={() => setShowFilters(false)}
           apply={applyFilters}
         />

@@ -121,7 +121,8 @@ def customers(
     include_churn_details = include_churn or bool(churn_risk) or sort_by == "churn_risk"
     churn_probability_filter_expr = "(cp.churn_probability * 100)"
     churn_probability_expr = "(MAX(cp.churn_probability) * 100)"
-    if churn_risk:
+    apply_churn_risk_filter = bool(churn_risk) and not segment
+    if apply_churn_risk_filter:
         risk_levels = [r.strip().lower() for r in churn_risk.split(",") if r.strip()]
         risk_conds = []
         if "high" in risk_levels:
@@ -144,7 +145,7 @@ def customers(
     count_joins = f"JOIN customer_metrics_cache m ON m.customer_id = c.customer_id"
     if segment:
         count_joins += f" {risk_tiers_join}"
-    if churn_risk:
+    if apply_churn_risk_filter:
         count_joins += f" {churn_join}"
 
     # Multi-field sorting
@@ -337,7 +338,7 @@ def export_all_customers_csv(
     if min_orders is not None:
         f.append("m.frequency>=:min_orders")
         p["min_orders"] = min_orders
-    if churn_risk:
+    if churn_risk and not segment:
         risk_levels = {part.strip().lower() for part in churn_risk.split(",") if part.strip()}
         risk_conditions = []
         if "high" in risk_levels:

@@ -4,7 +4,7 @@ export default function useAnalyticsRefresh() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [activePanelCount, setActivePanelCount] = useState(0);
-  const [lastUpdated, setLastUpdated] = useState(null);
+  const [panelUpdates, setPanelUpdates] = useState({});
   const activeLoads = useRef(new Set());
   const refreshingRef = useRef(false);
 
@@ -21,7 +21,9 @@ export default function useAnalyticsRefresh() {
       }, 0);
     }
   }, []);
-  const handleLoaded = useCallback(() => setLastUpdated(new Date()), []);
+  const handleLoaded = useCallback((panelId) => {
+    setPanelUpdates((updates) => ({ ...updates, [panelId]: new Date() }));
+  }, []);
   const refresh = useCallback(() => {
     if (refreshingRef.current || activeLoads.current.size) return;
     refreshingRef.current = true;
@@ -34,11 +36,11 @@ export default function useAnalyticsRefresh() {
       refreshKey,
       onLoadStateChange: handlePanelLoadingChange,
       onLoaded: handleLoaded,
+      panelUpdates,
       preserveDataOnRefresh: true,
     },
     refreshing,
     disabled: activePanelCount > 0,
-    lastUpdated,
     refresh,
   };
 }

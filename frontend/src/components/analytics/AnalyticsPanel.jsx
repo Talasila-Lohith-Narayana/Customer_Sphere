@@ -11,6 +11,7 @@ export default function AnalyticsPanel({
   refreshKey = 0,
   onLoadStateChange,
   onLoaded,
+  panelUpdates = {},
 }) {
   const [result, setResult] = useState({ status: "loading", data: null });
   const [attempt, setAttempt] = useState(0);
@@ -33,7 +34,7 @@ export default function AnalyticsPanel({
       .then((data) => {
         if (active) {
           setResult({ status: "success", data });
-          onLoaded?.();
+          onLoaded?.(title);
         }
       })
       .catch((error) => {
@@ -101,7 +102,17 @@ export default function AnalyticsPanel({
         </div>
       )}
       {(result.status === "success" || result.status === "refreshing" || (result.status === "error" && result.data)) &&
-        children(result.data)}
+        <>
+          {children(result.data)}
+          {panelUpdates[title] && (
+            <p className="analyticsPanelUpdated">
+              Updated {new Intl.DateTimeFormat("en-US", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }).format(panelUpdates[title])}
+            </p>
+          )}
+        </>}
     </Panel>
   );
 }

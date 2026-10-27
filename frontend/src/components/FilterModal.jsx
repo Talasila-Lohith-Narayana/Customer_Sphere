@@ -6,6 +6,7 @@ export default function FilterModal({
   states,
   segments,
   activityOptions,
+  disableChurnRisk = false,
   close,
   apply,
 }) {
@@ -55,12 +56,15 @@ const clear = () =>
     <div className="modalBg">
       <form
         className="modal filterModal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="filter-modal-title"
         onSubmit={(event) => {
           event.preventDefault();
           apply(draft);
         }}
       >
-        <button type="button" className="close" onClick={close}>
+        <button type="button" className="close" onClick={close} aria-label="Close filters">
           <X size={18} />
         </button>
         <div className="filterModalTitle">
@@ -69,98 +73,109 @@ const clear = () =>
           </div>
           <div>
             <p className="eyebrow">CUSTOMER DIRECTORY</p>
-            <h2>Filter customers</h2>
+            <h2 id="filter-modal-title">Filter customers</h2>
           </div>
         </div>
         <p className="filterHint">
-          Refine the directory by location, behavior, and customer value.
+          Choose filters, then apply them to the customer list.
         </p>
         <div className="filterModalGrid">
-          <div className="filterField">
-            <label htmlFor="modal-state-filter">State (Type or Select)</label>
-            <input
-              id="modal-state-filter"
-              list="filter-states-list"
-              value={draft.state}
-              onChange={(event) => update("state", event.target.value.toUpperCase())}
-              placeholder="e.g. SP, RJ, MG..."
-              maxLength={2}
-              style={{ textTransform: "uppercase" }}
-            />
-            <datalist id="filter-states-list">
-              <option value="">All states</option>
-              {states.map((st) => (
-                <option key={st} value={st}>
-                  {st}
-                </option>
-              ))}
-            </datalist>
-          </div>
-          <div className="filterField">
-            <label htmlFor="modal-segment-filter">Segment</label>
-            <select
-              id="modal-segment-filter"
-              value={draft.segment}
-              onChange={(event) => update("segment", event.target.value)}
-            >
-              {segments.map((segment) => (
-                <option key={segment} value={segment}>
-                  {segment || "All segments"}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="filterField">
-            <label htmlFor="modal-activity-filter">Activity</label>
-            <select
-              id="modal-activity-filter"
-              value={draft.activity}
-              onChange={(event) => update("activity", event.target.value)}
-            >
-              {activityOptions.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="filterField">
-            <label htmlFor="modal-recency-filter">Recency up to</label>
-            <input
-              id="modal-recency-filter"
-              type="number"
-              min="0"
-              value={draft.maxRecency}
-              onChange={(event) => update("maxRecency", event.target.value)}
-              placeholder="Days"
-            />
-          </div>
-          <div className="filterField">
-            <label htmlFor="modal-spend-filter">Minimum spend</label>
-            <input
-              id="modal-spend-filter"
-              type="number"
-              min="0"
-              step="0.01"
-              value={draft.minSpend}
-              onChange={(event) => update("minSpend", event.target.value)}
-              placeholder="R$ amount"
-            />
-          </div>
-          <div className="filterField">
-            <label htmlFor="modal-orders-filter">Minimum orders</label>
-            <input
-              id="modal-orders-filter"
-              type="number"
-              min="0"
-              step="1"
-              value={draft.minOrders}
-              onChange={(event) => update("minOrders", event.target.value)}
-              placeholder="Order count"
-            />
-          </div>
-          <div className="filterField fullWidth">
-            <label>Rating (Select multiple)</label>
+          <section className="filterSection fullWidth">
+            <div className="filterSectionHeading">
+              <h3>Customer attributes</h3>
+              <p>Location, dashboard segment, and purchasing behavior</p>
+            </div>
+            <div className="filterModalFields">
+              <div className="filterField">
+                <label htmlFor="modal-state-filter">State</label>
+                <input
+                  id="modal-state-filter"
+                  list="filter-states-list"
+                  value={draft.state}
+                  onChange={(event) => update("state", event.target.value.toUpperCase())}
+                  placeholder="e.g. SP, RJ, MG..."
+                  maxLength={2}
+                  style={{ textTransform: "uppercase" }}
+                />
+                <datalist id="filter-states-list">
+                  <option value="">All states</option>
+                  {states.map((st) => (
+                    <option key={st} value={st}>
+                      {st}
+                    </option>
+                  ))}
+                </datalist>
+              </div>
+              <div className="filterField">
+                <label htmlFor="modal-segment-filter">Dashboard RFM segment</label>
+                <select
+                  id="modal-segment-filter"
+                  value={draft.segment}
+                  onChange={(event) => update("segment", event.target.value)}
+                >
+                  {segments.map((segment) => (
+                    <option key={segment} value={segment}>
+                      {segment || "All segments"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="filterField">
+                <label htmlFor="modal-activity-filter">Activity</label>
+                <select
+                  id="modal-activity-filter"
+                  value={draft.activity}
+                  onChange={(event) => update("activity", event.target.value)}
+                >
+                  {activityOptions.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="filterField">
+                <label htmlFor="modal-recency-filter">Recency up to</label>
+                <input
+                  id="modal-recency-filter"
+                  type="number"
+                  min="0"
+                  value={draft.maxRecency}
+                  onChange={(event) => update("maxRecency", event.target.value)}
+                  placeholder="Days"
+                />
+              </div>
+              <div className="filterField">
+                <label htmlFor="modal-spend-filter">Minimum spend</label>
+                <input
+                  id="modal-spend-filter"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={draft.minSpend}
+                  onChange={(event) => update("minSpend", event.target.value)}
+                  placeholder="R$ amount"
+                />
+              </div>
+              <div className="filterField">
+                <label htmlFor="modal-orders-filter">Minimum orders</label>
+                <input
+                  id="modal-orders-filter"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={draft.minOrders}
+                  onChange={(event) => update("minOrders", event.target.value)}
+                  placeholder="Order count"
+                />
+              </div>
+            </div>
+          </section>
+          <section className="filterSection fullWidth">
+            <div className="filterSectionHeading">
+              <h3>Customer rating</h3>
+              <p>Select one or more review scores</p>
+            </div>
             <div className="ratingPills">
               {[
                 { score: "5", label: "5 stars" },
@@ -183,14 +198,20 @@ const clear = () =>
                 );
               })}
             </div>
-          </div>
-          <div className="filterField fullWidth">
-            <label>Churn Risk (Select multiple)</label>
+          </section>
+          <section className="filterSection fullWidth">
+            <div className="filterSectionHeading">
+              <h3>Model churn probability</h3>
+              <p>Separate from the dashboard RFM segment. Select one or more probability bands.</p>
+            </div>
+            {disableChurnRisk && (
+              <p className="filterDisabledHint">Clear the dashboard segment selection to use this filter.</p>
+            )}
             <div className="ratingPills">
               {[
-                { level: "high", label: "🔴 High Risk", cls: "high" },
-                { level: "medium", label: "🟡 Medium Risk", cls: "medium" },
-                { level: "low", label: "🟢 Low Risk", cls: "low" },
+                { level: "high", label: "🔴 High >=70%", cls: "high" },
+                { level: "medium", label: "🟡 Medium 30-69%", cls: "medium" },
+                { level: "low", label: "🟢 Low <30%", cls: "low" },
               ].map(({ level, label, cls }) => {
                 const isSelected = (draft.churnRisk || []).includes(level);
                 return (
@@ -199,6 +220,7 @@ const clear = () =>
                     type="button"
                     className={`ratingPill ${isSelected ? "active" : ""}`}
                     onClick={() => toggleChurnRisk(level)}
+                    disabled={disableChurnRisk}
                     style={{
                       borderColor: isSelected
                         ? (cls === "high" ? "#f43f5e" : cls === "medium" ? "#f59e0b" : "#10b981")
@@ -210,7 +232,7 @@ const clear = () =>
                 );
               })}
             </div>
-          </div>
+          </section>
         </div>
         <div className="actions filterModalActions">
           <button type="button" className="btn ghost" onClick={clear}>

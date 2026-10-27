@@ -157,7 +157,8 @@ describe("Analytics page", () => {
 
     await screen.findByText("R$ 25.00");
     await waitFor(() => expect(screen.getByRole("button", { name: "Refresh analytics data" })).toBeEnabled());
-    expect(screen.getByText(/^Last loaded:/)).not.toHaveTextContent("Not loaded yet");
+    expect(screen.getByText("Each panel shows its own latest successful update.")).toBeInTheDocument();
+    expect(screen.getAllByText(/^Updated /)).toHaveLength(3);
     fireEvent.click(screen.getByRole("button", { name: "Refresh analytics data" }));
 
     await waitFor(() => {

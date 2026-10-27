@@ -1,18 +1,10 @@
 import React from "react";
 
-const formatTimestamp = (value) => {
-  if (!value) return "Not loaded yet";
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(value);
-};
-
-export default function AnalyticsRefreshControls({ refreshing, disabled, lastUpdated, onRefresh }) {
+export default function AnalyticsRefreshControls({ refreshing, disabled, onRefresh }) {
   return (
     <div className="analyticsRefreshControls">
-      <span className="analyticsLastUpdated" aria-live="polite">
-        Last loaded: {formatTimestamp(lastUpdated)}
+      <span className="analyticsFreshnessNote">
+        Each panel shows its own latest successful update.
       </span>
       <button
         type="button"

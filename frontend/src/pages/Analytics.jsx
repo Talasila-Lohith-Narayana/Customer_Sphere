@@ -278,7 +278,6 @@ export default function Analytics() {
     panelProps,
     refreshing,
     disabled: refreshDisabled,
-    lastUpdated,
     refresh,
   } = useAnalyticsRefresh();
 
@@ -295,7 +294,6 @@ export default function Analytics() {
           <AnalyticsRefreshControls
             refreshing={refreshing}
             disabled={refreshDisabled}
-            lastUpdated={lastUpdated}
             onRefresh={refresh}
           />
         </div>
