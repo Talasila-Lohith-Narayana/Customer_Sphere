@@ -10,7 +10,7 @@ describe("DashboardCustomerSegments Component", () => {
     { segment: "Low Risk", count: 800 },
   ];
 
-  it("renders customer segments panel title and subtitle", () => {
+  it("renders model-predicted churn bands and subtitle", () => {
     render(
       <DashboardCustomerSegments
         segments={mockSegments}
@@ -18,14 +18,14 @@ describe("DashboardCustomerSegments Component", () => {
       />
     );
 
-    expect(screen.getByText("Customer segments")).toBeInTheDocument();
+    expect(screen.getByText("Predicted churn risk")).toBeInTheDocument();
     expect(
-      screen.getByText(/Behavior & value clustering/i)
+      screen.getByText(/Model probability bands/i)
     ).toBeInTheDocument();
   });
 
   it("renders properly with default empty segments array", () => {
     render(<DashboardCustomerSegments />);
-    expect(screen.getByText("Customer segments")).toBeInTheDocument();
+    expect(screen.getByText("Predicted churn risk")).toBeInTheDocument();
   });
 });

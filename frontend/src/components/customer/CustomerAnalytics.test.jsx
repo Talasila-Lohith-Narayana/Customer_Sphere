@@ -63,6 +63,7 @@ describe("CustomerAnalytics", () => {
     expect(screen.getByText("R$ 1,058.92")).toBeInTheDocument();
     expect(screen.getByText("8.36 orders/year")).toBeInTheDocument();
     expect(screen.getByText(/22\.2% · Low Risk/)).toBeInTheDocument();
+    expect(document.querySelector(".churnRiskLabel .churnDot.low")).toBeInTheDocument();
     expect(screen.getByText("Reason code RC03")).toBeInTheDocument();
     expect(screen.getByText("11.5 days")).toBeInTheDocument();
     expect(screen.getByText("order_1")).toBeInTheDocument();

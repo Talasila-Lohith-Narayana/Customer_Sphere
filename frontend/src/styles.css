@@ -2298,6 +2298,95 @@ th {
   white-space: nowrap;
 }
 
+.tableSortButton--numeric {
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.customerOrderCount {
+  display: block;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.customerDirectoryTable .dataTable {
+  min-width: 980px;
+  table-layout: fixed;
+}
+
+.customerDirectoryTable .dataTable th,
+.customerDirectoryTable .dataTable td {
+  vertical-align: middle;
+}
+
+.customerDirectoryTable .dataTable th[data-column="select"],
+.customerDirectoryTable .dataTable td[data-column="select"] {
+  width: 44px;
+}
+
+.customerDirectoryTable .dataTable th[data-column="customer_unique_id"],
+.customerDirectoryTable .dataTable td[data-column="customer_unique_id"] {
+  width: 25%;
+}
+
+.customerDirectoryTable .dataTable th[data-column="customer_city"],
+.customerDirectoryTable .dataTable td[data-column="customer_city"] {
+  width: 18%;
+}
+
+.customerDirectoryTable .dataTable th[data-column="segment"],
+.customerDirectoryTable .dataTable td[data-column="segment"] {
+  width: 19%;
+}
+
+.customerDirectoryTable .dataTable th[data-column="frequency"],
+.customerDirectoryTable .dataTable td[data-column="frequency"] {
+  width: 8%;
+}
+
+.customerDirectoryTable .dataTable th[data-column="monetary_total"],
+.customerDirectoryTable .dataTable td[data-column="monetary_total"] {
+  width: 13%;
+}
+
+.customerDirectoryTable .dataTable th[data-column="avg_review_score"],
+.customerDirectoryTable .dataTable td[data-column="avg_review_score"] {
+  width: 8%;
+}
+
+.customerDirectoryTable .dataTable th[data-column="recency_days"],
+.customerDirectoryTable .dataTable td[data-column="recency_days"] {
+  width: 9%;
+}
+
+.customerDirectoryTable .dataTable th[data-column="frequency"],
+.customerDirectoryTable .dataTable th[data-column="monetary_total"],
+.customerDirectoryTable .dataTable th[data-column="avg_review_score"],
+.customerDirectoryTable .dataTable th[data-column="recency_days"] {
+  text-align: right;
+}
+
+.customerDirectoryTable .customer {
+  min-width: 0;
+}
+
+.customerDirectoryTable .customer > div:last-child,
+.customerDirectoryTable .customer b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.customerDirectoryTable .customerNumericValue {
+  display: block;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .tableSortButton:hover {
   color: #475569;
 }
@@ -4529,6 +4618,14 @@ em {
   overflow-wrap: anywhere;
 }
 
+.customerAnalyticsMetrics strong.churnRiskLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  overflow-wrap: normal;
+}
+
 .customerCampaignRecommendation {
   display: flex;
   flex-direction: column;
@@ -5485,7 +5582,7 @@ em {
 .churnBadge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: 10px;
   font-weight: 700;
   padding: 2px 8px;
@@ -5517,8 +5614,16 @@ em {
   display: inline-block;
   width: 8px;
   height: 8px;
+  flex: 0 0 8px;
   border-radius: 50%;
-  margin-right: 5px;
+  margin-right: 0;
+}
+
+.churnRiskLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
 }
 
 .churnDot.high { background: #f43f5e; box-shadow: 0 0 6px rgba(244, 63, 94, 0.4); }

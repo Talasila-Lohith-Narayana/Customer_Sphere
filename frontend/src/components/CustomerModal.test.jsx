@@ -9,7 +9,6 @@ describe("CustomerModal Component", () => {
     customer_zip_code_prefix: "13010",
     customer_city: "Campinas",
     customer_state: "SP",
-    segment: "High Risk",
   };
 
   it("pre-fills form inputs in edit mode", () => {
@@ -117,7 +116,7 @@ describe("CustomerModal Component", () => {
     expect(screen.getByText(/"XX" is not a valid 2-letter Brazilian state code/i)).toBeInTheDocument();
   });
 
-  it("submits valid customer data to save callback and handles segment change", async () => {
+  it("submits valid customer data without a manually assigned risk segment", async () => {
     const mockSave = vi.fn().mockResolvedValue({});
     const mockClose = vi.fn();
 
@@ -125,11 +124,6 @@ describe("CustomerModal Component", () => {
 
     fireEvent.change(screen.getByLabelText(/ZIP code/i), {
       target: { value: "01000" },
-    });
-
-    // Change segment
-    fireEvent.change(screen.getByLabelText(/ML Customer Segment/i), {
-      target: { value: "High Risk" },
     });
 
     const submitBtn = screen.getByRole("button", { name: /save changes/i });
@@ -141,7 +135,6 @@ describe("CustomerModal Component", () => {
         customer_zip_code_prefix: "01000",
         customer_city: "Campinas",
         customer_state: "SP",
-        segment: "High Risk",
       });
     });
   });

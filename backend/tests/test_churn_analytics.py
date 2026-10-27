@@ -6,6 +6,24 @@ from app.api.churn_analytics import repository
 from app.api.churn_analytics import router
 
 
+def test_churn_summary_aggregates_one_model_score_per_customer(monkeypatch):
+    executed = {}
+
+    def fetch_one(sql, params, db):
+        executed["sql"] = sql
+        executed["params"] = params
+        return {"total_customers": 2, "predicted_churn_customers": 1}
+
+    monkeypatch.setattr(repository, "fetch_one", fetch_one)
+
+    result = repository.churn_summary(0.7, db=object())
+
+    assert result["total_customers"] == 2
+    assert "MAX(churn_probability) AS churn_probability" in executed["sql"]
+    assert "GROUP BY customer_unique_id" in executed["sql"]
+    assert executed["params"] == {"threshold": 0.7}
+
+
 def test_prediction_values_are_cached_and_can_be_cleared(monkeypatch):
     repository.clear_prediction_values_cache()
     monkeypatch.setattr(repository, "PREDICTION_VALUES_CACHE_TTL", 30)

@@ -154,11 +154,11 @@ function ChurnSummary({ data }) {
       <div className="analyticsMetrics analyticsMetricsCompact">
         <div className="analyticsMetric"><span>Scored customers</span><strong>{number.format(data.total_customers || 0)}</strong></div>
         <div className="analyticsMetric"><span>Average churn probability</span><strong>{percent(data.avg_churn_probability)}</strong></div>
-        <div className="analyticsMetric"><span>Above threshold</span><strong>{number.format(data.predicted_churn_customers || 0)}</strong></div>
+        <div className="analyticsMetric"><span>High-risk customers</span><strong>{number.format(data.predicted_churn_customers || 0)}</strong></div>
         <div className="analyticsMetric"><span>Predicted churn rate</span><strong>{percent(data.predicted_churn_rate)}</strong></div>
       </div>
       <p className="analyticsMeta">
-        Threshold: {percent(data.threshold)} · Latest score: {formatRefreshTimestamp(data.refreshed_at)}
+        High-risk threshold: {percent(data.threshold)} · Latest score: {formatRefreshTimestamp(data.refreshed_at)}
       </p>
     </>
   );

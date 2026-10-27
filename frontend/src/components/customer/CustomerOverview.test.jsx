@@ -43,6 +43,7 @@ describe("CustomerOverview Component", () => {
     expect(screen.getByText("Monetary avg")).toBeInTheDocument();
     expect(screen.getByText("Tenure")).toBeInTheDocument();
     expect(screen.getByText("Weekend ratio")).toBeInTheDocument();
+    expect(screen.queryByText("ML Segment")).not.toBeInTheDocument();
 
     // Projected CLV is based on the customer's realized monetary total.
     expect(screen.getByText("R$ 1,200.50")).toBeInTheDocument();
@@ -58,6 +59,20 @@ describe("CustomerOverview Component", () => {
     expect(screen.getByText("60.0%")).toBeInTheDocument();
     expect(screen.getByText("Home")).toBeInTheDocument();
     expect(screen.getByText("40.0%")).toBeInTheDocument();
+  });
+
+  it("aligns a model-colored dot with the churn risk label", () => {
+    render(
+      <CustomerOverview
+        customer={mockCustomer}
+        predictions={{
+          has_ml_data: true,
+          churn: { risk_level: "medium", percentage: 42 },
+        }}
+      />
+    );
+
+    expect(document.querySelector(".churnBadge .churnDot.medium")).toBeInTheDocument();
   });
 
   it("renders payment preferences cards with amounts and order counts", () => {

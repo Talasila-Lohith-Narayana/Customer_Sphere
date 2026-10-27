@@ -42,7 +42,7 @@ export default function CustomerAiInsights({ predictions, onRescore, rescoreLoad
     );
   }
 
-  const { churn, explainability, clv, segmentation, recommendation } = predictions;
+  const { churn, explainability, clv, recommendation } = predictions;
 
   const riskBadgeClass = `aiBadge ${churn?.risk_level || "neutral"}`;
   const scoreSource = predictions.is_realtime_score
@@ -81,6 +81,10 @@ export default function CustomerAiInsights({ predictions, onRescore, rescoreLoad
               Churn Risk Score
             </span>
             <span className={riskBadgeClass}>
+              <span
+                className={`churnDot ${churn?.risk_level || ""}`}
+                aria-hidden="true"
+              />
               {churn?.risk_level} Risk
             </span>
           </div>
@@ -89,27 +93,6 @@ export default function CustomerAiInsights({ predictions, onRescore, rescoreLoad
           </div>
           <div className="aiMetricSub">
             Model: {churn?.model_version || "LightGBM"}
-          </div>
-        </div>
-
-        {/* AI Segment Profile Card */}
-        <div className="aiMetricCard">
-          <div className="aiMetricHeader">
-            <span className="aiMetricLabel">
-              <BrainCircuit size={15} style={{ color: "#818cf8" }} />
-              ML Segment Profile
-            </span>
-            {segmentation?.cluster_probability != null && (
-              <span className="aiBadge neutral">
-                {(segmentation.cluster_probability * 100).toFixed(0)}% fit
-              </span>
-            )}
-          </div>
-          <div className="aiMetricValue" style={{ fontSize: 21 }}>
-            {segmentation?.segment_label || "Standard"}
-          </div>
-          <div className="aiMetricSub">
-            Tier: {segmentation?.risk_tier || "N/A"}
           </div>
         </div>
 

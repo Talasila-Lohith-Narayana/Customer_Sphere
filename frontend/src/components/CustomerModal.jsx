@@ -14,14 +14,7 @@ const initialForm = {
   customer_zip_code_prefix: "",
   customer_city: "",
   customer_state: "SP",
-  segment: "Low Risk",
 };
-
-const SEGMENT_OPTIONS = [
-  "High Risk",
-  "Medium Risk",
-  "Low Risk",
-];
 
 export default function CustomerModal({ customer, close, save, checkIdAvailable }) {
   // Pre-fill form if editing an existing customer, otherwise use empty template
@@ -32,7 +25,6 @@ export default function CustomerModal({ customer, close, save, checkIdAvailable 
         customer_zip_code_prefix: String(customer.customer_zip_code_prefix ?? ""),
         customer_city: customer.customer_city || "",
         customer_state: customer.customer_state || "SP",
-        segment: customer.segment || "Low Risk",
       }
       : initialForm,
   );
@@ -102,7 +94,6 @@ export default function CustomerModal({ customer, close, save, checkIdAvailable 
         customer_city: form.customer_city.trim(),
         customer_state: cleanState,
         customer_zip_code_prefix: form.customer_zip_code_prefix,
-        segment: form.segment || undefined,
       });
     } catch (requestError) {
       setError(requestError.message);
@@ -142,22 +133,6 @@ export default function CustomerModal({ customer, close, save, checkIdAvailable 
             </button>
           )}
         </div>
-
-        {customer && (
-          <label>
-            ML Customer Segment
-            <select
-              value={form.segment}
-              onChange={(event) => update("segment", event.target.value)}
-            >
-              {SEGMENT_OPTIONS.map((seg) => (
-                <option key={seg} value={seg}>
-                  {seg}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
 
         <label>
           ZIP code

@@ -10,10 +10,6 @@ export const PAYMENT_ICONS = {
 
 export default function CustomerOverview({ customer, predictions }) {
   const hasHistory = customer.has_order_history !== false;
-  const mlSegmentLabel =
-    typeof predictions?.segmentation?.segment_label === "string"
-      ? predictions.segmentation.segment_label.trim()
-      : "";
 
   // Use dynamic top categories if provided, otherwise check static cat_shares
   let preferences = [];
@@ -75,7 +71,7 @@ export default function CustomerOverview({ customer, predictions }) {
                 <b>{value}</b>
               </div>
             ))}
-            {/* Churn Risk Badge (Rule-Based + ML Calibrated) */}
+            {/* Show risk only when a model prediction is available. */}
             {predictions?.has_ml_data ? (
               <div>
                 <span>AI Churn Risk (ML)</span>
@@ -84,28 +80,15 @@ export default function CustomerOverview({ customer, predictions }) {
                     className={`churnBadge ${predictions.churn.risk_level}`}
                     style={{ fontWeight: 600 }}
                   >
-                    {predictions.churn.risk_level === "high" ? "🔴" : predictions.churn.risk_level === "medium" ? "🟡" : "🟢"}{" "}
+                    <span
+                      className={`churnDot ${predictions.churn.risk_level}`}
+                      aria-hidden="true"
+                    />
                     {predictions.churn.percentage}% ({predictions.churn.risk_level})
                   </span>
                 </b>
               </div>
-            ) : customer.churn_risk_level ? (
-              <div>
-                <span>Churn Risk</span>
-                <b>
-                  <span className={`churnBadge ${customer.churn_risk_level}`}>
-                    {customer.churn_risk_level === "high" ? "🔴" : customer.churn_risk_level === "medium" ? "🟡" : "🟢"}{" "}
-                    {customer.churn_risk_level} ({customer.churn_risk_score}pts)
-                  </span>
-                </b>
-              </div>
             ) : null}
-            {mlSegmentLabel && (
-              <div>
-                <span>ML Segment</span>
-                <b style={{ color: "#4f46e5" }}>{mlSegmentLabel}</b>
-              </div>
-            )}
           </div>
         </Panel>
         <Panel title="Category preferences" sub="Share of purchase behavior">

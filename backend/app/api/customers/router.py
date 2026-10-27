@@ -24,6 +24,39 @@ class BulkDeleteIn(BaseModel):
     customer_unique_ids: list[str]
 
 
+def _parse_churn_risk_levels(churn_risk: str, legacy_segment: str = "") -> list[str]:
+    selected = churn_risk or legacy_segment
+    aliases = {
+        "high risk": "high",
+        "medium risk": "medium",
+        "low risk": "low",
+    }
+    levels = []
+    for part in selected.split(","):
+        normalized = part.strip().lower()
+        if not normalized:
+            continue
+        level = aliases.get(normalized, normalized)
+        if level not in {"high", "medium", "low"}:
+            raise HTTPException(400, "Invalid churn risk filter")
+        if level not in levels:
+            levels.append(level)
+    return levels
+
+
+def _churn_risk_conditions(levels: list[str]) -> list[str]:
+    conditions = []
+    if "high" in levels:
+        conditions.append("cp.churn_probability >= 0.70")
+    if "medium" in levels:
+        conditions.append(
+            "(cp.churn_probability >= 0.30 AND cp.churn_probability < 0.70)"
+        )
+    if "low" in levels:
+        conditions.append("cp.churn_probability < 0.30")
+    return conditions
+
+
 # ------------------------------------------------------------------------------
 # 1. Customer Directory Listing with Search, Filters & Sorting
 # ------------------------------------------------------------------------------
@@ -62,12 +95,6 @@ def customers(
     if state and str(state).strip():
         f.append("c.customer_state=:state")
         p["state"] = str(state).upper()
-    if segment:
-        f.append(
-            "COALESCE(rt.risk_tier, m.segment) COLLATE utf8mb4_unicode_ci "
-            "= :segment COLLATE utf8mb4_unicode_ci"
-        )
-        p["segment"] = segment
     if activity == "active":
         f.append("m.frequency>0")
     elif activity == "inactive":
@@ -117,34 +144,25 @@ def customers(
         f.append("m.avg_review_score>=:min_rating")
         p["min_rating"] = min_rating
 
-    # Churn risk filter uses the model probability shown by the segment dot.
-    include_churn_details = include_churn or bool(churn_risk) or sort_by == "churn_risk"
-    churn_probability_filter_expr = "(cp.churn_probability * 100)"
+    risk_levels = _parse_churn_risk_levels(churn_risk, segment)
+    apply_churn_risk_filter = bool(risk_levels)
+    include_churn_details = include_churn or apply_churn_risk_filter or sort_by == "churn_risk"
     churn_probability_expr = "(MAX(cp.churn_probability) * 100)"
-    apply_churn_risk_filter = bool(churn_risk) and not segment
     if apply_churn_risk_filter:
-        risk_levels = [r.strip().lower() for r in churn_risk.split(",") if r.strip()]
-        risk_conds = []
-        if "high" in risk_levels:
-            risk_conds.append(f"{churn_probability_filter_expr} >= 70")
-        if "medium" in risk_levels:
-            risk_conds.append(f"({churn_probability_filter_expr} >= 30 AND {churn_probability_filter_expr} < 70)")
-        if "low" in risk_levels:
-            risk_conds.append(f"{churn_probability_filter_expr} < 30")
+        risk_conds = _churn_risk_conditions(risk_levels)
         if risk_conds:
             f.append(f"({' OR '.join(risk_conds)})")
 
     where = " AND ".join(f)
-    risk_tiers_join = f"""LEFT JOIN {ANALYTICS_DB_NAME}.customer_risk_tiers rt
-        ON rt.customer_unique_id COLLATE utf8mb4_unicode_ci =
-           c.customer_unique_id COLLATE utf8mb4_unicode_ci"""
-    churn_join = f"""LEFT JOIN {ANALYTICS_DB_NAME}.churn_predictions cp
+    churn_join = f"""LEFT JOIN (
+        SELECT customer_unique_id, MAX(churn_probability) AS churn_probability
+        FROM {ANALYTICS_DB_NAME}.churn_predictions
+        GROUP BY customer_unique_id
+    ) cp
         ON cp.customer_unique_id COLLATE utf8mb4_unicode_ci =
            c.customer_unique_id COLLATE utf8mb4_unicode_ci"""
 
     count_joins = f"JOIN customer_metrics_cache m ON m.customer_id = c.customer_id"
-    if segment:
-        count_joins += f" {risk_tiers_join}"
     if apply_churn_risk_filter:
         count_joins += f" {churn_join}"
 
@@ -191,14 +209,18 @@ def customers(
                 m.monetary_total,
                 m.avg_review_score,
                 CASE WHEN m.frequency>1 THEN 1 ELSE 0 END as is_repeat_customer,
-                COALESCE(rt.risk_tier, m.segment) COLLATE utf8mb4_unicode_ci AS segment
+                CASE
+                    WHEN MAX(cp.churn_probability) IS NULL THEN 'Unscored'
+                    WHEN MAX(cp.churn_probability) >= 0.70 THEN 'High Risk'
+                    WHEN MAX(cp.churn_probability) >= 0.30 THEN 'Medium Risk'
+                    ELSE 'Low Risk'
+                END AS segment
                 {churn_columns}
             FROM customers c 
             JOIN customer_metrics_cache m ON m.customer_id = c.customer_id
-            {risk_tiers_join}
-            {churn_join if include_churn_details else ""}
+            {churn_join}
             WHERE {where} 
-            GROUP BY c.customer_unique_id, m.recency_days, m.frequency, m.monetary_total, m.avg_review_score, rt.risk_tier, m.segment
+            GROUP BY c.customer_unique_id, m.recency_days, m.frequency, m.monetary_total, m.avg_review_score
             ORDER BY {order_clause} 
             LIMIT :limit OFFSET :offset"""
         ),
@@ -267,7 +289,7 @@ def add_customer(
         text(
             """INSERT INTO customer_metrics_cache 
                (customer_id, customer_unique_id, recency_days, frequency, monetary_total, avg_review_score, segment) 
-               VALUES (:id, :unique_id, 0, 0, 0.00, 0.00, 'Low Risk')"""
+               VALUES (:id, :unique_id, 0, 0, 0.00, 0.00, 'Unscored')"""
         ),
         {"id": customer_id, "unique_id": x.customer_unique_id.strip()},
     )
@@ -319,12 +341,6 @@ def export_all_customers_csv(
     if state and str(state).strip():
         f.append("c.customer_state=:state")
         p["state"] = str(state).upper()
-    if segment:
-        f.append(
-            "COALESCE(rt.risk_tier, m.segment) COLLATE utf8mb4_unicode_ci "
-            "= :segment COLLATE utf8mb4_unicode_ci"
-        )
-        p["segment"] = segment
     if activity == "active":
         f.append("m.frequency>0")
     elif activity == "inactive":
@@ -338,15 +354,9 @@ def export_all_customers_csv(
     if min_orders is not None:
         f.append("m.frequency>=:min_orders")
         p["min_orders"] = min_orders
-    if churn_risk and not segment:
-        risk_levels = {part.strip().lower() for part in churn_risk.split(",") if part.strip()}
-        risk_conditions = []
-        if "high" in risk_levels:
-            risk_conditions.append("cp.churn_probability >= 0.70")
-        if "medium" in risk_levels:
-            risk_conditions.append("(cp.churn_probability >= 0.30 AND cp.churn_probability < 0.70)")
-        if "low" in risk_levels:
-            risk_conditions.append("cp.churn_probability < 0.30")
+    risk_levels = _parse_churn_risk_levels(churn_risk, segment)
+    if risk_levels:
+        risk_conditions = _churn_risk_conditions(risk_levels)
         if risk_conditions:
             f.append(f"({' OR '.join(risk_conditions)})")
 
@@ -397,7 +407,12 @@ def export_all_customers_csv(
                 c.customer_unique_id,
                 MIN(c.customer_city) as customer_city,
                 MIN(c.customer_state) as customer_state,
-                COALESCE(rt.risk_tier, m.segment) COLLATE utf8mb4_unicode_ci AS segment,
+                CASE
+                    WHEN MAX(cp.churn_probability) IS NULL THEN 'Unscored'
+                    WHEN MAX(cp.churn_probability) >= 0.70 THEN 'High Risk'
+                    WHEN MAX(cp.churn_probability) >= 0.30 THEN 'Medium Risk'
+                    ELSE 'Low Risk'
+                END AS churn_risk_label,
                 m.frequency,
                 m.monetary_total,
                 m.avg_review_score,
@@ -405,17 +420,15 @@ def export_all_customers_csv(
                 CASE WHEN m.frequency>1 THEN 'Yes' ELSE 'No' END as is_repeat_customer
             FROM customers c 
             JOIN customer_metrics_cache m ON m.customer_id = c.customer_id
-            LEFT JOIN {ANALYTICS_DB_NAME}.customer_segments cs
-                ON cs.customer_unique_id COLLATE utf8mb4_unicode_ci =
-                   c.customer_unique_id COLLATE utf8mb4_unicode_ci
-            LEFT JOIN {ANALYTICS_DB_NAME}.customer_risk_tiers rt
-                ON rt.customer_unique_id COLLATE utf8mb4_unicode_ci =
-                   c.customer_unique_id COLLATE utf8mb4_unicode_ci
-            LEFT JOIN {ANALYTICS_DB_NAME}.churn_predictions cp
+            LEFT JOIN (
+                SELECT customer_unique_id, MAX(churn_probability) AS churn_probability
+                FROM {ANALYTICS_DB_NAME}.churn_predictions
+                GROUP BY customer_unique_id
+            ) cp
                 ON cp.customer_unique_id COLLATE utf8mb4_unicode_ci =
                    c.customer_unique_id COLLATE utf8mb4_unicode_ci
             WHERE {where} 
-            GROUP BY c.customer_unique_id, rt.risk_tier, m.segment, m.frequency, m.monetary_total, m.avg_review_score, m.recency_days
+            GROUP BY c.customer_unique_id, m.frequency, m.monetary_total, m.avg_review_score, m.recency_days
             ORDER BY {order_clause}"""
         ),
         p,
@@ -428,7 +441,7 @@ def export_all_customers_csv(
             "Customer Unique ID",
             "City",
             "State",
-            "Segment",
+            "Model churn risk",
             "Orders (Frequency)",
             "Total Spend (R$)",
             "Avg Rating",
@@ -601,7 +614,12 @@ def customer_detail(cid: str, db: Session = Depends(get_db), _: str = Depends(au
             COALESCE(m.frequency, 0) AS frequency,
             COALESCE(m.monetary_total, 0) AS monetary_total,
             COALESCE(m.avg_review_score, 0) AS avg_review_score,
-            COALESCE(rt.risk_tier, m.segment) COLLATE utf8mb4_unicode_ci AS segment,
+            CASE
+                WHEN cp.churn_probability IS NULL THEN 'Unscored'
+                WHEN cp.churn_probability >= 0.70 THEN 'High Risk'
+                WHEN cp.churn_probability >= 0.30 THEN 'Medium Risk'
+                ELSE 'Low Risk'
+            END AS segment,
             ROUND(cp.churn_probability * 100, 2) AS churn_percentage,
             CASE WHEN COALESCE(m.frequency, 0) > 1 THEN 1 ELSE 0 END AS is_repeat_customer,
             COALESCE((
@@ -617,12 +635,6 @@ def customer_detail(cid: str, db: Session = Depends(get_db), _: str = Depends(au
             FROM customers c 
             JOIN customer_metrics_cache m ON m.customer_id = c.customer_id
             LEFT JOIN customer_features cf ON (cf.customer_id = c.customer_id OR cf.customer_id = c.customer_unique_id)
-            LEFT JOIN {ANALYTICS_DB_NAME}.customer_segments cs
-                ON cs.customer_unique_id COLLATE utf8mb4_unicode_ci =
-                   c.customer_unique_id COLLATE utf8mb4_unicode_ci
-            LEFT JOIN {ANALYTICS_DB_NAME}.customer_risk_tiers rt
-                ON rt.customer_unique_id COLLATE utf8mb4_unicode_ci =
-                   c.customer_unique_id COLLATE utf8mb4_unicode_ci
             LEFT JOIN {ANALYTICS_DB_NAME}.churn_predictions cp
                 ON cp.customer_unique_id COLLATE utf8mb4_unicode_ci =
                    c.customer_unique_id COLLATE utf8mb4_unicode_ci

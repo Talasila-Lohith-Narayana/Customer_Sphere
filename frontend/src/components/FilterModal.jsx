@@ -4,9 +4,7 @@ import { SlidersHorizontal, X } from "lucide-react";
 export default function FilterModal({
   values,
   states,
-  segments,
   activityOptions,
-  disableChurnRisk = false,
   close,
   apply,
 }) {
@@ -43,7 +41,6 @@ const toggleChurnRisk = (level) => {
 const clear = () =>
     setDraft({
       state: "",
-      segment: "",
       activity: "",
       ratings: [],
       churnRisk: [],
@@ -83,7 +80,7 @@ const clear = () =>
           <section className="filterSection fullWidth">
             <div className="filterSectionHeading">
               <h3>Customer attributes</h3>
-              <p>Location, dashboard segment, and purchasing behavior</p>
+              <p>Location and purchasing behavior</p>
             </div>
             <div className="filterModalFields">
               <div className="filterField">
@@ -105,20 +102,6 @@ const clear = () =>
                     </option>
                   ))}
                 </datalist>
-              </div>
-              <div className="filterField">
-                <label htmlFor="modal-segment-filter">Dashboard RFM segment</label>
-                <select
-                  id="modal-segment-filter"
-                  value={draft.segment}
-                  onChange={(event) => update("segment", event.target.value)}
-                >
-                  {segments.map((segment) => (
-                    <option key={segment} value={segment}>
-                      {segment || "All segments"}
-                    </option>
-                  ))}
-                </select>
               </div>
               <div className="filterField">
                 <label htmlFor="modal-activity-filter">Activity</label>
@@ -201,17 +184,14 @@ const clear = () =>
           </section>
           <section className="filterSection fullWidth">
             <div className="filterSectionHeading">
-              <h3>Model churn probability</h3>
-              <p>Separate from the dashboard RFM segment. Select one or more probability bands.</p>
+              <h3>Predicted churn risk</h3>
+              <p>Based on model probability: low &lt;30%, medium 30 to &lt;70%, high &gt;=70%.</p>
             </div>
-            {disableChurnRisk && (
-              <p className="filterDisabledHint">Clear the dashboard segment selection to use this filter.</p>
-            )}
             <div className="ratingPills">
               {[
-                { level: "high", label: "🔴 High >=70%", cls: "high" },
-                { level: "medium", label: "🟡 Medium 30-69%", cls: "medium" },
-                { level: "low", label: "🟢 Low <30%", cls: "low" },
+                { level: "high", label: "High (>=70%)", cls: "high" },
+                { level: "medium", label: "Medium (30 to <70%)", cls: "medium" },
+                { level: "low", label: "Low (<30%)", cls: "low" },
               ].map(({ level, label, cls }) => {
                 const isSelected = (draft.churnRisk || []).includes(level);
                 return (
@@ -220,13 +200,13 @@ const clear = () =>
                     type="button"
                     className={`ratingPill ${isSelected ? "active" : ""}`}
                     onClick={() => toggleChurnRisk(level)}
-                    disabled={disableChurnRisk}
                     style={{
                       borderColor: isSelected
                         ? (cls === "high" ? "#f43f5e" : cls === "medium" ? "#f59e0b" : "#10b981")
                         : undefined,
                     }}
                   >
+                    <span className={`churnDot ${cls}`} aria-hidden="true" />
                     <span>{label}</span>
                   </button>
                 );

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Check, CheckSquare, Download, Filter, Plus, Search, Square, Tag, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, CheckSquare, Download, Filter, Plus, Search, Square, Trash2 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { customerService } from "../services/api";
 import { ErrorState, Header, LoadingState, Page } from "../components/States";
@@ -8,7 +8,6 @@ import FilterModal from "../components/FilterModal";
 import ConfirmModal from "../components/ConfirmModal";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { SEGMENT_COLORS } from "../components/dashboard/dashboardConstants";
 import DataTable from "../components/DataTable";
 import TablePagination from "../components/TablePagination";
 import { publishDashboardDataChanged } from "../services/dashboardDataEvents";
@@ -19,12 +18,11 @@ const states = [
   "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN",
   "RO", "RR", "RS", "SC", "SE", "SP", "TO"
 ];
-const segments = [
-  "",
-  "High Risk",
-  "Medium Risk",
-  "Low Risk",
-];
+const LEGACY_SEGMENT_RISK = {
+  "High Risk": "high",
+  "Medium Risk": "medium",
+  "Low Risk": "low",
+};
 const activityOptions = [
   ["", "All activity"],
   ["active", "Has orders"],
@@ -47,7 +45,6 @@ const sortOptions = [
 const initialFilterState = {
   query: "",
   state: "",
-  segment: "",
   activity: "",
   ratings: [],
   churnRisk: [],
@@ -90,10 +87,9 @@ function buildCustomerSearchParams(filters) {
   const values = {
     q: filters.query,
     state: filters.state,
-    segment: filters.segment,
     activity: filters.activity,
     rating: filters.ratings?.join(","),
-    churn_risk: filters.segment ? "" : filters.churnRisk?.join(","),
+    churn_risk: filters.churnRisk?.join(","),
     max_recency: filters.maxRecency,
     min_spend: filters.minSpend,
     min_orders: filters.minOrders,
@@ -113,9 +109,10 @@ export default function Customers() {
 
   // Read URL query parameters if present (e.g. from Dashboard deep-links)
   const hasInitialSearchParams = Array.from(searchParams.keys()).length > 0;
-  const paramState = searchParams.get("state") || "";
-  const paramSegment = searchParams.get("segment") || "";
-  const paramActivity = searchParams.get("activity") || "";
+  const legacySegmentRisk = LEGACY_SEGMENT_RISK[searchParams.get("segment") || ""];
+  const paramChurnRisk = (searchParams.get("churn_risk") || legacySegmentRisk || "")
+    .split(",")
+    .filter(Boolean);
   const paramRating = (searchParams.get("rating") || "")
     .split(",")
     .filter(Boolean)
@@ -128,17 +125,14 @@ export default function Customers() {
   const queryRef = useRef(query);
   queryRef.current = query;
   const [state, setState] = useState(searchParams.get("state") || (hasInitialSearchParams ? "" : customersNavigationCache.state));
-  const [segment, setSegment] = useState(searchParams.get("segment") || (hasInitialSearchParams ? "" : customersNavigationCache.segment));
   const [activity, setActivity] = useState(searchParams.get("activity") || (hasInitialSearchParams ? "" : customersNavigationCache.activity));
   const [ratings, setRatings] = useState(paramRating.length ? paramRating : (hasInitialSearchParams ? [] : customersNavigationCache.ratings));
   const [maxRecency, setMaxRecency] = useState(searchParams.get("max_recency") || (hasInitialSearchParams ? "" : customersNavigationCache.maxRecency));
   const [minSpend, setMinSpend] = useState(searchParams.get("min_spend") || (hasInitialSearchParams ? "" : customersNavigationCache.minSpend));
   const [minOrders, setMinOrders] = useState(searchParams.get("min_orders") || (hasInitialSearchParams ? "" : customersNavigationCache.minOrders));
-  const [churnRisk, setChurnRisk] = useState(paramSegment
-    ? []
-    : hasInitialSearchParams
-      ? (searchParams.get("churn_risk") || "").split(",").filter(Boolean)
-      : customersNavigationCache.churnRisk || []);
+  const [churnRisk, setChurnRisk] = useState(hasInitialSearchParams
+    ? paramChurnRisk
+    : customersNavigationCache.churnRisk || []);
   const [sortBy, setSortBy] = useState(paramSortBy || (hasInitialSearchParams ? "" : customersNavigationCache.sortBy));
   const [sortDir, setSortDir] = useState(paramSortDir || (hasInitialSearchParams ? "" : customersNavigationCache.sortDir));
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -149,8 +143,6 @@ export default function Customers() {
   const [showForm, setShowForm] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [showBulkModal, setShowBulkModal] = useState(false);
-  const [bulkSegment, setBulkSegment] = useState("Low Risk");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const sortMenuRef = useRef(null);
@@ -163,16 +155,14 @@ export default function Customers() {
     if (hasParams) {
       setQuery(searchParams.get("q") || "");
       setState(searchParams.get("state") || "");
-      setSegment(searchParams.get("segment") || "");
       setActivity(searchParams.get("activity") || "");
       setRatings((searchParams.get("rating") || "")
         .split(",")
         .filter(Boolean)
         .map((value) => parseInt(value, 10))
         .filter(Number.isFinite));
-      setChurnRisk(searchParams.get("segment")
-        ? []
-        : (searchParams.get("churn_risk") || "").split(",").filter(Boolean));
+      const legacyRisk = LEGACY_SEGMENT_RISK[searchParams.get("segment") || ""];
+      setChurnRisk((searchParams.get("churn_risk") || legacyRisk || "").split(",").filter(Boolean));
       const sort = searchParams.get("sort") || "";
       if (sort) {
         const [f, d] = sort.split("-");
@@ -186,8 +176,14 @@ export default function Customers() {
       setMinSpend(searchParams.get("min_spend") || "");
       setMinOrders(searchParams.get("min_orders") || "");
       setPage(1);
+      if (legacyRisk) {
+        const normalizedParams = new URLSearchParams(searchParams);
+        normalizedParams.delete("segment");
+        normalizedParams.set("churn_risk", legacyRisk);
+        setSearchParams(normalizedParams, { replace: true });
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, setSearchParams]);
 
   // Toggle selection mode on/off
   const toggleSelectionMode = () => {
@@ -208,10 +204,9 @@ export default function Customers() {
       const response = await customerService.exportCsv({
         q: query,
         state,
-        segment,
         activity,
         rating: ratings.length ? ratings.join(",") : undefined,
-        churn_risk: segment || !churnRisk.length ? undefined : churnRisk.join(","),
+        churn_risk: churnRisk.length ? churnRisk.join(",") : undefined,
         max_recency: maxRecency || undefined,
         min_spend: minSpend || undefined,
         min_orders: minOrders || undefined,
@@ -260,28 +255,6 @@ export default function Customers() {
     );
   };
 
-  // Execute Bulk Segment Update
-  const executeBulkSegment = async () => {
-    if (selectedIds.length === 0) return;
-    setBulkBusy(true);
-    try {
-      await customerService.bulkSegmentUpdate({
-        customer_unique_ids: selectedIds,
-        segment: bulkSegment,
-      });
-      publishDashboardDataChanged();
-      setShowBulkModal(false);
-      setSelectedIds([]);
-      toast.success(`Segment updated for ${selectedIds.length} customer(s).`);
-      customerPageCacheRef.current.clear();
-      await load();
-    } catch (err) {
-      toast.error(`Bulk update failed: ${err.message}`);
-    } finally {
-      setBulkBusy(false);
-    }
-  };
-
   // Execute Bulk Customer Delete
   const handleConfirmBulkDelete = async () => {
     setShowBulkDeleteConfirm(false);
@@ -311,7 +284,6 @@ export default function Customers() {
     customersNavigationCache = {
       query,
       state,
-      segment,
       activity,
       ratings,
       churnRisk,
@@ -322,7 +294,7 @@ export default function Customers() {
       sortDir,
       page,
     };
-  }, [query, state, segment, activity, ratings, churnRisk, maxRecency, minSpend, minOrders, sortBy, sortDir, page]);
+  }, [query, state, activity, ratings, churnRisk, maxRecency, minSpend, minOrders, sortBy, sortDir, page]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -339,16 +311,15 @@ export default function Customers() {
     const params = {
       q: queryRef.current,
       state,
-      segment,
       activity,
       rating: ratings.length ? ratings.join(",") : undefined,
-      churn_risk: segment || !churnRisk.length ? undefined : churnRisk.join(","),
+      churn_risk: churnRisk.length ? churnRisk.join(",") : undefined,
       max_recency: maxRecency || undefined,
       min_spend: minSpend || undefined,
       min_orders: minOrders || undefined,
       sort_by: sortBy || undefined,
       sort_dir: sortDir || undefined,
-      include_churn: false,
+      include_churn: true,
       page: requestedPage,
       page_size: 12,
     };
@@ -364,7 +335,7 @@ export default function Customers() {
       .catch((requestError) => {
         if (requestId === latestLoadRef.current) setError(requestError.message);
       });
-  }, [page, state, segment, activity, ratings, churnRisk, maxRecency, minSpend, minOrders, sortBy, sortDir]);
+  }, [page, state, activity, ratings, churnRisk, maxRecency, minSpend, minOrders, sortBy, sortDir]);
   useEffect(() => {
     load();
   }, [load]);
@@ -372,7 +343,6 @@ export default function Customers() {
     setSearchParams(buildCustomerSearchParams({
       query,
       state,
-      segment,
       activity,
       ratings,
       churnRisk,
@@ -392,7 +362,6 @@ export default function Customers() {
   };
   const clearFilters = () => {
     setState("");
-    setSegment("");
     setActivity("");
     setRatings([]);
     setChurnRisk([]);
@@ -402,7 +371,6 @@ export default function Customers() {
     setPage(1);
     updateUrl({
       state: "",
-      segment: "",
       activity: "",
       ratings: [],
       churnRisk: [],
@@ -414,16 +382,14 @@ export default function Customers() {
   const applyFilters = (filters) => {
     const nextFilters = {
       state: filters.state,
-      segment: filters.segment,
       activity: filters.activity,
       ratings: filters.ratings || [],
-      churnRisk: filters.segment ? [] : filters.churnRisk || [],
+      churnRisk: filters.churnRisk || [],
       maxRecency: filters.maxRecency,
       minSpend: filters.minSpend,
       minOrders: filters.minOrders,
     };
     setState(filters.state);
-    setSegment(filters.segment);
     setActivity(filters.activity);
     setRatings(filters.ratings || []);
     setChurnRisk(nextFilters.churnRisk);
@@ -436,10 +402,9 @@ export default function Customers() {
   };
   const activeFilterCount = [
     state,
-    segment,
     activity,
     ratings.length > 0,
-    !segment && churnRisk.length > 0,
+    churnRisk.length > 0,
     maxRecency,
     minSpend,
     minOrders,
@@ -448,10 +413,6 @@ export default function Customers() {
     ...(state ? [{ label: `State: ${state}`, remove: () => {
       setState("");
       updateUrl({ state: "" });
-    } }] : []),
-    ...(segment ? [{ label: `Segment: ${segment}`, remove: () => {
-      setSegment("");
-      updateUrl({ segment: "", churnRisk });
     } }] : []),
     ...(activity ? [{
       label: activity === "active" ? "Has orders" : "No orders",
@@ -468,14 +429,14 @@ export default function Customers() {
         updateUrl({ ratings: nextRatings });
       },
     })),
-    ...(segment ? [] : churnRisk.map((risk) => ({
-      label: `Churn risk: ${risk}`,
+    ...churnRisk.map((risk) => ({
+      label: `Model churn risk: ${risk}`,
       remove: () => {
         const nextChurnRisk = churnRisk.filter((value) => value !== risk);
         setChurnRisk(nextChurnRisk);
         updateUrl({ churnRisk: nextChurnRisk });
       },
-    }))),
+    })),
     ...(maxRecency ? [{ label: `Max recency: ${maxRecency} days`, remove: () => {
       setMaxRecency("");
       updateUrl({ maxRecency: "" });
@@ -515,8 +476,12 @@ export default function Customers() {
     );
   };
 
-  const sortableHeader = (label, key) => (
-    <button type="button" className="tableSortButton" onClick={() => toggleSort(key)}>
+  const sortableHeader = (label, key, numeric = false) => (
+    <button
+      type="button"
+      className={`tableSortButton${numeric ? " tableSortButton--numeric" : ""}`}
+      onClick={() => toggleSort(key)}
+    >
       {label} {renderSortIcon(key)}
     </button>
   );
@@ -528,11 +493,52 @@ export default function Customers() {
     }] : []),
     { header: "Customer", accessorKey: "customer_unique_id", cell: ({ row }) => <div className="customer"><div className="avatar">{row.original.customer_city?.[0]}</div><div><b title={row.original.customer_unique_id}>{row.original.customer_unique_id}</b></div></div> },
     { header: () => sortableHeader("Location", "city"), accessorKey: "customer_city", cell: ({ row }) => `${row.original.customer_city}, ${row.original.customer_state}` },
-    { header: "Segment", accessorKey: "segment", cell: ({ row }) => <em>{row.original.segment && <span className="churnDot" style={{ background: SEGMENT_COLORS[row.original.segment] || "#94a3b8", boxShadow: `0 0 6px ${(SEGMENT_COLORS[row.original.segment] || "#94a3b8")}66` }} title={`Segment: ${row.original.segment}`} />}{row.original.segment}</em> },
-    { header: () => sortableHeader("Orders", "orders"), accessorKey: "frequency" },
-    { header: () => sortableHeader("Spend", "spend"), accessorKey: "monetary_total", cell: ({ row }) => `R$ ${Number(row.original.monetary_total).toLocaleString("en-US")}` },
-    { header: () => sortableHeader("Rating", "rating"), accessorKey: "avg_review_score", cell: ({ row }) => `★ ${Number(row.original.avg_review_score).toFixed(1)}` },
-    { header: () => sortableHeader("Recency", "recency"), accessorKey: "recency_days", cell: ({ row }) => `${row.original.recency_days}d ago` },
+    {
+      header: "Model churn risk",
+      accessorKey: "segment",
+      cell: ({ row }) => {
+        const label = row.original.segment || "Unscored";
+        const riskLevel = row.original.churn_risk_level || label.toLowerCase().split(" ")[0];
+        return (
+          <span className="churnRiskLabel">
+            {["high", "medium", "low"].includes(riskLevel) && (
+              <span className={`churnDot ${riskLevel}`} aria-hidden="true" />
+            )}
+            {label}
+          </span>
+        );
+      },
+    },
+    {
+      header: () => sortableHeader("Orders", "orders", true),
+      accessorKey: "frequency",
+      cell: ({ row }) => <span className="customerOrderCount">{row.original.frequency}</span>,
+    },
+    {
+      header: () => sortableHeader("Spend", "spend", true),
+      accessorKey: "monetary_total",
+      cell: ({ row }) => (
+        <span className="customerNumericValue">
+          R$ {Number(row.original.monetary_total).toLocaleString("en-US")}
+        </span>
+      ),
+    },
+    {
+      header: () => sortableHeader("Rating", "rating", true),
+      accessorKey: "avg_review_score",
+      cell: ({ row }) => (
+        <span className="customerNumericValue">
+          ★ {Number(row.original.avg_review_score).toFixed(1)}
+        </span>
+      ),
+    },
+    {
+      header: () => sortableHeader("Recency", "recency", true),
+      accessorKey: "recency_days",
+      cell: ({ row }) => (
+        <span className="customerNumericValue">{row.original.recency_days}d ago</span>
+      ),
+    },
   ];
 
   return (
@@ -720,14 +726,6 @@ export default function Customers() {
               <button
                 type="button"
                 className="btn secondary"
-                onClick={() => setShowBulkModal(true)}
-                style={{ fontSize: 12, padding: "6px 12px", background: "#0f172a", color: "#38bdf8", borderColor: "#334155" }}
-              >
-                <Tag size={14} /> Change Segment
-              </button>
-              <button
-                type="button"
-                className="btn secondary"
                 onClick={() => setShowBulkDeleteConfirm(true)}
                 disabled={bulkBusy}
                 style={{ fontSize: 12, padding: "6px 12px", background: "#450a0a", color: "#f87171", borderColor: "#7f1d1d" }}
@@ -746,7 +744,7 @@ export default function Customers() {
       ) : !data.items.length ? (
         <div className="state">No customers match these filters.</div>
       ) : (
-        <div className="table">
+        <div className="table customerDirectoryTable">
           <DataTable
             columns={columns}
             data={data.items}
@@ -790,75 +788,19 @@ export default function Customers() {
         <FilterModal
           values={{
             state,
-            segment,
             activity,
             ratings,
-            churnRisk: segment ? [] : churnRisk,
+            churnRisk,
             maxRecency,
             minSpend,
             minOrders,
           }}
           states={states}
-          segments={segments}
           activityOptions={activityOptions}
-          disableChurnRisk={Boolean(segment)}
           close={() => setShowFilters(false)}
           apply={applyFilters}
         />
       )}
-      {showBulkModal && (
-        <div className="modalBg">
-          <form className="modal" style={{ maxWidth: 400 }} onSubmit={(e) => { e.preventDefault(); executeBulkSegment(); }}>
-            <button type="button" className="close" onClick={() => setShowBulkModal(false)}>
-              <span style={{ fontSize: 18, lineHeight: 1 }}>×</span>
-            </button>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: "50%",
-                  background: "#e0f2fe",
-                  color: "#0369a1",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Tag size={18} />
-              </div>
-              <div>
-                <p className="eyebrow" style={{ margin: 0 }}>BULK OPERATIONS</p>
-                <h2 style={{ margin: 0, fontSize: 18 }}>Update Segment</h2>
-              </div>
-            </div>
-            <p className="filterHint" style={{ marginBottom: 16 }}>
-              Change the RFM segment category for <b>{selectedIds.length}</b> selected customer{selectedIds.length > 1 ? "s" : ""}.
-            </p>
-            <label>
-              Target Segment
-              <select
-                value={bulkSegment}
-                onChange={(e) => setBulkSegment(e.target.value)}
-                style={{ width: "100%", marginTop: 4 }}
-              >
-                <option value="High Risk">High Risk</option>
-                <option value="Medium Risk">Medium Risk</option>
-                <option value="Low Risk">Low Risk</option>
-              </select>
-            </label>
-            <div className="actions" style={{ marginTop: 18 }}>
-              <button type="button" className="btn secondary" onClick={() => setShowBulkModal(false)} disabled={bulkBusy}>
-                Cancel
-              </button>
-              <button className="btn primary" disabled={bulkBusy}>
-                {bulkBusy ? "Updating..." : "Apply to Selected"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
       {showBulkDeleteConfirm && (
         <ConfirmModal
           title="Delete Selected Customers?"

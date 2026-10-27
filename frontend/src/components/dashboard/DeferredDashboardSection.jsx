@@ -125,7 +125,7 @@ export default function DeferredDashboardSection({
 export function DashboardSectionSkeleton({ section }) {
   const titles =
     section === "trends"
-      ? ["Revenue growth trend", "Customer segments"]
+      ? ["Revenue growth trend", "Predicted churn risk"]
       : ["Brazilian Market Geolocation Heatmap"];
 
   return titles.map((title, index) => (

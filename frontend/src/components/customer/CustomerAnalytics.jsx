@@ -3,6 +3,7 @@ import { AlertTriangle, RotateCw } from "lucide-react";
 import { analyticsService } from "../../services/api";
 import { LoadingState, Panel } from "../States";
 import DataTable from "../DataTable";
+import { getChurnRiskLabel, getChurnRiskLevel } from "../../utils/churnRisk";
 
 const currency = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
@@ -78,7 +79,7 @@ function CustomerClv({ data }) {
         <strong>
           {data.churn_probability == null
             ? "Unavailable"
-            : `${(Number(data.churn_probability) * 100).toFixed(1)}% · ${data.risk_tier || "Risk unknown"}`}
+            : `${(Number(data.churn_probability) * 100).toFixed(1)}% · ${getChurnRiskLabel(data.churn_probability)}`}
         </strong>
       </div>
     </div>
@@ -145,14 +146,20 @@ function CustomerDelivery({ data }) {
 }
 
 function CustomerRisk({ data }) {
+  const riskLevel = getChurnRiskLevel(data.churn_probability);
   return (
     <div className="customerAnalyticsMetrics">
       <div>
-        <span>Stored risk tier</span>
-        <strong>{data.risk_tier || "Unavailable"}</strong>
+        <span>Model-predicted churn risk</span>
+        <strong className="churnRiskLabel">
+          {riskLevel && (
+            <span className={`churnDot ${riskLevel}`} aria-hidden="true" />
+          )}
+          {getChurnRiskLabel(data.churn_probability)}
+        </strong>
       </div>
       <div>
-        <span>Stored churn probability</span>
+        <span>Model churn probability</span>
         <strong>
           {data.churn_probability == null
             ? "Unavailable"

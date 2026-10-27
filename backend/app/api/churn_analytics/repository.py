@@ -51,11 +51,17 @@ def churn_summary(threshold: float, db: Session | None = None) -> dict[str, Any]
     return fetch_one(
         f"""
         SELECT COUNT(*) AS total_customers,
-               AVG(churn_probability) AS avg_churn_probability,
-               SUM(CASE WHEN churn_probability >= :threshold THEN 1 ELSE 0 END)
+               AVG(customer_prediction.churn_probability) AS avg_churn_probability,
+               SUM(CASE WHEN customer_prediction.churn_probability >= :threshold THEN 1 ELSE 0 END)
                    AS predicted_churn_customers,
-               MAX(scored_at) AS refreshed_at
-        FROM {PREDICTIONS_TABLE}
+               MAX(customer_prediction.refreshed_at) AS refreshed_at
+        FROM (
+            SELECT customer_unique_id,
+                   MAX(churn_probability) AS churn_probability,
+                   MAX(scored_at) AS refreshed_at
+            FROM {PREDICTIONS_TABLE}
+            GROUP BY customer_unique_id
+        ) customer_prediction
         """,
         {"threshold": threshold},
         db,

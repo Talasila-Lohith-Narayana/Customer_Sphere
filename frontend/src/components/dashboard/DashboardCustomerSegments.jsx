@@ -14,7 +14,7 @@ import { SegmentBarTooltip, getSegmentChurnColor } from "./dashboardConstants";
 
 export default function DashboardCustomerSegments({ segments = [], navigate }) {
   return (
-    <Panel title="Customer segments" sub="Behavior & value clustering · Click segment to view customers">
+    <Panel title="Predicted churn risk" sub="Model probability bands · Click a band to view customers">
       <div className="chart">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
@@ -42,7 +42,8 @@ export default function DashboardCustomerSegments({ segments = [], navigate }) {
               style={{ cursor: "pointer" }}
               onClick={(entry) => {
                 if (entry?.segment) {
-                  navigate(`/customers?segment=${encodeURIComponent(entry.segment)}`);
+                  const riskLevel = entry.segment.toLowerCase().replace(" risk", "");
+                  navigate(`/customers?churn_risk=${encodeURIComponent(riskLevel)}`);
                 }
               }}
             >

@@ -37,7 +37,7 @@ export default function DataTable({
         {table.getHeaderGroups().map((headerGroup) => (
           <tr key={headerGroup.id}>
             {headerGroup.headers.map((header) => (
-              <th key={header.id}>
+              <th key={header.id} data-column={header.column.id}>
                 {header.isPlaceholder
                   ? null
                   : flexRender(header.column.columnDef.header, header.getContext())}
@@ -51,7 +51,11 @@ export default function DataTable({
           table.getRowModel().rows.map((row) => (
             <tr key={row.id} {...(getRowProps ? getRowProps(row.original) : {})}>
               {row.getAllCells().map((cell) => (
-                <td key={cell.id} data-label={getColumnLabel(cell.column)}>
+                <td
+                  key={cell.id}
+                  data-column={cell.column.id}
+                  data-label={getColumnLabel(cell.column)}
+                >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
               ))}

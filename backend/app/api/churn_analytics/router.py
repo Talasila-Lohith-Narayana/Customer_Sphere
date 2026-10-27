@@ -157,7 +157,7 @@ def _reason_codes_summary(db: Session) -> dict[str, Any]:
 @router.get("/churn/summary")
 def churn_summary(
     db: Session = Depends(get_db),
-    threshold: float = Query(0.5, ge=0, le=1),
+    threshold: float = Query(0.7, ge=0, le=1),
     _: dict = Depends(require_page("model")),
 ) -> dict[str, Any]:
     return _churn_summary(threshold, db)
@@ -169,7 +169,7 @@ def churn_overview(
     _: dict = Depends(require_page("model")),
 ) -> dict[str, Any]:
     def load_overview() -> dict[str, Any]:
-        summary = _churn_summary(0.5, db)
+        summary = _churn_summary(0.7, db)
         records = _shap_records(db)
         return {
             "summary": summary,

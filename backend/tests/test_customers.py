@@ -17,7 +17,7 @@ def test_customer_postal_prefix_preserves_leading_zero_and_accepts_legacy_intege
     assert prefixed.customer_zip_code_prefix == "01000"
     assert legacy.customer_zip_code_prefix == "1000"
 
-def test_segment_filter_takes_precedence_over_churn_risk_filter():
+def test_legacy_segment_filter_uses_model_probability_bands():
     class Result:
         def scalar(self):
             return 676
@@ -46,14 +46,15 @@ def test_segment_filter_takes_precedence_over_churn_risk_filter():
 
     assert response["total"] == 676
     assert len(db.statements) == 2
-    assert all("churn_probability * 100) < 30" not in sql for sql, _ in db.statements)
-    assert all(params.get("segment") == "Low Risk" for _, params in db.statements)
+    assert all("cp.churn_probability < 0.30" in sql for sql, _ in db.statements)
+    assert all("customer_risk_tiers" not in sql for sql, _ in db.statements)
+    assert all("segment" not in params for _, params in db.statements)
 
 
 
 
-def test_filter_customers_by_segment(client, admin_headers):
-    """Verifies filtering by the database-backed risk tier."""
+def test_legacy_segment_filter_uses_model_predictions(client, admin_headers):
+    """Verifies old segment links resolve to the equivalent model risk band."""
     response = client.get("/api/customers?segment=High%20Risk&page_size=5", headers=admin_headers)
     assert response.status_code == 200
     data = response.json()

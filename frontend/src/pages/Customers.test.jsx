@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes, useSearchParams } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
 import Customers from "./Customers";
 import * as ApiModule from "../services/api";
 import * as AuthContextModule from "../context/AuthContext";
@@ -21,22 +21,37 @@ vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom");
   return {
     ...actual,
-    useNavigate: () => mockNavigate,
+    useNavigate: () => {
+      const navigate = actual.useNavigate();
+      return (...args) => {
+        mockNavigate(...args);
+        return navigate(...args);
+      };
+    },
   };
 });
 
 function DashboardSegmentLink() {
   const [, setSearchParams] = useSearchParams();
   return (
-    <button type="button" onClick={() => setSearchParams({ segment: "Low Risk" })}>
+    <button type="button" onClick={() => setSearchParams({ churn_risk: "low" })}>
       Filter dashboard segment
     </button>
   );
 }
 
 function CurrentSearchParams() {
-  const [params] = useSearchParams();
-  return <output data-testid="customer-search-params">{params.toString()}</output>;
+  const { search } = useLocation();
+  return <output data-testid="customer-search-params">{search}</output>;
+}
+
+function CustomersWithSearchParams() {
+  return (
+    <>
+      <CurrentSearchParams />
+      <Customers />
+    </>
+  );
 }
 
 const mockCustomersList = {
@@ -134,7 +149,7 @@ describe("Customers Directory Page", () => {
     });
   });
 
-  it("reads URL search parameters and passes them to the list API", async () => {
+  it("reads legacy risk URLs and maps them to model probability filters", async () => {
     const listSpy = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
 
     render(
@@ -148,21 +163,21 @@ describe("Customers Directory Page", () => {
     await waitFor(() => {
       expect(listSpy).toHaveBeenCalledWith(expect.objectContaining({
         state: "SP",
-        segment: "High Risk",
+        churn_risk: "high",
         activity: "active",
         rating: "5",
         sort_by: "spend",
         sort_dir: "desc",
-        include_churn: false,
+        include_churn: true,
       }));
     });
   });
 
-  it("removes an individual active filter chip without clearing other filters", async () => {
+  it("removes an individual model-risk filter chip without clearing other filters", async () => {
     const listSpy = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
 
     render(
-      <MemoryRouter initialEntries={["/customers?state=SP&segment=High%20Risk"]}>
+      <MemoryRouter initialEntries={["/customers?state=SP&churn_risk=high"]}>
         <Routes>
           <Route path="/customers" element={<Customers />} />
         </Routes>
@@ -170,23 +185,23 @@ describe("Customers Directory Page", () => {
     );
 
     expect(await screen.findByText("uid_111111")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Remove Segment: High Risk filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove Model churn risk: high filter" }));
 
     await waitFor(() => {
       expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({
         state: "SP",
-        segment: "",
+        churn_risk: undefined,
       }));
     });
-    expect(screen.queryByRole("button", { name: "Remove Segment: High Risk filter" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove Model churn risk: high filter" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove State: SP filter" })).toBeInTheDocument();
   });
 
-  it("clears stale churn-risk filters when a dashboard segment link changes the URL", async () => {
+  it("replaces the selected model-risk band when following a dashboard risk link", async () => {
     const listSpy = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
 
     render(
-      <MemoryRouter initialEntries={["/customers?state=SP"]}>
+      <MemoryRouter initialEntries={["/customers?state=SP&churn_risk=high"]}>
         <DashboardSegmentLink />
         <Routes>
           <Route path="/customers" element={<Customers />} />
@@ -195,23 +210,15 @@ describe("Customers Directory Page", () => {
     );
 
     expect(await screen.findByText("uid_111111")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Low <30%/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Apply filters/i }));
-    await waitFor(() => {
-      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({ churn_risk: "low" }));
-    });
-
     fireEvent.click(screen.getByRole("button", { name: "Filter dashboard segment" }));
     await waitFor(() => {
       expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({
-        segment: "Low Risk",
-        churn_risk: undefined,
+        churn_risk: "low",
       }));
     });
   });
 
-  it("clears a previously selected churn-risk filter when choosing a new customer segment", async () => {
+  it("supports selecting multiple model-risk bands", async () => {
     const listSpy = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
 
     render(
@@ -224,30 +231,29 @@ describe("Customers Directory Page", () => {
 
     expect(await screen.findByText("uid_111111")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
-    fireEvent.click(within(document.querySelector(".filterModal")).getByRole("button", { name: /Low <30%/ }));
+    fireEvent.click(within(document.querySelector(".filterModal")).getByRole("button", { name: /High \(>=70%\)/ }));
     fireEvent.click(within(document.querySelector(".filterModal")).getByRole("button", { name: /Apply filters/i }));
     await waitFor(() => {
-      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({ churn_risk: "low" }));
+      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({ churn_risk: "high" }));
     });
 
     fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
     const filterModal = within(document.querySelector(".filterModal"));
-    fireEvent.change(filterModal.getByLabelText("Dashboard RFM segment"), { target: { value: "Low Risk" } });
+    fireEvent.click(filterModal.getByRole("button", { name: /Low \(<30%\)/ }));
     fireEvent.click(filterModal.getByRole("button", { name: /Apply filters/i }));
 
     await waitFor(() => {
       expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({
-        segment: "Low Risk",
-        churn_risk: undefined,
+        churn_risk: "high,low",
       }));
     });
   });
 
-  it("keeps segment counts un-narrowed when a stale churn-risk filter is submitted", async () => {
+  it("shows a single model-prediction risk filter", async () => {
     const listSpy = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
 
     render(
-      <MemoryRouter initialEntries={["/customers?segment=Low%20Risk"]}>
+      <MemoryRouter initialEntries={["/customers?churn_risk=low"]}>
         <Routes>
           <Route path="/customers" element={<Customers />} />
         </Routes>
@@ -257,14 +263,13 @@ describe("Customers Directory Page", () => {
     expect(await screen.findByText("uid_111111")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
     const filterModal = within(document.querySelector(".filterModal"));
-    expect(filterModal.getByRole("button", { name: /Low <30%/ })).toBeDisabled();
-    expect(filterModal.getByText("Clear the dashboard segment selection to use this filter.")).toBeInTheDocument();
+    expect(filterModal.getByRole("button", { name: /Low \(<30%\)/ })).toHaveClass("active");
+    expect(filterModal.getByRole("button", { name: /High \(>=70%\)/ })).toBeEnabled();
     fireEvent.click(filterModal.getByRole("button", { name: /Apply filters/i }));
 
     await waitFor(() => {
       expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({
-        segment: "Low Risk",
-        churn_risk: undefined,
+        churn_risk: "low",
       }));
     });
   });
@@ -273,10 +278,9 @@ describe("Customers Directory Page", () => {
     const listSpy = vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
 
     render(
-      <MemoryRouter initialEntries={["/customers"]}>
-        <CurrentSearchParams />
+      <MemoryRouter initialEntries={["/customers?q="]}>
         <Routes>
-          <Route path="/customers" element={<Customers />} />
+          <Route path="/customers" element={<CustomersWithSearchParams />} />
         </Routes>
       </MemoryRouter>
     );
@@ -284,16 +288,13 @@ describe("Customers Directory Page", () => {
     await screen.findByText("uid_111111");
     fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
     const filterModal = within(document.querySelector(".filterModal"));
-    fireEvent.change(filterModal.getByLabelText("Dashboard RFM segment"), {
-      target: { value: "Low Risk" },
-    });
+    fireEvent.click(filterModal.getByRole("button", { name: /Low \(<30%\)/ }));
     fireEvent.click(filterModal.getByRole("button", { name: /Apply filters/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("customer-search-params")).toHaveTextContent("segment=Low+Risk");
+      expect(screen.getByTestId("customer-search-params")).toHaveTextContent("churn_risk=low");
       expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({
-        segment: "Low Risk",
-        churn_risk: undefined,
+        churn_risk: "low",
       }));
     });
   });
@@ -472,9 +473,8 @@ describe("Customers Directory Page", () => {
     });
   });
 
-  it("supports selection mode, select all, select single, and bulk actions", async () => {
+  it("supports selection mode, select all, select single, and bulk deletion", async () => {
     vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
-    const bulkSegmentSpy = vi.spyOn(ApiModule.customerService, "bulkSegmentUpdate").mockResolvedValue({ updated: 2 });
     const bulkDeleteSpy = vi.spyOn(ApiModule.customerService, "bulkDelete").mockResolvedValue({
       deleted_count: 1,
       skipped_count: 1,
@@ -489,6 +489,10 @@ describe("Customers Directory Page", () => {
     await waitFor(() => {
       expect(screen.getByText("uid_111111")).toBeInTheDocument();
     });
+    expect(document.querySelector(".churnRiskLabel .churnDot.high")).toBeInTheDocument();
+    expect(
+      document.querySelector('td[data-label="frequency"] .customerOrderCount')
+    ).toHaveTextContent("3");
 
     // Toggle selection mode on
     const selectModeBtn = screen.getByRole("button", { name: /Select Customers/i });
@@ -510,24 +514,10 @@ describe("Customers Directory Page", () => {
     fireEvent.click(screen.getByText("uid_111111"));
     expect(screen.getByText("1 customer selected")).toBeInTheDocument();
 
-    // Open Bulk Segment Modal and update
-    fireEvent.click(screen.getByRole("button", { name: /Change Segment/i }));
-    expect(screen.getByRole("heading", { name: /Update Segment/i })).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText(/Target Segment/i), {
-      target: { value: "High Risk" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Apply to Selected/i }));
-
-    await waitFor(() => {
-      expect(bulkSegmentSpy).toHaveBeenCalledWith({
-        customer_unique_ids: ["uid_111111"],
-        segment: "High Risk",
-      });
-    });
-
-    // Reselect and run Bulk Delete
+    // Select another customer and run bulk delete
     fireEvent.click(screen.getByText("uid_222222"));
+    expect(screen.getByText("2 customers selected")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("uid_111111"));
     expect(screen.getByText("1 customer selected")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Bulk Delete/i }));
@@ -615,7 +605,7 @@ describe("Customers Directory Page", () => {
     expect(screen.queryByText("Filter customers")).not.toBeInTheDocument();
   });
 
-  it("closes CustomerModal and BulkModal on cancel or close button", async () => {
+  it("closes CustomerModal and does not offer a manual risk override", async () => {
     vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
 
     render(
@@ -634,20 +624,11 @@ describe("Customers Directory Page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("heading", { name: "Add customer" })).not.toBeInTheDocument();
 
-    // Select customer, open bulk modal, close via Cancel
+    // Select customer; model risk cannot be manually overridden here.
     fireEvent.click(screen.getByRole("button", { name: /Select Customers/i }));
     fireEvent.click(screen.getByText("uid_111111"));
-    fireEvent.click(screen.getByRole("button", { name: /Change Segment/i }));
-    expect(screen.getByRole("heading", { name: /Update Segment/i })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("heading", { name: /Update Segment/i })).not.toBeInTheDocument();
-
-    // Reopen bulk modal and close via close icon
-    fireEvent.click(screen.getByRole("button", { name: /Change Segment/i }));
-    const modalBg = document.querySelector(".modalBg");
-    fireEvent.click(modalBg.querySelector("button.close"));
-    expect(screen.queryByRole("heading", { name: /Update Segment/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Change Segment/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Bulk Delete/i })).toBeInTheDocument();
   });
 
   it("sorts by orders, spend, rating, and recency column headers", async () => {

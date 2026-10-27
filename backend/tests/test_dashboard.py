@@ -1,5 +1,35 @@
+from app.api.dashboard.router import _customer_churn_segments
+
+
+def test_dashboard_risk_bands_are_derived_from_model_probability():
+    class Result:
+        def fetchall(self):
+            return []
+
+    class Database:
+        statement = ""
+
+        def execute(self, statement, params):
+            self.statement = str(statement)
+            assert params == {"start_ts": "2018-01-01 00:00:00"}
+            return Result()
+
+    db = Database()
+    _customer_churn_segments(
+        db,
+        "WHERE o.order_purchase_timestamp >= :start_ts",
+        {"start_ts": "2018-01-01 00:00:00"},
+    )
+
+    assert "scored.churn_probability >= 0.70" in db.statement
+    assert "scored.churn_probability >= 0.30" in db.statement
+    assert "MAX(cp.churn_probability)" in db.statement
+    assert "customer_risk_tiers" not in db.statement
+    assert "COUNT(*) AS count" in db.statement
+
+
 def test_dashboard_summary_default(client, admin_headers):
-    """Verifies that the default dashboard summary endpoint returns 200 and all analytical segments."""
+    """Verifies that the default dashboard summary endpoint returns 200 and churn risk bands."""
     response = client.get("/api/dashboard/summary", headers=admin_headers)
     assert response.status_code == 200
     data = response.json()

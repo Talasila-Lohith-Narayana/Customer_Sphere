@@ -33,7 +33,7 @@ describe("Model diagnostics", () => {
         avg_churn_probability: 0.2,
         predicted_churn_customers: 5,
         predicted_churn_rate: 0.1,
-        threshold: 0.5,
+        threshold: 0.7,
         refreshed_at: "2025-03-01 10:00:00",
       },
       last_refresh: { last_refreshed_at: "2025-03-01 10:00:00" },
@@ -45,6 +45,7 @@ describe("Model diagnostics", () => {
     render(<Model />);
 
     expect(await screen.findByText("Scored customers")).toBeInTheDocument();
+    expect(await screen.findByText("High-risk customers")).toBeInTheDocument();
     expect(await screen.findByText("20.0%", { selector: "strong" })).toBeInTheDocument();
     expect(await screen.findByText("Mar 1, 2025, 10:00 AM")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Refresh analytics data" })).toBeEnabled());

@@ -562,8 +562,6 @@ def get_customer_predictions(
             clv.value_tier,
             clv.purchase_frequency_per_year,
             clv.customer_lifespan_years,
-            rt.risk_tier AS segment_label,
-            rt.risk_tier AS segment_risk_tier,
             cs.cluster_probability,
             cr.campaign_name,
             cr.campaign_priority,
@@ -571,8 +569,6 @@ def get_customer_predictions(
         FROM {ANALYTICS_DB_NAME}.churn_predictions cp
         LEFT JOIN {ANALYTICS_DB_NAME}.customer_clv clv
             ON clv.customer_unique_id COLLATE utf8mb4_unicode_ci = cp.customer_unique_id COLLATE utf8mb4_unicode_ci
-        LEFT JOIN {ANALYTICS_DB_NAME}.customer_risk_tiers rt
-            ON rt.customer_unique_id COLLATE utf8mb4_unicode_ci = cp.customer_unique_id COLLATE utf8mb4_unicode_ci
         LEFT JOIN {ANALYTICS_DB_NAME}.customer_segments cs
             ON cs.customer_unique_id COLLATE utf8mb4_unicode_ci = cp.customer_unique_id COLLATE utf8mb4_unicode_ci
         LEFT JOIN {ANALYTICS_DB_NAME}.customer_campaign_recommendations cr
@@ -641,7 +637,7 @@ def get_customer_predictions(
             "customer_lifespan_years": round(float(row["customer_lifespan_years"]), 2) if row["customer_lifespan_years"] is not None else None,
         },
         "segmentation": {
-            "segment_label": row["segment_label"],
+            "segment_label": f"{risk_level.title()} Risk",
             "risk_tier": f"{risk_level.title()} Risk",
             "cluster_probability": round(float(row["cluster_probability"]), 4) if row["cluster_probability"] is not None else None,
         },

@@ -141,6 +141,11 @@ describe("Customer Page Orchestrator", () => {
 
   it("renders customer profile and tabs after data loads", async () => {
     setupDefaultMocks();
+    vi.spyOn(ApiModule.predictionService, "get").mockResolvedValue({
+      has_ml_data: true,
+      segmentation: { segment_label: "High Risk" },
+      churn: { risk_level: "high", percentage: 78 },
+    });
 
     render(
       <MemoryRouter initialEntries={["/customers/c_123"]}>
@@ -483,7 +488,7 @@ describe("Customer Page Orchestrator", () => {
     });
   });
 
-  it("calculates fallback CLV correctly when customer_lifetime_value is null for various segments", async () => {
+  it("calculates fallback CLV without using a stored customer risk segment", async () => {
     const customerWithoutCLV = {
       ...mockCustomerDetail,
       customer_lifetime_value: null,
@@ -497,6 +502,11 @@ describe("Customer Page Orchestrator", () => {
     vi.spyOn(ApiModule.customerService, "reviews").mockResolvedValue({ items: [] });
     vi.spyOn(ApiModule.customerService, "interactions").mockResolvedValue([]);
     vi.spyOn(ApiModule.customerService, "auditLogs").mockResolvedValue({ items: [] });
+    vi.spyOn(ApiModule.predictionService, "get").mockResolvedValue({
+      has_ml_data: true,
+      segmentation: { segment_label: "Medium Risk" },
+      churn: { risk_level: "medium", percentage: 42 },
+    });
 
     render(
       <MemoryRouter initialEntries={["/customers/c_123"]}>

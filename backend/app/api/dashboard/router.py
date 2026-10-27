@@ -69,6 +69,41 @@ def _build_time_filter(tf, sd=None, ed=None, param_prefix=""):
     return where, params
 
 
+def _customer_churn_segments(db, time_filter_orders, params):
+    order_joins = ""
+    if time_filter_orders:
+        order_joins = """
+            JOIN customers cust ON cust.customer_unique_id = c.customer_unique_id
+            JOIN orders o ON o.customer_id = cust.customer_id
+        """
+
+    return db.execute(
+        text(
+            f"""SELECT
+                CASE
+                    WHEN scored.churn_probability >= 0.70 THEN 'High Risk'
+                    WHEN scored.churn_probability >= 0.30 THEN 'Medium Risk'
+                    ELSE 'Low Risk'
+                END AS segment,
+                COUNT(*) AS count,
+                ROUND(AVG(scored.churn_probability) * 100, 2) AS churn_percentage
+            FROM (
+                SELECT c.customer_unique_id, MAX(cp.churn_probability) AS churn_probability
+                FROM customer_metrics_cache c
+                {order_joins}
+                JOIN {ANALYTICS_DB_NAME}.churn_predictions cp
+                    ON cp.customer_unique_id COLLATE utf8mb4_unicode_ci =
+                       c.customer_unique_id COLLATE utf8mb4_unicode_ci
+                {time_filter_orders}
+                GROUP BY c.customer_unique_id
+            ) scored
+            GROUP BY segment
+            ORDER BY count DESC"""
+        ),
+        params,
+    ).fetchall()
+
+
 # ------------------------------------------------------------------------------
 # Helper: Compute core KPI numbers for a given time filter
 # ------------------------------------------------------------------------------
@@ -224,51 +259,8 @@ def dashboard(
             result["comparison"] = comparison
         return result
 
-    # 3. Customer Segments Breakdown (Filtered by selected timeframe / date range)
-    if time_filter_orders:
-        seg = db.execute(
-            text(
-                f"""SELECT rt.risk_tier AS segment,
-                COUNT(DISTINCT c.customer_unique_id) as count,
-                ROUND(COALESCE(AVG(cp.churn_probability) * 100, 0), 2) AS churn_percentage
-                FROM customer_metrics_cache c
-                JOIN customers cust ON cust.customer_unique_id = c.customer_unique_id
-                JOIN orders o ON o.customer_id = cust.customer_id
-                JOIN {ANALYTICS_DB_NAME}.customer_risk_tiers rt
-                    ON rt.customer_unique_id COLLATE utf8mb4_unicode_ci =
-                       c.customer_unique_id COLLATE utf8mb4_unicode_ci
-                JOIN {ANALYTICS_DB_NAME}.churn_predictions cp
-                    ON cp.customer_unique_id COLLATE utf8mb4_unicode_ci =
-                       c.customer_unique_id COLLATE utf8mb4_unicode_ci
-                {time_filter_orders}
-                GROUP BY rt.risk_tier
-                ORDER BY count DESC"""
-            ),
-            params,
-        ).fetchall()
-    else:
-        seg = db.execute(
-            text(
-                f"""SELECT segment, COUNT(*) AS count,
-                ROUND(COALESCE(AVG(churn_probability) * 100, 0), 2) AS churn_percentage
-                FROM (
-                    SELECT c.customer_unique_id,
-                        rt.risk_tier AS segment,
-                        cp.churn_probability
-                    FROM customer_metrics_cache c
-                    JOIN {ANALYTICS_DB_NAME}.customer_risk_tiers rt
-                        ON rt.customer_unique_id COLLATE utf8mb4_unicode_ci =
-                           c.customer_unique_id COLLATE utf8mb4_unicode_ci
-                    JOIN {ANALYTICS_DB_NAME}.churn_predictions cp
-                        ON cp.customer_unique_id COLLATE utf8mb4_unicode_ci =
-                           c.customer_unique_id COLLATE utf8mb4_unicode_ci
-                    GROUP BY c.customer_unique_id, rt.risk_tier,
-                        cp.churn_probability
-                ) t
-                GROUP BY segment
-                ORDER BY count DESC"""
-            )
-        ).fetchall()
+    # 3. Model-predicted churn risk distribution
+    seg = _customer_churn_segments(db, time_filter_orders, params)
 
     # 4. Monthly Trend Time-Series
     monthly_where = f"{time_filter_orders} AND o.order_purchase_timestamp IS NOT NULL" if time_filter_orders else "WHERE o.order_purchase_timestamp IS NOT NULL"
@@ -477,50 +469,7 @@ def dashboard_section(
     time_filter_orders, params = _build_time_filter(timeframe, start_date, end_date)
 
     if section == "trends":
-        if time_filter_orders:
-            segments_raw = db.execute(
-                text(
-                    f"""SELECT rt.risk_tier AS segment,
-                    COUNT(DISTINCT c.customer_unique_id) as count,
-                    ROUND(COALESCE(AVG(cp.churn_probability) * 100, 0), 2) AS churn_percentage
-                    FROM customer_metrics_cache c
-                    JOIN customers cust ON cust.customer_unique_id = c.customer_unique_id
-                    JOIN orders o ON o.customer_id = cust.customer_id
-                    JOIN {ANALYTICS_DB_NAME}.customer_risk_tiers rt
-                        ON rt.customer_unique_id COLLATE utf8mb4_unicode_ci =
-                           c.customer_unique_id COLLATE utf8mb4_unicode_ci
-                    JOIN {ANALYTICS_DB_NAME}.churn_predictions cp
-                        ON cp.customer_unique_id COLLATE utf8mb4_unicode_ci =
-                           c.customer_unique_id COLLATE utf8mb4_unicode_ci
-                    {time_filter_orders}
-                    GROUP BY rt.risk_tier
-                    ORDER BY count DESC"""
-                ),
-                params,
-            ).fetchall()
-        else:
-            segments_raw = db.execute(
-                text(
-                    f"""SELECT segment, COUNT(*) AS count,
-                    ROUND(COALESCE(AVG(churn_probability) * 100, 0), 2) AS churn_percentage
-                    FROM (
-                        SELECT c.customer_unique_id,
-                            rt.risk_tier AS segment,
-                            cp.churn_probability
-                        FROM customer_metrics_cache c
-                        JOIN {ANALYTICS_DB_NAME}.customer_risk_tiers rt
-                            ON rt.customer_unique_id COLLATE utf8mb4_unicode_ci =
-                               c.customer_unique_id COLLATE utf8mb4_unicode_ci
-                        JOIN {ANALYTICS_DB_NAME}.churn_predictions cp
-                            ON cp.customer_unique_id COLLATE utf8mb4_unicode_ci =
-                               c.customer_unique_id COLLATE utf8mb4_unicode_ci
-                        GROUP BY c.customer_unique_id, rt.risk_tier,
-                            cp.churn_probability
-                    ) t
-                    GROUP BY segment
-                    ORDER BY count DESC"""
-                )
-            ).fetchall()
+        segments_raw = _customer_churn_segments(db, time_filter_orders, params)
 
         monthly_where = (
             f"{time_filter_orders} AND o.order_purchase_timestamp IS NOT NULL"

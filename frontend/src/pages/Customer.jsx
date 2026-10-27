@@ -183,8 +183,7 @@ export default function Customer() {
     typeof predictions?.segmentation?.segment_label === "string"
       ? predictions.segmentation.segment_label.trim()
       : "";
-  const activeSegment =
-    mlSegmentLabel || customer.segment || "ML segment unavailable";
+  const activeSegment = mlSegmentLabel || "ML segment unavailable";
 
   const features = [
     [

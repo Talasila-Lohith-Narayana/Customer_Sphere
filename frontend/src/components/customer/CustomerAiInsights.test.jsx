@@ -23,6 +23,7 @@ describe("CustomerAiInsights", () => {
 
     expect(screen.getByText("Live score")).toBeInTheDocument();
     expect(screen.getByText(/Scored: .*2025/)).toBeInTheDocument();
+    expect(document.querySelector(".aiBadge .churnDot.low")).toBeInTheDocument();
     expect(
       screen.getByText(/SHAP values are contributions, not percentage points/),
     ).toBeInTheDocument();

@@ -6,16 +6,15 @@ import FilterModal from "./FilterModal";
 describe("FilterModal Component", () => {
   const mockValues = {
     state: "SP",
-    segment: "High Risk",
     activity: "active",
     ratings: ["5"],
+    churnRisk: ["high"],
     maxRecency: "30",
     minSpend: "500",
     minOrders: "2",
   };
 
   const mockStates = ["SP", "RJ", "MG"];
-  const mockSegments = ["High Risk", "Medium Risk", "Low Risk"];
   const mockActivityOptions = [
     ["", "All activity"],
     ["active", "Has orders"],
@@ -27,7 +26,6 @@ describe("FilterModal Component", () => {
       <FilterModal
         values={mockValues}
         states={mockStates}
-        segments={mockSegments}
         activityOptions={mockActivityOptions}
         close={vi.fn()}
         apply={vi.fn()}
@@ -46,7 +44,6 @@ describe("FilterModal Component", () => {
       <FilterModal
         values={mockValues}
         states={mockStates}
-        segments={mockSegments}
         activityOptions={mockActivityOptions}
         close={vi.fn()}
         apply={mockApply}
@@ -58,7 +55,7 @@ describe("FilterModal Component", () => {
 
     expect(mockApply).toHaveBeenCalledWith(expect.objectContaining({
       state: "SP",
-      segment: "High Risk",
+      churnRisk: ["high"],
       minSpend: "500",
     }));
   });
@@ -68,7 +65,6 @@ describe("FilterModal Component", () => {
       <FilterModal
         values={mockValues}
         states={mockStates}
-        segments={mockSegments}
         activityOptions={mockActivityOptions}
         close={vi.fn()}
         apply={vi.fn()}
@@ -81,22 +77,21 @@ describe("FilterModal Component", () => {
     expect(screen.getByPlaceholderText("R$ amount").value).toBe("");
   });
 
-  it("updates inputs for state, segment, activity, recency, spend, and orders", () => {
+  it("updates customer and model-risk filters", () => {
     const mockApply = vi.fn();
 
     render(
       <FilterModal
         values={{
           state: "",
-          segment: "",
           activity: "",
           ratings: [],
+          churnRisk: [],
           maxRecency: "",
           minSpend: "",
           minOrders: "",
         }}
         states={mockStates}
-        segments={mockSegments}
         activityOptions={mockActivityOptions}
         close={vi.fn()}
         apply={mockApply}
@@ -104,20 +99,19 @@ describe("FilterModal Component", () => {
     );
 
     fireEvent.change(screen.getByPlaceholderText(/e\.g\. SP/i), { target: { value: "rj" } });
-    fireEvent.change(screen.getByLabelText(/Segment/i), { target: { value: "Medium Risk" } });
     fireEvent.change(screen.getByLabelText(/Activity/i), { target: { value: "inactive" } });
     fireEvent.change(screen.getByPlaceholderText("Days"), { target: { value: "60" } });
     fireEvent.change(screen.getByPlaceholderText("R$ amount"), { target: { value: "250" } });
     fireEvent.change(screen.getByPlaceholderText("Order count"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: /Medium \(30 to <70%\)/ }));
 
     fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
 
     expect(mockApply).toHaveBeenCalledWith({
       state: "RJ",
-      segment: "Medium Risk",
       activity: "inactive",
       ratings: [],
-      churnRisk: [],
+      churnRisk: ["medium"],
       maxRecency: "60",
       minSpend: "250",
       minOrders: "3",
@@ -131,7 +125,6 @@ describe("FilterModal Component", () => {
       <FilterModal
         values={mockValues}
         states={mockStates}
-        segments={mockSegments}
         activityOptions={mockActivityOptions}
         close={vi.fn()}
         apply={mockApply}
@@ -160,7 +153,6 @@ describe("FilterModal Component", () => {
       <FilterModal
         values={mockValues}
         states={mockStates}
-        segments={mockSegments}
         activityOptions={mockActivityOptions}
         close={mockClose}
         apply={vi.fn()}
@@ -174,7 +166,6 @@ describe("FilterModal Component", () => {
       <FilterModal
         values={mockValues}
         states={mockStates}
-        segments={mockSegments}
         activityOptions={mockActivityOptions}
         close={mockClose}
         apply={vi.fn()}
@@ -190,7 +181,6 @@ describe("FilterModal Component", () => {
       <FilterModal
         values={{}}
         states={mockStates}
-        segments={mockSegments}
         activityOptions={mockActivityOptions}
         close={vi.fn()}
         apply={vi.fn()}

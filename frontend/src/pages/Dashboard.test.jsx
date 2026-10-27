@@ -108,7 +108,7 @@ describe("Dashboard Page Orchestrator", () => {
       expect(screen.getByText("Executive Business Overview")).toBeInTheDocument();
       expect(screen.getByText("Total Customers")).toBeInTheDocument();
       expect(screen.getByText("Revenue growth trend")).toBeInTheDocument();
-      expect(screen.getByText("Customer segments")).toBeInTheDocument();
+      expect(screen.getByText("Predicted churn risk")).toBeInTheDocument();
       expect(screen.getByText("Brazilian Market Geolocation Heatmap")).toBeInTheDocument();
       expect(screen.queryByText("Regional distribution")).not.toBeInTheDocument();
       expect(screen.queryByText("Payment methods")).not.toBeInTheDocument();
