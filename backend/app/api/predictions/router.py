@@ -21,6 +21,26 @@ logger = logging.getLogger("customer_sphere")
 _cached_predictor = None
 
 
+def _resolve_model_path(ml_project_root: Path) -> Path:
+    model_filename = "lgb_churn_model_calibrated.joblib"
+    configured_path = os.getenv("MODEL_PATH")
+    if not configured_path:
+        return get_models_dir() / model_filename
+
+    model_path = Path(configured_path).expanduser()
+    if not model_path.is_absolute():
+        model_path = ml_project_root / model_path
+
+    if model_path.is_dir():
+        if model_path.resolve() == ml_project_root.resolve():
+            model_path = get_models_dir() / model_filename
+        else:
+            model_path = model_path / model_filename
+        logger.info("Resolved MODEL_PATH directory to model artifact %s", model_path)
+
+    return model_path
+
+
 def get_ml_predictor():
     """Load the shared ML inference service once."""
     global _cached_predictor
@@ -59,14 +79,7 @@ def get_ml_predictor():
 
         from app.ml.explainibility_inference.inference.predict import ChurnPredictor
 
-        model_path = Path(
-            os.getenv(
-                "MODEL_PATH",
-                str(get_models_dir() / "lgb_churn_model_calibrated.joblib"),
-            )
-        ).expanduser()
-        if not model_path.is_absolute():
-            model_path = ml_project_root / model_path
+        model_path = _resolve_model_path(ml_project_root)
 
         model_version = os.getenv("MODEL_VERSION", "v1")
         _cached_predictor = ChurnPredictor(

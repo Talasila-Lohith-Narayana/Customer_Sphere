@@ -147,6 +147,7 @@ def customers(
     risk_levels = _parse_churn_risk_levels(churn_risk, segment)
     apply_churn_risk_filter = bool(risk_levels)
     include_churn_details = include_churn or apply_churn_risk_filter or sort_by == "churn_risk"
+    aggregate_churn_for_query = apply_churn_risk_filter or sort_by == "churn_risk"
     churn_probability_expr = "(MAX(cp.churn_probability) * 100)"
     if apply_churn_risk_filter:
         risk_conds = _churn_risk_conditions(risk_levels)
@@ -154,6 +155,7 @@ def customers(
             f.append(f"({' OR '.join(risk_conds)})")
 
     where = " AND ".join(f)
+    use_preaggregated_customer_source = where == "1=1" and not aggregate_churn_for_query
     churn_join = f"""LEFT JOIN (
         SELECT customer_unique_id, MAX(churn_probability) AS churn_probability
         FROM {ANALYTICS_DB_NAME}.churn_predictions
@@ -172,7 +174,7 @@ def customers(
         "rating": "m.avg_review_score",
         "recency": "m.recency_days",
         "orders": "m.frequency",
-        "city": "MIN(c.customer_city)",
+        "city": "c.customer_city" if use_preaggregated_customer_source else "MIN(c.customer_city)",
         "churn_risk": "churn_risk_score",
     }
     col = sort_map.get(sort_by) if sort_by in sort_map else "c.customer_unique_id"
@@ -187,47 +189,117 @@ def customers(
                     WHEN {churn_probability_expr} >= 30 THEN 'medium'
                     ELSE 'low'
                 END AS churn_risk_level"""
-        if include_churn_details
+        if include_churn_details and aggregate_churn_for_query
         else ""
     )
-
-    total = (
-        db.execute(
-            text(f"SELECT COUNT(DISTINCT c.customer_unique_id) FROM customers c {count_joins} WHERE {where}"), p
-        ).scalar()
-        or 0
+    churn_select = f" {churn_join}" if aggregate_churn_for_query else ""
+    segment_expr = (
+        """CASE
+                    WHEN MAX(cp.churn_probability) IS NULL THEN 'Unscored'
+                    WHEN MAX(cp.churn_probability) >= 0.70 THEN 'High Risk'
+                    WHEN MAX(cp.churn_probability) >= 0.30 THEN 'Medium Risk'
+                    ELSE 'Low Risk'
+                END"""
+        if aggregate_churn_for_query
+        else "'Unscored'"
     )
+    if use_preaggregated_customer_source:
+        customer_source = """(
+            SELECT customer_unique_id, MIN(customer_id) AS customer_id,
+                   MIN(customer_city) AS customer_city, MIN(customer_state) AS customer_state
+            FROM customers
+            GROUP BY customer_unique_id
+        ) c
+        JOIN customer_metrics_cache m ON m.customer_id = c.customer_id"""
+        customer_id_expr = "c.customer_id"
+        customer_city_expr = "c.customer_city"
+        customer_state_expr = "c.customer_state"
+        group_by_clause = ""
+    else:
+        customer_source = """customers c
+        JOIN customer_metrics_cache m ON m.customer_id = c.customer_id"""
+        customer_id_expr = "MIN(c.customer_id)"
+        customer_city_expr = "MIN(c.customer_city)"
+        customer_state_expr = "MIN(c.customer_state)"
+        group_by_clause = """GROUP BY c.customer_unique_id, m.recency_days, m.frequency,
+            m.monetary_total, m.avg_review_score"""
+
+    if use_preaggregated_customer_source:
+        count_sql = "SELECT COUNT(DISTINCT m.customer_unique_id) FROM customer_metrics_cache m"
+    else:
+        count_sql = (
+            f"SELECT COUNT(DISTINCT c.customer_unique_id) "
+            f"FROM customers c {count_joins} WHERE {where}"
+        )
+    total = db.execute(text(count_sql), p).scalar() or 0
     rs = db.execute(
         text(
             f"""SELECT
-                MIN(c.customer_id) as customer_id,
+                {customer_id_expr} as customer_id,
                 c.customer_unique_id,
-                MIN(c.customer_city) as customer_city,
-                MIN(c.customer_state) as customer_state,
+                {customer_city_expr} as customer_city,
+                {customer_state_expr} as customer_state,
                 m.recency_days,
                 m.frequency,
                 m.monetary_total,
                 m.avg_review_score,
                 CASE WHEN m.frequency>1 THEN 1 ELSE 0 END as is_repeat_customer,
-                CASE
-                    WHEN MAX(cp.churn_probability) IS NULL THEN 'Unscored'
-                    WHEN MAX(cp.churn_probability) >= 0.70 THEN 'High Risk'
-                    WHEN MAX(cp.churn_probability) >= 0.30 THEN 'Medium Risk'
-                    ELSE 'Low Risk'
-                END AS segment
+                {segment_expr} AS segment
                 {churn_columns}
-            FROM customers c 
-            JOIN customer_metrics_cache m ON m.customer_id = c.customer_id
-            {churn_join}
+            FROM {customer_source}
+            {churn_select}
             WHERE {where} 
-            GROUP BY c.customer_unique_id, m.recency_days, m.frequency, m.monetary_total, m.avg_review_score
+            {group_by_clause}
             ORDER BY {order_clause} 
             LIMIT :limit OFFSET :offset"""
         ),
         p,
     ).fetchall()
+    items = rows(rs)
+    if not aggregate_churn_for_query and items:
+        customer_ids = [item["customer_unique_id"] for item in items]
+        customer_params = {
+            f"customer_id_{i}": customer_id
+            for i, customer_id in enumerate(customer_ids)
+        }
+        customer_id_placeholders = ", ".join(f":{key}" for key in customer_params)
+        churn_rows = db.execute(
+            text(
+                f"""SELECT customer_unique_id, MAX(churn_probability) AS churn_probability
+                    FROM {ANALYTICS_DB_NAME}.churn_predictions
+                    WHERE customer_unique_id IN ({customer_id_placeholders})
+                    GROUP BY customer_unique_id"""
+            ),
+            customer_params,
+        ).fetchall()
+        churn_by_customer = {
+            row._mapping["customer_unique_id"]: row._mapping["churn_probability"]
+            for row in churn_rows
+        }
+        for item in items:
+            probability = churn_by_customer.get(item["customer_unique_id"])
+            if probability is None:
+                continue
+            probability = float(probability)
+            if probability >= 0.70:
+                segment, risk_level = "High Risk", "high"
+            elif probability >= 0.30:
+                segment, risk_level = "Medium Risk", "medium"
+            else:
+                segment, risk_level = "Low Risk", "low"
+            item["segment"] = segment
+            if include_churn_details:
+                risk_score = round(probability * 100, 2)
+                item["churn_percentage"] = risk_score
+                item["churn_risk_score"] = risk_score
+                item["churn_risk_level"] = risk_level
+    if include_churn_details and not aggregate_churn_for_query:
+        for item in items:
+            item.setdefault("churn_percentage", None)
+            item.setdefault("churn_risk_score", None)
+            item.setdefault("churn_risk_level", "low")
     return {
-        "items": rows(rs),
+        "items": items,
         "total": int(total),
         "page": page,
         "page_size": page_size,

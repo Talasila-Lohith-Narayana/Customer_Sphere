@@ -1,5 +1,5 @@
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, Numeric, String, Text, DateTime
 from sqlalchemy.dialects.mysql import CHAR
 
 # Base declarative class for all ORM models
@@ -46,3 +46,18 @@ class AuditLog(Base):
     performed_by = Column(String(80), nullable=False)
     details = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False)
+
+
+class CustomerMetricsCache(Base):
+    """
+    Cached RFM metrics and segment definitions per customer_id.
+    Maintained to accelerate customer directory, search, and dashboard aggregation.
+    """
+    __tablename__ = "customer_metrics_cache"
+    customer_id = Column(CHAR(32), primary_key=True)
+    customer_unique_id = Column(CHAR(32), index=True)
+    recency_days = Column(Integer, nullable=False, default=0, server_default="0", index=True)
+    frequency = Column(Integer, nullable=False, default=0, server_default="0", index=True)
+    monetary_total = Column(Numeric(10, 2), nullable=False, default=0.00, server_default="0.00", index=True)
+    avg_review_score = Column(Numeric(3, 2), nullable=False, default=0.00, server_default="0.00", index=True)
+    segment = Column(String(80), nullable=False, default="New / Developing", server_default="New / Developing", index=True)

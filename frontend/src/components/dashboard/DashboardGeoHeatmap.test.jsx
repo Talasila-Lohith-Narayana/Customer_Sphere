@@ -134,8 +134,8 @@ describe("DashboardGeoHeatmap Component", () => {
     expect(ordersBtn).toHaveClass("active");
   });
 
-  it("loads and displays state intelligence details for selected state", async () => {
-    render(
+  it("loads and displays state intelligence details after selecting a state", async () => {
+    const { container } = render(
       <DashboardGeoHeatmap
         geoDistribution={mockGeoDistribution}
         topCities={mockTopCities}
@@ -143,16 +143,21 @@ describe("DashboardGeoHeatmap Component", () => {
       />
     );
 
-    // Initial state is SP
+    fireEvent.click(container.querySelector("#state-SP"));
+
     await waitFor(() => {
       expect(screen.getByText("São Paulo")).toBeInTheDocument();
       expect(screen.getByText("Southeast Region")).toBeInTheDocument();
       expect(screen.getByText("Capital: São Paulo")).toBeInTheDocument();
       expect(screen.getByText("Top Cities in São Paulo")).toBeInTheDocument();
     });
+    expect(ApiModule.dashboardService.stateDetail).toHaveBeenCalledWith(
+      "SP",
+      { timeframe: "all" },
+    );
   });
 
-  it("allows switching to national overview by clicking Overview button", async () => {
+  it("starts with the national overview without requesting state details", async () => {
     render(
       <DashboardGeoHeatmap
         geoDistribution={mockGeoDistribution}
@@ -161,12 +166,23 @@ describe("DashboardGeoHeatmap Component", () => {
       />
     );
 
-    await waitFor(() => {
-      expect(screen.getByText("Overview")).toBeInTheDocument();
-    });
+    expect(screen.getByText("National Market Overview")).toBeInTheDocument();
+    expect(screen.getByText("Top States Leaderboard")).toBeInTheDocument();
+    expect(ApiModule.dashboardService.stateDetail).not.toHaveBeenCalled();
+  });
 
-    const overviewBtn = screen.getByText("Overview");
-    fireEvent.click(overviewBtn);
+  it("allows switching from a selected state to national overview", async () => {
+    const { container } = render(
+      <DashboardGeoHeatmap
+        geoDistribution={mockGeoDistribution}
+        topCities={mockTopCities}
+        navigate={vi.fn()}
+      />
+    );
+
+    fireEvent.click(container.querySelector("#state-SP"));
+    await screen.findByText("Top Cities in São Paulo");
+    fireEvent.click(screen.getByText("Overview"));
 
     expect(screen.getByText("National Market Overview")).toBeInTheDocument();
     expect(screen.getByText("Top States Leaderboard")).toBeInTheDocument();

@@ -1,4 +1,5 @@
 import uuid
+from types import SimpleNamespace
 
 from app.schemas import CustomerIn
 from app.api.customers import router as customer_router
@@ -51,6 +52,66 @@ def test_legacy_segment_filter_uses_model_probability_bands():
     assert all("segment" not in params for _, params in db.statements)
 
 
+def test_customer_list_looks_up_churn_only_for_the_current_page():
+    class Result:
+        def __init__(self, scalar_value=None, rows=None):
+            self.scalar_value = scalar_value
+            self.rows = rows or []
+
+        def scalar(self):
+            return self.scalar_value
+
+        def fetchall(self):
+            return self.rows
+
+    class Database:
+        def __init__(self):
+            self.statements = []
+
+        def execute(self, statement, params):
+            sql = str(statement)
+            self.statements.append((sql, params))
+            if sql.startswith("SELECT COUNT"):
+                return Result(scalar_value=1)
+            if "FROM customers c" in sql:
+                return Result(
+                    rows=[
+                        SimpleNamespace(
+                            _mapping={
+                                "customer_unique_id": "page-customer",
+                                "segment": "Unscored",
+                            }
+                        )
+                    ]
+                )
+            return Result(
+                rows=[
+                    SimpleNamespace(
+                        _mapping={
+                            "customer_unique_id": "page-customer",
+                            "churn_probability": 0.75,
+                        }
+                    )
+                ]
+            )
+
+    db = Database()
+    response = customer_router.customers(
+        page=1,
+        page_size=12,
+        include_churn=True,
+        db=db,
+        _={},
+    )
+
+    assert len(db.statements) == 3
+    assert "churn_predictions" not in db.statements[1][0]
+    assert "WHERE customer_unique_id IN" in db.statements[2][0]
+    assert db.statements[2][1] == {"customer_id_0": "page-customer"}
+    assert response["items"][0]["segment"] == "High Risk"
+    assert response["items"][0]["churn_percentage"] == 75
+    assert response["items"][0]["churn_risk_score"] == 75
+    assert response["items"][0]["churn_risk_level"] == "high"
 
 
 def test_legacy_segment_filter_uses_model_predictions(client, admin_headers):

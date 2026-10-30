@@ -88,7 +88,7 @@ export default function DashboardGeoHeatmap({
   const [activeMetric, setActiveMetric] = useState("customers"); // 'customers' | 'orders' | 'revenue'
   const [selectedRegion, setSelectedRegion] = useState("all");
   const [hoveredState, setHoveredState] = useState(null);
-  const [selectedState, setSelectedState] = useState("SP");
+  const [selectedState, setSelectedState] = useState(null);
   const [stateDetailData, setStateDetailData] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState("");

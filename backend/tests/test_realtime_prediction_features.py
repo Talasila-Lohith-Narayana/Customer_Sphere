@@ -1,6 +1,10 @@
 import math
 
-from app.api.predictions.router import _build_realtime_feature_row, _build_shap_drivers
+from app.api.predictions.router import (
+    _build_realtime_feature_row,
+    _build_shap_drivers,
+    _resolve_model_path,
+)
 
 
 def test_realtime_feature_row_matches_training_transformations():
@@ -127,3 +131,37 @@ def test_shap_drivers_mark_zero_impact_as_lowering_risk():
     assert drivers[-1]["feature"] == "neutral"
     assert drivers[-1]["direction"] == "lowers_risk"
     assert drivers[-1]["feature_value"] is None
+
+
+def test_model_path_resolves_customer_intelligence_root_to_default_artifact(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("CUSTOMER_INTELLIGENCE_ROOT", str(tmp_path))
+    monkeypatch.delenv("CUSTOMER_INTELLIGENCE_OUTPUTS_DIR", raising=False)
+    monkeypatch.setenv("MODEL_PATH", str(tmp_path))
+
+    assert _resolve_model_path(tmp_path) == (
+        tmp_path / "outputs" / "models" / "lgb_churn_model_calibrated.joblib"
+    )
+
+
+def test_model_path_resolves_models_directory_to_default_artifact(
+    monkeypatch, tmp_path
+):
+    models_dir = tmp_path / "outputs" / "models"
+    models_dir.mkdir(parents=True)
+    monkeypatch.setenv("CUSTOMER_INTELLIGENCE_ROOT", str(tmp_path))
+    monkeypatch.delenv("CUSTOMER_INTELLIGENCE_OUTPUTS_DIR", raising=False)
+    monkeypatch.setenv("MODEL_PATH", str(models_dir))
+
+    assert _resolve_model_path(tmp_path) == (
+        models_dir / "lgb_churn_model_calibrated.joblib"
+    )
+
+
+def test_model_path_preserves_explicit_artifact_path(monkeypatch, tmp_path):
+    artifact_path = tmp_path / "custom-model.joblib"
+    monkeypatch.setenv("CUSTOMER_INTELLIGENCE_ROOT", str(tmp_path))
+    monkeypatch.setenv("MODEL_PATH", str(artifact_path))
+
+    assert _resolve_model_path(tmp_path) == artifact_path

@@ -32,7 +32,10 @@ def test_initial_migration_creates_application_tables(tmp_path):
             )
             assert connection.execute(
                 text("SELECT version_num FROM alembic_version")
-            ).scalar_one() == "20261023_0001"
+            ).scalar_one() == "20261030_0003"
+            assert "ix_customer_metrics_cache_frequency_customer_unique_id" in {
+                index["name"] for index in inspector.get_indexes("customer_metrics_cache")
+            }
     finally:
         engine.dispose()
 

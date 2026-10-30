@@ -26,6 +26,16 @@ def upgrade() -> None:
     user_columns = {
         column["name"] for column in sa.inspect(connection).get_columns("ci_users")
     }
+    if "role" not in user_columns:
+        op.add_column(
+            "ci_users",
+            sa.Column(
+                "role",
+                sa.String(20),
+                nullable=False,
+                server_default="viewer",
+            ),
+        )
     if "access_pages" not in user_columns:
         op.add_column(
             "ci_users",
