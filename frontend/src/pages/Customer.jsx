@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity,
   ArrowLeft,
@@ -37,13 +37,28 @@ import CustomerInteractions from "../components/customer/CustomerInteractions";
 import CustomerAuditLogs from "../components/customer/CustomerAuditLogs";
 import CustomerAiInsights from "../components/customer/CustomerAiInsights";
 
+const normalizeList = (value) => {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.items)) return value.items;
+  if (Array.isArray(value?.data)) return value.data;
+  return [];
+};
+
 export default function Customer() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
   const { isAdmin } = useAuth();
+  const activeCustomerId = useRef(id);
+  activeCustomerId.current = id;
+  const loadedTabs = useRef({});
+  const loadingTabRef = useRef(null);
   const [data, setData] = useState(null);
+  const [loadingTab, setLoadingTab] = useState(null);
+  const [tabError, setTabError] = useState("");
   const [tab, setTab] = useState("overview");
+  const selectedTab = useRef(tab);
+  selectedTab.current = tab;
   const [showForm, setShowForm] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showAddOrder, setShowAddOrder] = useState(false);
@@ -93,39 +108,93 @@ export default function Customer() {
     }
   };
 
-  const normalizeList = (value) => {
-    if (Array.isArray(value)) return value;
-    if (Array.isArray(value?.items)) return value.items;
-    if (Array.isArray(value?.data)) return value.data;
-    return [];
-  };
+  const loadTabData = useCallback(async (targetTab, customerId = id, force = false) => {
+    if (
+      !force
+      && (loadedTabs.current[`${customerId}:${targetTab}`]
+        || loadingTabRef.current === targetTab)
+    ) return;
 
-  const load = async () => {
+    setTabError("");
+    loadingTabRef.current = targetTab;
+    setLoadingTab(targetTab);
+    try {
+      let updates;
+      if (targetTab === "products") {
+        updates = { products: normalizeList(await customerService.products(customerId)) };
+      } else if (targetTab === "orders") {
+        updates = { orders: normalizeList(await customerService.orders(customerId)) };
+      } else if (targetTab === "reviews") {
+        const [reviews, orders] = await Promise.all([
+          customerService.reviews(customerId),
+          customerService.orders(customerId),
+        ]);
+        updates = {
+          reviews: normalizeList(reviews),
+          orders: normalizeList(orders),
+        };
+      } else if (targetTab === "activity") {
+        updates = { interactions: normalizeList(await customerService.interactions(customerId)) };
+      } else if (targetTab === "audit") {
+        updates = { auditLogs: normalizeList(await customerService.auditLogs(customerId)) };
+      } else {
+        return;
+      }
+
+      if (activeCustomerId.current !== customerId) return;
+      setData((previous) => ({ ...previous, ...updates }));
+      loadedTabs.current[`${customerId}:${targetTab}`] = true;
+    } catch (requestError) {
+      if (activeCustomerId.current === customerId) {
+        setTabError(requestError.message || "Unable to load customer data.");
+      }
+    } finally {
+      if (
+        activeCustomerId.current === customerId
+        && loadingTabRef.current === targetTab
+      ) {
+        loadingTabRef.current = null;
+        setLoadingTab((current) => current === targetTab ? null : current);
+      }
+    }
+  }, [id]);
+
+  const load = useCallback(async (refreshActiveTab = true) => {
+    const customerId = id;
     setError("");
     try {
-      const [detail, orders, products, reviews, interactions, auditLogs, predictions] =
-        await Promise.all([
-          customerService.detail(id),
-          customerService.orders(id),
-          customerService.products(id),
-          customerService.reviews(id),
-          customerService.interactions(id),
-          customerService.auditLogs(id),
-          predictionService.get(id).catch(() => null),
-        ]);
-      setData({
+      const detail = await customerService.detail(customerId);
+      if (activeCustomerId.current !== customerId) return;
+      setData((previous) => ({
         detail: detail || {},
-        orders: normalizeList(orders),
-        products: normalizeList(products),
-        reviews: normalizeList(reviews),
-        interactions: normalizeList(interactions),
-        auditLogs: normalizeList(auditLogs),
-        predictions,
-      });
+        orders: previous?.orders || [],
+        products: previous?.products || [],
+        reviews: previous?.reviews || [],
+        interactions: previous?.interactions || [],
+        auditLogs: previous?.auditLogs || [],
+        predictions: previous?.predictions || null,
+      }));
+      predictionService.get(customerId).then(
+        (predictions) => {
+          if (activeCustomerId.current === customerId) {
+            setData((previous) => ({ ...previous, predictions }));
+          }
+        },
+        () => {
+          if (activeCustomerId.current === customerId) {
+            setData((previous) => ({ ...previous, predictions: null }));
+          }
+        },
+      );
+      if (selectedTab.current !== "overview" && selectedTab.current !== "ai-insights") {
+        await loadTabData(selectedTab.current, customerId, refreshActiveTab);
+      }
     } catch (requestError) {
-      setError(requestError.message);
+      if (activeCustomerId.current === customerId) {
+        setError(requestError.message);
+      }
     }
-  };
+  }, [id, loadTabData]);
 
   const handleConfirmDelete = async () => {
     setDeleteLoading(true);
@@ -145,8 +214,21 @@ export default function Customer() {
   };
 
   useEffect(() => {
-    load();
-  }, [id]);
+    setData(null);
+    loadedTabs.current = {};
+    loadingTabRef.current = null;
+    setLoadingTab(null);
+    setTabError("");
+    load(false);
+  }, [id, load]);
+
+  const hasCustomerData = Boolean(data);
+  useEffect(() => {
+    setTabError("");
+    if (hasCustomerData && tab !== "overview" && tab !== "ai-insights") {
+      loadTabData(tab);
+    }
+  }, [id, tab, hasCustomerData, loadTabData]);
 
   if (error)
     return (
@@ -293,46 +375,52 @@ export default function Customer() {
         </button>
       </div>
 
-      {tab === "overview" && (
+      {tabError ? (
+        <ErrorState message={tabError} retry={() => loadTabData(tab, id, true)} />
+      ) : loadingTab === tab ? (
+        <LoadingState text="Loading customer data..." />
+      ) : (
         <>
-          <CustomerOverview customer={customer} predictions={data.predictions} />
+          {tab === "overview" && (
+            <CustomerOverview customer={customer} predictions={data.predictions} />
+          )}
+          {tab === "ai-insights" && (
+            <CustomerAiInsights
+              predictions={data.predictions}
+              onRescore={handleManualRescore}
+              rescoreLoading={rescoreLoading}
+            />
+          )}
+          {tab === "products" && <CustomerProducts items={data.products} />}
+          {tab === "orders" && (
+            <CustomerOrders
+              items={data.orders}
+              isAdmin={isAdmin}
+              onAddOrder={() => setShowAddOrder(true)}
+              onEditOrder={(order) => setEditingOrder(order)}
+              onBulkDelete={handleBulkOrderDelete}
+              bulkDeleteLoading={bulkOrderDeleteLoading}
+            />
+          )}
+          {tab === "reviews" && (
+            <CustomerReviews
+              items={data.reviews}
+              orders={data.orders}
+              isAdmin={isAdmin}
+              onAddReview={() => setShowAddReview(true)}
+              onEditReview={(review) => setEditingReview(review)}
+            />
+          )}
+          {tab === "activity" && (
+            <CustomerInteractions
+              items={data.interactions}
+              isAdmin={isAdmin}
+              onEditInteraction={(interaction) => setEditingInteraction(interaction)}
+            />
+          )}
+          {tab === "audit" && <CustomerAuditLogs items={data.auditLogs} />}
         </>
       )}
-      {tab === "ai-insights" && (
-        <CustomerAiInsights
-          predictions={data.predictions}
-          onRescore={handleManualRescore}
-          rescoreLoading={rescoreLoading}
-        />
-      )}
-      {tab === "products" && <CustomerProducts items={data.products} />}
-      {tab === "orders" && (
-        <CustomerOrders
-          items={data.orders}
-          isAdmin={isAdmin}
-          onAddOrder={() => setShowAddOrder(true)}
-          onEditOrder={(order) => setEditingOrder(order)}
-          onBulkDelete={handleBulkOrderDelete}
-          bulkDeleteLoading={bulkOrderDeleteLoading}
-        />
-      )}
-      {tab === "reviews" && (
-        <CustomerReviews
-          items={data.reviews}
-          orders={data.orders}
-          isAdmin={isAdmin}
-          onAddReview={() => setShowAddReview(true)}
-          onEditReview={(review) => setEditingReview(review)}
-        />
-      )}
-      {tab === "activity" && (
-        <CustomerInteractions
-          items={data.interactions}
-          isAdmin={isAdmin}
-          onEditInteraction={(interaction) => setEditingInteraction(interaction)}
-        />
-      )}
-      {tab === "audit" && <CustomerAuditLogs items={data.auditLogs} />}
 
       {showForm && (
         <InteractionModal

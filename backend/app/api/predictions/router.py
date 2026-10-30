@@ -167,6 +167,56 @@ def _build_shap_drivers(
     ]
 
 
+def _persist_customer_clv(
+    db: Session,
+    customer_unique_id: str,
+    clv: dict,
+) -> None:
+    values = {
+        "customer_unique_id": customer_unique_id,
+        "purchase_frequency_per_year": clv["purchase_frequency_per_year"],
+        "customer_lifespan_years": clv["customer_lifespan_years"],
+        "clv": clv["predicted_clv"],
+        "value_tier": clv["value_tier"],
+    }
+    table = f"{ANALYTICS_DB_NAME}.customer_clv"
+    updated = db.execute(
+        text(
+            f"""UPDATE {table}
+               SET purchase_frequency_per_year = :purchase_frequency_per_year,
+                   customer_lifespan_years = :customer_lifespan_years,
+                   clv = :clv,
+                   value_tier = :value_tier
+               WHERE customer_unique_id = :customer_unique_id"""
+        ),
+        values,
+    )
+    if updated.rowcount:
+        return
+
+    existing = db.execute(
+        text(
+            f"""SELECT 1 FROM {table}
+               WHERE customer_unique_id = :customer_unique_id
+               LIMIT 1"""
+        ),
+        {"customer_unique_id": customer_unique_id},
+    ).first()
+    if existing is None:
+        db.execute(
+            text(
+                f"""INSERT INTO {table} (
+                        customer_unique_id, purchase_frequency_per_year,
+                        customer_lifespan_years, clv, value_tier
+                    ) VALUES (
+                        :customer_unique_id, :purchase_frequency_per_year,
+                        :customer_lifespan_years, :clv, :value_tier
+                    )"""
+            ),
+            values,
+        )
+
+
 def _compute_realtime_prediction(db: Session, customer_unique_id: str):
     """
     On-demand feature extraction and live model inference for newly added customers
@@ -722,6 +772,12 @@ def rescore_customer_manually(
             ),
             prediction_values,
         )
+
+    _persist_customer_clv(
+        db,
+        customer_unique_id,
+        fresh_predictions["clv"],
+    )
 
     # Keep the customer directory in sync with the result shown by the AI
     # insights page. The directory falls back to customer_metrics_cache when

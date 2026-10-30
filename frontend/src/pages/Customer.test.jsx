@@ -170,6 +170,31 @@ describe("Customer Page Orchestrator", () => {
     expect(screen.getByRole("button", { name: "Audit Log" })).toBeInTheDocument();
   });
 
+  it("shows customer details without waiting for predictions and loads tab data on demand", async () => {
+    setupDefaultMocks();
+    vi.spyOn(ApiModule.predictionService, "get").mockReturnValue(new Promise(() => {}));
+
+    render(
+      <MemoryRouter initialEntries={["/customers/c_123"]}>
+        <Routes>
+          <Route path="/customers/:id" element={<Customer />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("uid_999999")).toBeInTheDocument();
+    expect(ApiModule.customerService.orders).not.toHaveBeenCalled();
+    expect(ApiModule.customerService.products).not.toHaveBeenCalled();
+    expect(ApiModule.customerService.reviews).not.toHaveBeenCalled();
+    expect(ApiModule.customerService.interactions).not.toHaveBeenCalled();
+    expect(ApiModule.customerService.auditLogs).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Orders" }));
+    expect(await screen.findByText("Order history")).toBeInTheDocument();
+    expect(ApiModule.customerService.orders).toHaveBeenCalledWith("c_123");
+    expect(ApiModule.customerService.products).not.toHaveBeenCalled();
+  });
+
   it("navigates back to /customers when back button is clicked", async () => {
     setupDefaultMocks();
 
