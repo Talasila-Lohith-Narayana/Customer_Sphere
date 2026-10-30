@@ -160,6 +160,7 @@ describe("Customer Page Orchestrator", () => {
       expect(screen.getByText(/Sao Paulo, SP/i)).toBeInTheDocument();
       expect(screen.getByText("CONSUMER PROFILE · High Risk")).toBeInTheDocument();
     });
+    expect(document.querySelector(".heroAvatar")).toHaveTextContent("U");
 
     // Test all tab buttons exist
     expect(screen.getByRole("button", { name: "Overview" })).toBeInTheDocument();

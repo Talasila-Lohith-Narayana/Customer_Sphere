@@ -533,7 +533,7 @@ export default function Customers() {
         const customerId = row.original.customer_unique_id;
         return (
           <div className="customer customerDirectoryIdentity">
-            <div className="avatar">{row.original.customer_city?.[0]}</div>
+            <div className="avatar">{customerId?.[0]?.toUpperCase() || "C"}</div>
             <div className="customerIdWrap">
               <b className="customerId" title={customerId}>{customerId}</b>
             </div>

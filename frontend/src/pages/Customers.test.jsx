@@ -208,6 +208,20 @@ describe("Customers Directory Page", () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
+  it("shows the customer ID initial in the directory avatar", async () => {
+    vi.spyOn(ApiModule.customerService, "list").mockResolvedValue(mockCustomersList);
+
+    render(
+      <MemoryRouter>
+        <Customers />
+      </MemoryRouter>
+    );
+
+    const customerId = await screen.findByText("uid_111111");
+    const identity = customerId.closest(".customerDirectoryIdentity");
+    expect(identity.querySelector(".avatar")).toHaveTextContent("U");
+  });
+
   it("explains unscored risk and links to the profile for scoring options", async () => {
     vi.spyOn(ApiModule.customerService, "list").mockResolvedValue({
       ...mockCustomersList,

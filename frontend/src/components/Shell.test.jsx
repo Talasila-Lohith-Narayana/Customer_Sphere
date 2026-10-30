@@ -258,6 +258,23 @@ describe("Shell Navigation & Layout Component", () => {
     expect(mockSwitchToAccount).toHaveBeenCalledWith("analyst");
   });
 
+  it("hides the placeholder option when the sidebar is minimized", async () => {
+    localStorage.setItem("sidebar_collapsed", "true");
+
+    render(
+      <MemoryRouter>
+        <Shell />
+      </MemoryRouter>
+    );
+
+    await screen.findByRole("option", { name: /analyst — Viewer/i });
+    const placeholder = document.querySelector(
+      'select[aria-label="Switch profile"] option[value=""]',
+    );
+    expect(placeholder).not.toBeNull();
+    expect(placeholder).toHaveAttribute("hidden");
+  });
+
   it("opens login modal for unauthenticated account and authenticates successfully", async () => {
     mockLoginAndSwitch.mockResolvedValueOnce({});
 

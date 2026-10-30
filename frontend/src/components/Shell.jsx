@@ -183,7 +183,7 @@ export default function Shell() {
           void handleProfileClick(selectedUsername);
         }}
       >
-        <option value="">
+        <option value="" hidden={collapsed}>
           {profilesLoading ? "Loading users..." : "Choose a user..."}
         </option>
         {profiles.map((profile) => (

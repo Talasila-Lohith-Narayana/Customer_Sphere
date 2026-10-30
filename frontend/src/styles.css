@@ -1564,6 +1564,11 @@ button {
   opacity: 0.7;
 }
 
+.profileSwitcher select option {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+
 .profileSwitcherError {
   margin-top: 6px;
   padding: 0;
@@ -1637,6 +1642,14 @@ button {
 .profileSwitcher.compact select:focus-visible {
   outline: 2px solid #60a5fa;
   outline-offset: 2px;
+}
+
+.profileSwitcher.compact select:focus {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .profileSwitcher.compact select:focus {
+  color: #e2e8f0;
 }
 
 .sideBottom button {

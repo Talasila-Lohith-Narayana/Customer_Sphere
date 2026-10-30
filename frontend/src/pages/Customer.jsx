@@ -247,10 +247,7 @@ export default function Customer() {
   const customer = data.detail || {};
   const predictions = data.predictions;
   const customerIdentifier = customer.customer_unique_id || customer.customer_id || "Customer";
-  const heroInitial =
-    typeof customer.customer_city === "string" && customer.customer_city.trim()
-      ? customer.customer_city.trim()[0].toUpperCase()
-      : customerIdentifier.charAt(0)?.toUpperCase() || "C";
+  const heroInitial = customerIdentifier.charAt(0)?.toUpperCase() || "C";
 
   const mlClv = predictions?.clv?.predicted_clv;
   const realizedSpend = Number(customer.monetary_total || 0);
