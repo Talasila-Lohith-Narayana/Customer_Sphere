@@ -70,6 +70,24 @@ def _build_time_filter(tf, sd=None, ed=None, param_prefix=""):
 
 
 def _customer_churn_segments(db, time_filter_orders, params):
+    if not time_filter_orders:
+        return db.execute(
+            text(
+                f"""SELECT
+                    CASE
+                        WHEN churn_probability >= 0.70 THEN 'High Risk'
+                        WHEN churn_probability >= 0.30 THEN 'Medium Risk'
+                        ELSE 'Low Risk'
+                    END AS segment,
+                    COUNT(*) AS count,
+                    ROUND(AVG(churn_probability) * 100, 2) AS churn_percentage
+                FROM {ANALYTICS_DB_NAME}.churn_predictions
+                GROUP BY segment
+                ORDER BY count DESC"""
+            ),
+            params,
+        ).fetchall()
+
     order_joins = ""
     if time_filter_orders:
         order_joins = """
@@ -310,19 +328,32 @@ def dashboard(
     ).fetchall()
 
     # 6. Geolocation Heatmap: Brazilian States Distribution (all 27 federative units)
-    geo_where = f"{time_filter_orders} AND c.customer_state IN ('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO')" if time_filter_orders else "WHERE c.customer_state IN ('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO')"
+    geo_time_filter = time_filter_orders.replace(
+        "o.order_purchase_timestamp", "g.order_purchase_timestamp"
+    )
+    geo_where = (
+        f"{geo_time_filter} AND g.customer_state IN "
+        "('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO')"
+        if geo_time_filter
+        else "WHERE g.customer_state IN "
+        "('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO')"
+    )
+    geo_where += " AND g.payment_count > 0"
+    geo_city_where = (
+        f"{geo_time_filter} AND g.payment_count > 0"
+        if geo_time_filter
+        else "WHERE g.payment_count > 0"
+    )
     all_states_raw = db.execute(
         text(
             f"""SELECT 
-                c.customer_state as state, 
-                COUNT(DISTINCT c.customer_unique_id) as customers, 
-                COUNT(DISTINCT o.order_id) as orders,
-                COALESCE(SUM(p.payment_value), 0) as revenue
-            FROM customers c
-            JOIN orders o ON o.customer_id = c.customer_id
-            JOIN order_payments p ON p.order_id = o.order_id
+                g.customer_state as state,
+                COUNT(DISTINCT g.customer_unique_id) as customers,
+                COUNT(*) as orders,
+                COALESCE(SUM(g.total_revenue), 0) as revenue
+            FROM geo_order_metrics_cache g
             {geo_where}
-            GROUP BY c.customer_state
+            GROUP BY g.customer_state
             ORDER BY revenue DESC"""
         ),
         params,
@@ -368,16 +399,14 @@ def dashboard(
     top_cities_raw = db.execute(
         text(
             f"""SELECT 
-                c.customer_city as city,
-                c.customer_state as state,
-                COUNT(DISTINCT c.customer_unique_id) as customers,
-                COUNT(DISTINCT o.order_id) as orders,
-                ROUND(COALESCE(SUM(p.payment_value), 0), 2) as revenue
-            FROM customers c
-            JOIN orders o ON o.customer_id = c.customer_id
-            JOIN order_payments p ON p.order_id = o.order_id
-            {time_filter_orders}
-            GROUP BY c.customer_city, c.customer_state
+                g.customer_city as city,
+                g.customer_state as state,
+                COUNT(DISTINCT g.customer_unique_id) as customers,
+                COUNT(*) as orders,
+                ROUND(COALESCE(SUM(g.total_revenue), 0), 2) as revenue
+            FROM geo_order_metrics_cache g
+            {geo_city_where}
+            GROUP BY g.customer_city, g.customer_state
             ORDER BY revenue DESC
             LIMIT 10"""
         ),
@@ -515,24 +544,31 @@ def dashboard_section(
         return {"segments": rows(segments_raw), "monthly": monthly}
 
     if section == "geography":
+        geo_time_filter = time_filter_orders.replace(
+            "o.order_purchase_timestamp", "g.order_purchase_timestamp"
+        )
         geo_where = (
-            f"{time_filter_orders} AND c.customer_state IN "
+            f"{geo_time_filter} AND g.customer_state IN "
             "('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO')"
-            if time_filter_orders
-            else "WHERE c.customer_state IN "
+            if geo_time_filter
+            else "WHERE g.customer_state IN "
             "('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO')"
+        )
+        geo_where += " AND g.payment_count > 0"
+        geo_city_where = (
+            f"{geo_time_filter} AND g.payment_count > 0"
+            if geo_time_filter
+            else "WHERE g.payment_count > 0"
         )
         states_raw = db.execute(
             text(
-                f"""SELECT c.customer_state as state,
-                    COUNT(DISTINCT c.customer_unique_id) as customers,
-                    COUNT(DISTINCT o.order_id) as orders,
-                    COALESCE(SUM(p.payment_value), 0) as revenue
-                FROM customers c
-                JOIN orders o ON o.customer_id = c.customer_id
-                JOIN order_payments p ON p.order_id = o.order_id
+                f"""SELECT g.customer_state as state,
+                    COUNT(DISTINCT g.customer_unique_id) as customers,
+                    COUNT(*) as orders,
+                    COALESCE(SUM(g.total_revenue), 0) as revenue
+                FROM geo_order_metrics_cache g
                 {geo_where}
-                GROUP BY c.customer_state
+                GROUP BY g.customer_state
                 ORDER BY revenue DESC"""
             ),
             params,
@@ -564,15 +600,13 @@ def dashboard_section(
 
         top_cities_raw = db.execute(
             text(
-                f"""SELECT c.customer_city as city, c.customer_state as state,
-                    COUNT(DISTINCT c.customer_unique_id) as customers,
-                    COUNT(DISTINCT o.order_id) as orders,
-                    ROUND(COALESCE(SUM(p.payment_value), 0), 2) as revenue
-                FROM customers c
-                JOIN orders o ON o.customer_id = c.customer_id
-                JOIN order_payments p ON p.order_id = o.order_id
-                {time_filter_orders}
-                GROUP BY c.customer_city, c.customer_state
+                f"""SELECT g.customer_city as city, g.customer_state as state,
+                    COUNT(DISTINCT g.customer_unique_id) as customers,
+                    COUNT(*) as orders,
+                    ROUND(COALESCE(SUM(g.total_revenue), 0), 2) as revenue
+                FROM geo_order_metrics_cache g
+                {geo_city_where}
+                GROUP BY g.customer_city, g.customer_state
                 ORDER BY revenue DESC
                 LIMIT 10"""
             ),
@@ -617,23 +651,31 @@ def state_detail(
     params["st"] = code
 
     # State-scoped filter
-    st_filter = (
-        f"{time_filter_orders} AND c.customer_state = :st"
+    geo_time_filter = time_filter_orders.replace(
+        "o.order_purchase_timestamp", "g.order_purchase_timestamp"
+    )
+    geo_st_filter = (
+        f"{geo_time_filter} AND g.customer_state = :st"
+        if geo_time_filter
+        else "WHERE g.customer_state = :st"
+    )
+    delivery_state_filter = (
+        f"{time_filter_orders} AND g.customer_state = :st "
+        "AND o.order_delivered_customer_date IS NOT NULL"
         if time_filter_orders
-        else "WHERE c.customer_state = :st"
+        else "WHERE g.customer_state = :st "
+        "AND o.order_delivered_customer_date IS NOT NULL"
     )
 
     # 1. State aggregated metrics
     st_kpis = db.execute(
         text(
             f"""SELECT 
-                COUNT(DISTINCT c.customer_unique_id) as customers,
-                COUNT(DISTINCT o.order_id) as orders,
-                COALESCE(SUM(p.payment_value), 0) as revenue
-            FROM customers c
-            JOIN orders o ON o.customer_id = c.customer_id
-            LEFT JOIN order_payments p ON p.order_id = o.order_id
-            {st_filter}"""
+                COUNT(DISTINCT g.customer_unique_id) as customers,
+                COUNT(*) as orders,
+                COALESCE(SUM(g.total_revenue), 0) as revenue
+            FROM geo_order_metrics_cache g
+            {geo_st_filter}"""
         ),
         params,
     ).fetchone()
@@ -644,16 +686,15 @@ def state_detail(
     aov_val = round(rev_val / ord_cnt, 2) if ord_cnt > 0 else 0.0
 
     # 2. Avg delivery days and CSAT review score
-    delivery_filter = f"{st_filter} AND o.order_delivered_customer_date IS NOT NULL"
     perf = db.execute(
         text(
             f"""SELECT 
                 AVG(DATEDIFF(o.order_delivered_customer_date, o.order_purchase_timestamp)) as avg_delivery_days,
                 AVG(r.review_score) as avg_rating
-            FROM customers c
-            JOIN orders o ON o.customer_id = c.customer_id
+            FROM geo_order_metrics_cache g
+            JOIN orders o ON o.order_id = g.order_id
             LEFT JOIN order_reviews r ON r.order_id = o.order_id
-            {delivery_filter}"""
+            {delivery_state_filter}"""
         ),
         params,
     ).fetchone()
@@ -665,15 +706,13 @@ def state_detail(
     cities = db.execute(
         text(
             f"""SELECT 
-                c.customer_city as city,
-                COUNT(DISTINCT c.customer_unique_id) as customers,
-                COUNT(DISTINCT o.order_id) as orders,
-                ROUND(COALESCE(SUM(p.payment_value), 0), 2) as revenue
-            FROM customers c
-            JOIN orders o ON o.customer_id = c.customer_id
-            LEFT JOIN order_payments p ON p.order_id = o.order_id
-            {st_filter}
-            GROUP BY c.customer_city
+                g.customer_city as city,
+                COUNT(DISTINCT g.customer_unique_id) as customers,
+                COUNT(*) as orders,
+                ROUND(COALESCE(SUM(g.total_revenue), 0), 2) as revenue
+            FROM geo_order_metrics_cache g
+            {geo_st_filter}
+            GROUP BY g.customer_city
             ORDER BY revenue DESC
             LIMIT 5"""
         ),
@@ -686,11 +725,10 @@ def state_detail(
             f"""SELECT 
                 COALESCE(pr.product_category_name, 'Unknown') as category,
                 COUNT(*) as purchases
-            FROM customers c
-            JOIN orders o ON o.customer_id = c.customer_id
-            JOIN order_items oi ON oi.order_id = o.order_id
+            FROM geo_order_metrics_cache g
+            JOIN order_items oi ON oi.order_id = g.order_id
             LEFT JOIN products pr ON pr.product_id = oi.product_id
-            {st_filter}
+            {geo_st_filter}
             GROUP BY category
             ORDER BY purchases DESC
             LIMIT 5"""

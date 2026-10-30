@@ -177,7 +177,16 @@ def customers(
         "city": "c.customer_city" if use_preaggregated_customer_source else "MIN(c.customer_city)",
         "churn_risk": "churn_risk_score",
     }
-    col = sort_map.get(sort_by) if sort_by in sort_map else "c.customer_unique_id"
+    use_indexed_customer_page = (
+        use_preaggregated_customer_source and sort_by not in sort_map
+    )
+    p["result_offset"] = 0 if use_indexed_customer_page else p["offset"]
+    default_sort_column = (
+        "unique_c.customer_unique_id"
+        if use_preaggregated_customer_source
+        else "c.customer_unique_id"
+    )
+    col = sort_map.get(sort_by) if sort_by in sort_map else default_sort_column
     direction = "ASC" if str(sort_dir).lower() == "asc" else "DESC"
     order_clause = f"{col} {direction}"
     churn_columns = (
@@ -203,15 +212,49 @@ def customers(
         if aggregate_churn_for_query
         else "'Unscored'"
     )
-    if use_preaggregated_customer_source:
+    recency_expr = "m.recency_days"
+    frequency_expr = "m.frequency"
+    monetary_expr = "m.monetary_total"
+    rating_expr = "m.avg_review_score"
+    if use_indexed_customer_page:
+        customer_source = f"""(
+            SELECT selected.customer_unique_id, MIN(m.customer_id) AS customer_id,
+                   MIN(c.customer_city) AS customer_city,
+                   MIN(c.customer_state) AS customer_state,
+                   MIN(m.recency_days) AS recency_days,
+                   MIN(m.frequency) AS frequency,
+                   MIN(m.monetary_total) AS monetary_total,
+                   MIN(m.avg_review_score) AS avg_review_score
+            FROM (
+                SELECT DISTINCT customer_unique_id
+                FROM customer_metrics_cache
+                ORDER BY customer_unique_id {direction}
+                LIMIT :limit OFFSET :offset
+            ) selected
+            JOIN customer_metrics_cache m
+                ON m.customer_unique_id = selected.customer_unique_id
+            JOIN customers c ON c.customer_id = m.customer_id
+            GROUP BY selected.customer_unique_id
+        ) unique_c"""
+        customer_id_expr = "unique_c.customer_id"
+        customer_unique_expr = "unique_c.customer_unique_id"
+        customer_city_expr = "unique_c.customer_city"
+        customer_state_expr = "unique_c.customer_state"
+        recency_expr = "unique_c.recency_days"
+        frequency_expr = "unique_c.frequency"
+        monetary_expr = "unique_c.monetary_total"
+        rating_expr = "unique_c.avg_review_score"
+        group_by_clause = ""
+    elif use_preaggregated_customer_source:
         customer_source = """(
-            SELECT customer_unique_id, MIN(customer_id) AS customer_id,
-                   MIN(customer_city) AS customer_city, MIN(customer_state) AS customer_state
-            FROM customers
+            SELECT customer_unique_id, MIN(customer_id) AS customer_id
+            FROM customer_metrics_cache
             GROUP BY customer_unique_id
-        ) c
-        JOIN customer_metrics_cache m ON m.customer_id = c.customer_id"""
-        customer_id_expr = "c.customer_id"
+        ) unique_c
+        JOIN customers c ON c.customer_id = unique_c.customer_id
+        JOIN customer_metrics_cache m ON m.customer_id = unique_c.customer_id"""
+        customer_id_expr = "unique_c.customer_id"
+        customer_unique_expr = "unique_c.customer_unique_id"
         customer_city_expr = "c.customer_city"
         customer_state_expr = "c.customer_state"
         group_by_clause = ""
@@ -219,6 +262,7 @@ def customers(
         customer_source = """customers c
         JOIN customer_metrics_cache m ON m.customer_id = c.customer_id"""
         customer_id_expr = "MIN(c.customer_id)"
+        customer_unique_expr = "c.customer_unique_id"
         customer_city_expr = "MIN(c.customer_city)"
         customer_state_expr = "MIN(c.customer_state)"
         group_by_clause = """GROUP BY c.customer_unique_id, m.recency_days, m.frequency,
@@ -236,14 +280,14 @@ def customers(
         text(
             f"""SELECT
                 {customer_id_expr} as customer_id,
-                c.customer_unique_id,
+                {customer_unique_expr} as customer_unique_id,
                 {customer_city_expr} as customer_city,
                 {customer_state_expr} as customer_state,
-                m.recency_days,
-                m.frequency,
-                m.monetary_total,
-                m.avg_review_score,
-                CASE WHEN m.frequency>1 THEN 1 ELSE 0 END as is_repeat_customer,
+                {recency_expr} AS recency_days,
+                {frequency_expr} AS frequency,
+                {monetary_expr} AS monetary_total,
+                {rating_expr} AS avg_review_score,
+                CASE WHEN {frequency_expr}>1 THEN 1 ELSE 0 END as is_repeat_customer,
                 {segment_expr} AS segment
                 {churn_columns}
             FROM {customer_source}
@@ -251,7 +295,7 @@ def customers(
             WHERE {where} 
             {group_by_clause}
             ORDER BY {order_clause} 
-            LIMIT :limit OFFSET :offset"""
+            LIMIT :limit OFFSET :result_offset"""
         ),
         p,
     ).fetchall()
@@ -623,6 +667,13 @@ def bulk_delete_customers(
 
         db.execute(
             text(
+                f"DELETE FROM {ANALYTICS_DB_NAME}.churn_predictions "
+                "WHERE customer_unique_id = :uid"
+            ),
+            {"uid": uid},
+        )
+        db.execute(
+            text(
                 """DELETE FROM customer_metrics_cache 
                 WHERE customer_id IN (SELECT customer_id FROM customers WHERE customer_unique_id = :uid)
                    OR customer_unique_id = :uid"""
@@ -960,6 +1011,13 @@ def delete_customer(
     ).first()
     if linked_orders:
         raise HTTPException(409, "Customers with order history cannot be deleted.")
+    db.execute(
+        text(
+            f"DELETE FROM {ANALYTICS_DB_NAME}.churn_predictions "
+            "WHERE customer_unique_id = :uid"
+        ),
+        {"uid": actual_unique_id},
+    )
     db.execute(
         text("DELETE FROM audit_logs WHERE customer_id=:id OR customer_id=:uid"), {"id": actual_cid, "uid": actual_unique_id}
     )

@@ -146,6 +146,28 @@ def test_customer_list_keeps_churn_details_by_default(client, admin_headers):
     assert "churn_risk_level" in item
 
 
+def test_customer_list_page_two_returns_a_distinct_page(client, admin_headers):
+    first_page = client.get(
+        "/api/customers?page=1&page_size=3",
+        headers=admin_headers,
+    )
+    second_page = client.get(
+        "/api/customers?page=2&page_size=3",
+        headers=admin_headers,
+    )
+
+    assert first_page.status_code == 200
+    assert second_page.status_code == 200
+    first_ids = {
+        item["customer_unique_id"] for item in first_page.json()["items"]
+    }
+    second_ids = {
+        item["customer_unique_id"] for item in second_page.json()["items"]
+    }
+    assert len(second_ids) == 3
+    assert first_ids.isdisjoint(second_ids)
+
+
 def test_customer_id_availability_checks_existing_and_new_ids(client, admin_headers):
     existing_customer = client.get(
         "/api/customers?page_size=1",

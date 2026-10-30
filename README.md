@@ -156,6 +156,9 @@ alembic upgrade head
 Run this once for an existing installation before starting the updated
 application. The initial migration creates missing application tables and adds
 missing authentication columns without replacing existing tables or user data.
+Recent migrations add product and geography summary tables that are maintained
+in real time by MySQL triggers; the migration account must have permission to
+create triggers and indexes.
 For future schema changes, generate a revision with
 `alembic revision --autogenerate -m "describe schema change"`, review the
 generated migration, then apply it with `alembic upgrade head`. Application

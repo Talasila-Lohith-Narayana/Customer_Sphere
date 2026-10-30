@@ -148,36 +148,53 @@ def customer_clv(customer_id: str, _: dict = Depends(require_page("customers")))
 @router.get("/delivery/performance")
 def delivery_performance(_: dict = Depends(require_page("analytics"))):
     """Overall delivery KPIs plus churn probability for on-time vs late customers."""
-    base = f"""
-        SELECT {CU_KEY} AS customer_id,
-               DATEDIFF(o.{C['orders_delivered']}, o.{C['orders_purchased']}) AS delivery_days,
+    by_status = q(f"""
+        SELECT
                CASE WHEN o.{C['orders_delivered']} > o.{C['orders_estimated']}
-                    THEN 'Late' ELSE 'On time' END AS delivery_status
+                    THEN 'Late' ELSE 'On time' END AS delivery_status,
+               COUNT(*) AS orders,
+               AVG(DATEDIFF(o.{C['orders_delivered']}, o.{C['orders_purchased']}))
+                   AS avg_delivery_days,
+               AVG(p.{C['churn_prob']}) AS avg_churn_probability
         FROM {C['orders_table']} o
         JOIN {C['customers_table']} cu
           ON cu.{C['cust_order_key']} = o.{C['orders_customer_id']}
+        LEFT JOIN {C['churn_table']} p
+          ON p.{C['churn_customer_id']} = {CU_KEY}
         WHERE o.{C['orders_status']} = 'delivered'
           AND o.{C['orders_delivered']} IS NOT NULL
-    """
-    kpi = q(f"""
-        SELECT COUNT(*) AS delivered_orders,
-               AVG(delivery_days) AS avg_delivery_days,
-               100 * AVG(delivery_status = 'On time') AS on_time_pct,
-               100 * AVG(delivery_status = 'Late') AS late_pct
-        FROM ({base}) d
+        GROUP BY delivery_status
     """)
-    by_status = q(f"""
-        SELECT d.delivery_status,
-               COUNT(*) AS orders,
-               AVG(d.delivery_days) AS avg_delivery_days,
-               AVG(p.{C['churn_prob']}) AS avg_churn_probability
-        FROM ({base}) d
-        LEFT JOIN {C['churn_table']} p
-          ON p.{C['churn_customer_id']} COLLATE utf8mb4_unicode_ci =
-             d.customer_id COLLATE utf8mb4_unicode_ci
-        GROUP BY d.delivery_status
-    """)
-    return {"summary": records(kpi)[0], "by_delivery_status": records(by_status)}
+
+    by_delivery_status = records(by_status)
+    delivered_orders = sum(int(row["orders"]) for row in by_delivery_status)
+    total_delivery_days = sum(
+        float(row["avg_delivery_days"] or 0) * int(row["orders"])
+        for row in by_delivery_status
+    )
+    on_time_orders = sum(
+        int(row["orders"])
+        for row in by_delivery_status
+        if row["delivery_status"] == "On time"
+    )
+    late_orders = sum(
+        int(row["orders"])
+        for row in by_delivery_status
+        if row["delivery_status"] == "Late"
+    )
+    summary = {
+        "delivered_orders": delivered_orders,
+        "avg_delivery_days": (
+            round(total_delivery_days / delivered_orders, 4)
+            if delivered_orders
+            else None
+        ),
+        "on_time_pct": (
+            100 * on_time_orders / delivered_orders if delivered_orders else None
+        ),
+        "late_pct": 100 * late_orders / delivered_orders if delivered_orders else None,
+    }
+    return {"summary": summary, "by_delivery_status": by_delivery_status}
 
 
 @router.get("/customers/{customer_id}/delivery")

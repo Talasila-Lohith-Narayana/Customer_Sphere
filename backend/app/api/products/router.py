@@ -80,7 +80,6 @@ def get_products_catalog(
     params["limit"] = limit
     params["offset"] = offset
 
-    # High-performance query joining pre-aggregated product sales
     query_sql = f"""
         SELECT 
             p.product_id,
@@ -94,46 +93,18 @@ def get_products_catalog(
             COALESCE(agg.avg_rating, 0.0) AS avg_rating,
             COALESCE(agg.total_reviews, 0) AS total_reviews
         FROM products p
-        LEFT JOIN (
-            SELECT 
-                oi.product_id,
-                COUNT(oi.order_item_id) AS total_units_sold,
-                SUM(oi.price) AS total_revenue,
-                AVG(oi.price) AS avg_price,
-                AVG(oi.freight_value) AS avg_freight,
-                AVG(r.review_score) AS avg_rating,
-                COUNT(r.review_id) AS total_reviews
-            FROM order_items oi
-            LEFT JOIN order_reviews r ON r.order_id = oi.order_id
-            GROUP BY oi.product_id
-        ) agg ON agg.product_id = p.product_id
+        LEFT JOIN product_metrics_cache agg ON agg.product_id = p.product_id
         {where_sql}
         ORDER BY {order_by_sql}
         LIMIT :limit OFFSET :offset
     """
 
-    if any(k in where_sql for k in ["agg.avg_price", "agg.avg_rating", "agg.total_units_sold"]):
-        count_sql = f"""
-            SELECT COUNT(DISTINCT p.product_id)
-            FROM products p
-            LEFT JOIN (
-                SELECT 
-                    oi.product_id,
-                    COUNT(oi.order_item_id) AS total_units_sold,
-                    AVG(oi.price) AS avg_price,
-                    AVG(r.review_score) AS avg_rating
-                FROM order_items oi
-                LEFT JOIN order_reviews r ON r.order_id = oi.order_id
-                GROUP BY oi.product_id
-            ) agg ON agg.product_id = p.product_id
-            {where_sql}
-        """
-    else:
-        count_sql = f"""
-            SELECT COUNT(DISTINCT p.product_id)
-            FROM products p
-            {where_sql}
-        """
+    count_sql = f"""
+        SELECT COUNT(*)
+        FROM products p
+        LEFT JOIN product_metrics_cache agg ON agg.product_id = p.product_id
+        {where_sql}
+    """
     total_count = db.execute(text(count_sql), params).scalar() or 0
     products_rows = db.execute(text(query_sql), params).fetchall()
 
@@ -244,19 +215,7 @@ def export_products_csv(
             COALESCE(agg.avg_rating, 0.0) AS avg_rating,
             COALESCE(agg.total_reviews, 0) AS total_reviews
         FROM products p
-        LEFT JOIN (
-            SELECT 
-                oi.product_id,
-                COUNT(oi.order_item_id) AS total_units_sold,
-                SUM(oi.price) AS total_revenue,
-                AVG(oi.price) AS avg_price,
-                AVG(oi.freight_value) AS avg_freight,
-                AVG(r.review_score) AS avg_rating,
-                COUNT(r.review_id) AS total_reviews
-            FROM order_items oi
-            LEFT JOIN order_reviews r ON r.order_id = oi.order_id
-            GROUP BY oi.product_id
-        ) agg ON agg.product_id = p.product_id
+        LEFT JOIN product_metrics_cache agg ON agg.product_id = p.product_id
         {where_sql}
         ORDER BY {order_by_sql}
     """
@@ -343,12 +302,12 @@ def get_products_by_category(category: str, limit: int = 50, db: Session = Depen
     clean_cat = category.strip().lower()
     res = db.execute(
         text(
-            """SELECT p.product_id, p.product_category_name, COALESCE(AVG(oi.price), 50.00) as avg_price
+            """SELECT p.product_id, p.product_category_name,
+                      COALESCE(metrics.avg_price, 50.00) as avg_price
             FROM products p
-            LEFT JOIN order_items oi ON oi.product_id = p.product_id
+            LEFT JOIN product_metrics_cache metrics ON metrics.product_id = p.product_id
             WHERE p.product_category_name = :cat
-            GROUP BY p.product_id, p.product_category_name
-            ORDER BY COUNT(oi.order_item_id) DESC
+            ORDER BY COALESCE(metrics.total_units_sold, 0) DESC
             LIMIT :limit"""
         ),
         {"cat": clean_cat, "limit": limit},
