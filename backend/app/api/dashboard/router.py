@@ -1,3 +1,6 @@
+import logging
+import time
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -6,6 +9,7 @@ from app.core.database import ANALYTICS_DB_NAME, get_db
 from app.core.serialization import rows, ser
 
 router = APIRouter(tags=["dashboard"])
+logger = logging.getLogger(__name__)
 
 BRAZILIAN_STATES_META = {
     "AC": {"name": "Acre", "region": "North", "capital": "Rio Branco"},
@@ -126,61 +130,92 @@ def _customer_churn_segments(db, time_filter_orders, params):
 # Helper: Compute core KPI numbers for a given time filter
 # ------------------------------------------------------------------------------
 def _compute_kpis(db, time_filter_orders, params):
-    """Runs the aggregation queries and returns a KPI dict."""
-    delivery_filter = "WHERE o.order_delivered_customer_date IS NOT NULL"
-    if time_filter_orders:
-        delivery_filter += f" AND {time_filter_orders.replace('WHERE ', '')}"
+    """Runs the KPI aggregates in one database round trip."""
+    started_at = time.perf_counter()
+    period_condition = (
+        time_filter_orders.replace("WHERE ", "") if time_filter_orders else "1=1"
+    )
+    health_condition = (
+        f"o.order_delivered_customer_date IS NOT NULL AND {period_condition}"
+    )
 
-    health_metrics = db.execute(
+    if time_filter_orders:
+        customers_query = f"""SELECT COUNT(DISTINCT c.customer_unique_id)
+            FROM customers c
+            JOIN orders o ON o.customer_id = c.customer_id
+            {time_filter_orders}"""
+        orders_query = f"SELECT COUNT(*) FROM orders o {time_filter_orders}"
+        review_metrics_query = f"""SELECT
+                COUNT(*) AS reviews,
+                COALESCE(AVG(r.review_score), 0) AS avg_rating
+            FROM order_reviews r
+            JOIN orders o ON o.order_id = r.order_id
+            {time_filter_orders}"""
+        repeat_customers_query = f"""SELECT COUNT(*)
+            FROM (
+                SELECT c.customer_unique_id
+                FROM customers c
+                JOIN orders o ON o.customer_id = c.customer_id
+                {time_filter_orders}
+                GROUP BY c.customer_unique_id
+                HAVING COUNT(o.order_id) > 1
+            ) repeat_customers"""
+    else:
+        customers_query = "SELECT COUNT(DISTINCT customer_unique_id) FROM customers"
+        orders_query = "SELECT COUNT(*) FROM orders"
+        review_metrics_query = """SELECT
+                COUNT(*) AS reviews,
+                COALESCE(AVG(review_score), 0) AS avg_rating
+            FROM order_reviews"""
+        repeat_customers_query = (
+            "SELECT COUNT(DISTINCT customer_unique_id) "
+            "FROM customer_metrics_cache WHERE frequency > 1"
+        )
+
+    metrics = db.execute(
         text(
-            f"""SELECT 
-                AVG(p.payment_value) as aov,
-                AVG(DATEDIFF(o.order_delivered_customer_date, o.order_purchase_timestamp)) as avg_delivery_days
-            FROM orders o
-            JOIN order_payments p ON p.order_id = o.order_id
-            {delivery_filter}"""
+            f"""SELECT
+                ({customers_query}) AS customers,
+                ({orders_query}) AS orders,
+                ({repeat_customers_query}) AS repeat_customers,
+                payment_metrics.revenue AS revenue,
+                review_metrics.reviews AS reviews,
+                review_metrics.avg_rating AS avg_rating,
+                payment_metrics.aov AS avg_order_value,
+                payment_metrics.avg_delivery_days AS avg_delivery_days
+            FROM (
+                SELECT
+                    COALESCE(SUM(
+                        CASE WHEN {period_condition}
+                        THEN p.payment_value ELSE 0 END
+                    ), 0) AS revenue,
+                    AVG(CASE WHEN {health_condition}
+                        THEN p.payment_value END) AS aov,
+                    AVG(CASE WHEN {health_condition}
+                        THEN DATEDIFF(
+                            o.order_delivered_customer_date,
+                            o.order_purchase_timestamp
+                        ) END) AS avg_delivery_days
+                FROM order_payments p
+                LEFT JOIN orders o ON o.order_id = p.order_id
+            ) payment_metrics
+            CROSS JOIN ({review_metrics_query}) review_metrics"""
         ),
         params,
     ).fetchone()
+    elapsed_ms = (time.perf_counter() - started_at) * 1000
+    logger.info(
+        "Dashboard KPI query completed in %.1fms | filtered=%s",
+        elapsed_ms,
+        bool(time_filter_orders),
+    )
 
-    if time_filter_orders:
-        total_customers = db.execute(
-            text(f"SELECT COUNT(DISTINCT c.customer_unique_id) FROM customers c JOIN orders o ON o.customer_id = c.customer_id {time_filter_orders}"),
-            params,
-        ).scalar() or 0
-        total_orders = db.execute(
-            text(f"SELECT COUNT(*) FROM orders o {time_filter_orders}"),
-            params,
-        ).scalar() or 0
-        total_rev = db.execute(
-            text(f"SELECT COALESCE(SUM(p.payment_value),0) FROM order_payments p JOIN orders o ON o.order_id = p.order_id {time_filter_orders}"),
-            params,
-        ).scalar() or 0
-        total_revs = db.execute(
-            text(f"SELECT COUNT(*) FROM order_reviews r JOIN orders o ON o.order_id = r.order_id {time_filter_orders}"),
-            params,
-        ).scalar() or 0
-        avg_score = db.execute(
-            text(f"SELECT COALESCE(AVG(r.review_score),0) FROM order_reviews r JOIN orders o ON o.order_id = r.order_id {time_filter_orders}"),
-            params,
-        ).scalar() or 0
-        repeat_custs = db.execute(
-            text(f"""SELECT COUNT(*) FROM (
-                SELECT c.customer_unique_id, COUNT(o.order_id) cnt 
-                FROM customers c JOIN orders o ON o.customer_id = c.customer_id 
-                {time_filter_orders} GROUP BY c.customer_unique_id HAVING cnt > 1
-            ) t"""),
-            params,
-        ).scalar() or 0
-    else:
-        total_customers = db.execute(text("SELECT COUNT(DISTINCT customer_unique_id) FROM customers")).scalar() or 0
-        total_orders = db.execute(text("SELECT COUNT(*) FROM orders")).scalar() or 0
-        total_rev = db.execute(text("SELECT COALESCE(SUM(payment_value),0) FROM order_payments")).scalar() or 0
-        total_revs = db.execute(text("SELECT COUNT(*) FROM order_reviews")).scalar() or 0
-        avg_score = db.execute(text("SELECT COALESCE(AVG(review_score),0) FROM order_reviews")).scalar() or 0
-        repeat_custs = db.execute(
-            text("SELECT COUNT(DISTINCT customer_unique_id) FROM customer_metrics_cache WHERE frequency > 1")
-        ).scalar() or 0
+    total_customers = metrics[0] or 0
+    total_orders = metrics[1] or 0
+    repeat_custs = metrics[2] or 0
+    total_rev = metrics[3] or 0
+    total_revs = metrics[4] or 0
+    avg_score = metrics[5] or 0
 
     repeat_rate = round((repeat_custs / total_customers * 100), 2) if total_customers > 0 else 0.0
 
@@ -192,8 +227,8 @@ def _compute_kpis(db, time_filter_orders, params):
         "avg_rating": avg_score,
         "repeat_customers": repeat_custs,
         "repeat_rate": repeat_rate,
-        "avg_order_value": float(health_metrics[0]) if health_metrics and health_metrics[0] is not None else 0.0,
-        "avg_delivery_days": float(health_metrics[1]) if health_metrics and health_metrics[1] is not None else 0.0,
+        "avg_order_value": float(metrics[6]) if metrics[6] is not None else 0.0,
+        "avg_delivery_days": float(metrics[7]) if metrics[7] is not None else 0.0,
     }
 
 

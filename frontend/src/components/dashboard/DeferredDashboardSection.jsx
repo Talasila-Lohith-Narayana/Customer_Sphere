@@ -1,19 +1,25 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, LoaderCircle } from "lucide-react";
+import { readDashboardCache, writeDashboardCache } from "../../services/dashboardCache";
 
 export default function DeferredDashboardSection({
   section,
   title,
   loadSection,
   refreshToken,
+  cacheUser,
+  cacheParams = {},
   children,
 }) {
   const containerRef = useRef(null);
   const inFlightRef = useRef(null);
+  const cacheParamsJson = JSON.stringify(cacheParams);
   const [isVisible, setIsVisible] = useState(false);
   const [status, setStatus] = useState("pending");
   const [error, setError] = useState("");
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() =>
+    readDashboardCache(cacheUser, `section:${section}`, JSON.parse(cacheParamsJson))
+  );
 
   const load = useCallback(() => {
     if (inFlightRef.current) return inFlightRef.current;
@@ -22,6 +28,12 @@ export default function DeferredDashboardSection({
     const request = loadSection(section)
       .then((response) => {
         setData(response);
+        writeDashboardCache(
+          cacheUser,
+          `section:${section}`,
+          JSON.parse(cacheParamsJson),
+          response
+        );
         setStatus("loaded");
       })
       .catch((requestError) => {
@@ -33,7 +45,7 @@ export default function DeferredDashboardSection({
       });
     inFlightRef.current = request;
     return request;
-  }, [loadSection, section]);
+  }, [cacheParamsJson, cacheUser, loadSection, section]);
 
   useEffect(() => {
     if (status !== "pending" || !containerRef.current) return undefined;
@@ -69,7 +81,11 @@ export default function DeferredDashboardSection({
 
   if (data !== null) {
     return (
-      <div className="dashboardLazyLoaded" aria-busy={status === "loading"}>
+      <div
+        className="dashboardLazyLoaded"
+        ref={containerRef}
+        aria-busy={status === "loading"}
+      >
         {children(data)}
         {status === "loading" && (
           <p className="dashboardLazyRefreshMessage" role="status">

@@ -4,6 +4,16 @@ import { act, render, screen, waitFor, fireEvent } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom";
 import Dashboard from "./Dashboard";
 import * as ApiModule from "../services/api";
+import {
+  clearDashboardCache,
+  readDashboardCache,
+  writeDashboardCache,
+} from "../services/dashboardCache";
+import { publishDashboardDataChanged } from "../services/dashboardDataEvents";
+
+vi.mock("../context/AuthContext", () => ({
+  useAuth: () => ({ user: "dashboard-test-user" }),
+}));
 
 const mockDashboardData = {
   kpis: {
@@ -26,6 +36,7 @@ const mockDashboardData = {
 describe("Dashboard Page Orchestrator", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearDashboardCache();
   });
 
   afterEach(() => {
@@ -46,6 +57,38 @@ describe("Dashboard Page Orchestrator", () => {
 
     expect(screen.getByText("Executive Business Overview")).toBeInTheDocument();
     expect(screen.getByText("Loading key metrics...")).toBeInTheDocument();
+  });
+
+  it("renders a cached summary immediately while refreshing it", async () => {
+    writeDashboardCache(
+      "dashboard-test-user",
+      "summary",
+      { timeframe: "all", sections: "core" },
+      mockDashboardData
+    );
+    const summarySpy = vi.spyOn(ApiModule.dashboardService, "summary")
+      .mockReturnValue(new Promise(() => {}));
+
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Total Customers")).toBeInTheDocument();
+    expect(screen.queryByText("Loading key metrics...")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(summarySpy).toHaveBeenCalledWith({ timeframe: "all", sections: "core" });
+    });
+  });
+
+  it("clears cached dashboard data when the application reports a data change", () => {
+    const params = { timeframe: "all", sections: "core" };
+    writeDashboardCache("dashboard-test-user", "summary", params, mockDashboardData);
+
+    publishDashboardDataChanged();
+
+    expect(readDashboardCache("dashboard-test-user", "summary", params)).toBeNull();
   });
 
   it("displays error state when dashboard data fails to load and supports retry", async () => {
@@ -283,7 +326,7 @@ describe("Dashboard Page Orchestrator", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Executive Business Overview")).toBeInTheDocument();
-      expect(screen.getByText("0.0%")).toBeInTheDocument();
+      expect(screen.getAllByText("0.0%").length).toBeGreaterThan(0);
     });
   });
 });

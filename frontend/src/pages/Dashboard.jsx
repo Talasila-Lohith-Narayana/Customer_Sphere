@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { dashboardService } from "../services/api";
 import { ErrorState, LoadingState, Page } from "../components/States";
@@ -11,6 +11,8 @@ import DeferredDashboardSection, {
   DashboardSectionSkeleton,
 } from "../components/dashboard/DeferredDashboardSection";
 import { subscribeToDashboardDataChanges } from "../services/dashboardDataEvents";
+import { readDashboardCache, writeDashboardCache } from "../services/dashboardCache";
+import { useAuth } from "../context/AuthContext";
 
 const DashboardRevenueTrend = lazy(() => import("../components/dashboard/DashboardRevenueTrend"));
 const DashboardCustomerSegments = lazy(() => import("../components/dashboard/DashboardCustomerSegments"));
@@ -28,7 +30,10 @@ function getDashboardParams(selectedTime, range, compare, compPeriod) {
 }
 
 export default function Dashboard() {
-  const [data, setData] = useState(null);
+  const { user } = useAuth() || {};
+  const [data, setData] = useState(() =>
+    readDashboardCache(user, "summary", { timeframe: "all", sections: "core" })
+  );
   const requestId = useRef(0);
   const [refreshToken, setRefreshToken] = useState(0);
   const [refreshError, setRefreshError] = useState("");
@@ -50,25 +55,34 @@ export default function Dashboard() {
     isBackgroundRefresh = false,
   ) => {
     const currentRequestId = ++requestId.current;
-    if (!isBackgroundRefresh) setError("");
+    const params = {
+      ...getDashboardParams(selectedTime, range, compare, compPeriod),
+      sections: "core",
+    };
+    const cachedData = readDashboardCache(user, "summary", params);
+    const refreshingCachedData = Boolean(cachedData);
+    if (cachedData) {
+      setData(cachedData);
+      setError("");
+    } else if (!isBackgroundRefresh) {
+      setError("");
+    }
     return dashboardService
-      .summary({
-        ...getDashboardParams(selectedTime, range, compare, compPeriod),
-        sections: "core",
-      })
+      .summary(params)
       .then((response) => {
         if (currentRequestId === requestId.current) {
           setData(response);
           setRefreshError("");
+          writeDashboardCache(user, "summary", params, response);
         }
       })
       .catch((requestError) => {
         if (currentRequestId === requestId.current) {
-          if (isBackgroundRefresh) setRefreshError(requestError.message);
+          if (isBackgroundRefresh || refreshingCachedData) setRefreshError(requestError.message);
           else setError(requestError.message);
         }
       });
-  }, [timeframe, customRange, compareMode, compareTo]);
+  }, [timeframe, customRange, compareMode, compareTo, user]);
 
   const refreshDashboard = useCallback((fromAnotherTab = false) => {
     if (!fromAnotherTab && document.visibilityState !== "visible") return;
@@ -76,10 +90,13 @@ export default function Dashboard() {
     load(timeframe, customRange, compareMode, compareTo, true);
   }, [load, timeframe, customRange, compareMode, compareTo]);
 
-  const deferredParams = getDashboardParams(timeframe, customRange, compareMode, compareTo);
+  const deferredParams = useMemo(
+    () => getDashboardParams(timeframe, customRange, compareMode, compareTo),
+    [timeframe, customRange, compareMode, compareTo],
+  );
   const loadSection = useCallback(
     (section) => dashboardService.section(section, deferredParams),
-    [timeframe, customRange.startDate, customRange.endDate, compareMode, compareTo],
+    [deferredParams],
   );
 
   useEffect(() => {
@@ -210,6 +227,8 @@ export default function Dashboard() {
           title="Revenue and customer trends"
           loadSection={loadSection}
           refreshToken={refreshToken}
+          cacheUser={user}
+          cacheParams={deferredParams}
         >
           {(sectionData) => (
             <Suspense
@@ -243,6 +262,8 @@ export default function Dashboard() {
         title="Geographic analytics"
         loadSection={loadSection}
         refreshToken={refreshToken}
+        cacheUser={user}
+        cacheParams={deferredParams}
       >
         {(sectionData) => (
           <Suspense

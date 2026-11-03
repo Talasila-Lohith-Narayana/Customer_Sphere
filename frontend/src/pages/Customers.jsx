@@ -137,7 +137,9 @@ export default function Customers() {
   const [sortDir, setSortDir] = useState(paramSortDir || (hasInitialSearchParams ? "" : customersNavigationCache.sortDir));
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(
+    hasInitialSearchParams ? 1 : customersNavigationCache.page || 1
+  );
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);

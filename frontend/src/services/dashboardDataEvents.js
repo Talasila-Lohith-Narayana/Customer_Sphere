@@ -1,3 +1,5 @@
+import { clearDashboardCache } from "./dashboardCache";
+
 const CHANNEL_NAME = "customer-sphere-dashboard-data";
 const STORAGE_KEY = "customer-sphere-dashboard-data-change";
 
@@ -12,6 +14,7 @@ function createChannel() {
 }
 
 export function publishDashboardDataChanged() {
+  clearDashboardCache();
   const message = { timestamp: Date.now(), id: Math.random().toString(36).slice(2) };
   publisher ??= createChannel();
 

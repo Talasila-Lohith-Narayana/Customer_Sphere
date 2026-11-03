@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
 import Customers from "./Customers";
+import Customer from "./Customer";
 import * as ApiModule from "../services/api";
 import * as AuthContextModule from "../context/AuthContext";
 
@@ -527,6 +528,51 @@ describe("Customers Directory Page", () => {
     fireEvent.click(prevBtn);
 
     expect(await screen.findByText("uid_111111")).toBeInTheDocument();
+  });
+
+  it("restores the current page when returning from a customer profile", async () => {
+    const pageTwoList = {
+      ...mockCustomersList,
+      items: [{ ...mockCustomersList.items[0], customer_unique_id: "uid_page_two" }],
+    };
+    const listSpy = vi.spyOn(ApiModule.customerService, "list").mockImplementation(({ page }) =>
+      Promise.resolve(page === 2 ? pageTwoList : mockCustomersList)
+    );
+    vi.spyOn(ApiModule.customerService, "detail").mockResolvedValue({
+      customer_id: "c_2",
+      customer_unique_id: "uid_page_two",
+      customer_city: "Rio de Janeiro",
+      customer_state: "RJ",
+    });
+    vi.spyOn(ApiModule.predictionService, "get").mockResolvedValue(null);
+
+    render(
+      <MemoryRouter initialEntries={["/customers"]}>
+        <Routes>
+          <Route path="/customers" element={<Customers />} />
+          <Route path="/customers/:id" element={<Customer />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await screen.findByText("uid_111111");
+    const pageInput = screen.getByRole("textbox", { name: "Page number" });
+    fireEvent.change(pageInput, { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+    await screen.findByText("uid_111111");
+
+    fireEvent.click(screen.getByTitle("Next page"));
+    await screen.findByText("uid_page_two");
+    fireEvent.click(screen.getByText("uid_page_two"));
+
+    await screen.findByRole("heading", { name: "uid_page_two" });
+    fireEvent.click(screen.getByRole("button", { name: /Customers/ }));
+
+    expect(await screen.findByText("uid_page_two")).toBeInTheDocument();
+    expect(document.querySelector(".pagerPageSummary")).toHaveTextContent("Page 2 of 2");
+    await waitFor(() => {
+      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
+    });
   });
 
   it("exports customer data to CSV and handles failure", async () => {

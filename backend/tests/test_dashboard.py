@@ -1,4 +1,42 @@
-from app.api.dashboard.router import _customer_churn_segments
+from app.api.dashboard.router import _compute_kpis, _customer_churn_segments
+
+
+def test_dashboard_kpis_use_one_query_for_filtered_period():
+    class Result:
+        def fetchone(self):
+            return (12, 20, 3, 1250.5, 8, 4.5, 62.5, 2.25)
+
+    class Database:
+        def __init__(self):
+            self.statements = []
+
+        def execute(self, statement, params):
+            self.statements.append((str(statement), params))
+            return Result()
+
+    db = Database()
+    params = {"start_ts": "2018-01-01 00:00:00"}
+    kpis = _compute_kpis(
+        db,
+        "WHERE o.order_purchase_timestamp >= :start_ts",
+        params,
+    )
+
+    assert len(db.statements) == 1
+    statement, executed_params = db.statements[0]
+    assert ":start_ts" in statement
+    assert executed_params == params
+    assert kpis == {
+        "customers": 12,
+        "orders": 20,
+        "revenue": 1250.5,
+        "reviews": 8,
+        "avg_rating": 4.5,
+        "repeat_customers": 3,
+        "repeat_rate": 25.0,
+        "avg_order_value": 62.5,
+        "avg_delivery_days": 2.25,
+    }
 
 
 def test_dashboard_risk_bands_are_derived_from_model_probability():
