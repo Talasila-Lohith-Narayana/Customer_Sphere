@@ -8,6 +8,7 @@ import Shell from "./components/Shell";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useAuth } from "./context/AuthContext";
 import { LoadingState } from "./components/States";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { ACCESS_PAGE_PATHS } from "./accessPages";
 import "./styles.css";
 
@@ -39,43 +40,45 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <ToastProvider>
-            <Suspense fallback={<LoadingState text="Loading workspace..." />}>
-              <Routes>
-                {/* Public authentication route */}
-                <Route path="/login" element={<Login />} />
+            <ErrorBoundary>
+              <Suspense fallback={<LoadingState text="Loading workspace..." />}>
+                <Routes>
+                  {/* Public authentication route */}
+                  <Route path="/login" element={<Login />} />
 
-                {/* Authenticated routes guarded by ProtectedRoute & wrapped in Shell layout */}
-                <Route element={<ProtectedRoute />}>
-                  <Route element={<Shell />}>
-                    <Route element={<AccessRoute page="dashboard" />}>
-                      <Route index element={<Dashboard />} />
-                    </Route>
-                    <Route element={<AccessRoute page="customers" />}>
-                      <Route path="customers" element={<Customers />} />
-                      <Route path="customers/:id" element={<Customer />} />
-                    </Route>
-                    <Route element={<AccessRoute page="products" />}>
-                      <Route path="products" element={<Products />} />
-                    </Route>
-                    <Route element={<AccessRoute page="analytics" />}>
-                      <Route path="analytics" element={<Analytics />} />
-                    </Route>
-                    <Route element={<AccessRoute page="campaigns" />}>
-                      <Route path="campaigns" element={<Campaigns />} />
-                    </Route>
-                    <Route element={<AccessRoute page="model" />}>
-                      <Route path="model" element={<Model />} />
-                    </Route>
-                    <Route element={<AdminRoute />}>
-                      <Route path="users" element={<Users />} />
+                  {/* Authenticated routes guarded by ProtectedRoute & wrapped in Shell layout */}
+                  <Route element={<ProtectedRoute />}>
+                    <Route element={<Shell />}>
+                      <Route element={<AccessRoute page="dashboard" />}>
+                        <Route index element={<Dashboard />} />
+                      </Route>
+                      <Route element={<AccessRoute page="customers" />}>
+                        <Route path="customers" element={<Customers />} />
+                        <Route path="customers/:id" element={<Customer />} />
+                      </Route>
+                      <Route element={<AccessRoute page="products" />}>
+                        <Route path="products" element={<Products />} />
+                      </Route>
+                      <Route element={<AccessRoute page="analytics" />}>
+                        <Route path="analytics" element={<Analytics />} />
+                      </Route>
+                      <Route element={<AccessRoute page="campaigns" />}>
+                        <Route path="campaigns" element={<Campaigns />} />
+                      </Route>
+                      <Route element={<AccessRoute page="model" />}>
+                        <Route path="model" element={<Model />} />
+                      </Route>
+                      <Route element={<AdminRoute />}>
+                        <Route path="users" element={<Users />} />
+                      </Route>
                     </Route>
                   </Route>
-                </Route>
 
-                {/* Catch-all route redirecting unknown paths to Dashboard */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
+                  {/* Catch-all route redirecting unknown paths to Dashboard */}
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
           </ToastProvider>
         </AuthProvider>
       </ThemeProvider>

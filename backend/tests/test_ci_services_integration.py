@@ -52,6 +52,24 @@ def mysql_customer_table(db_session):
 
 
 @pytest.fixture
+def mysql_customer_for_interactions(db_session):
+    db_session.execute(text("""
+        CREATE TEMPORARY TABLE customers (
+            customer_id CHAR(32) NOT NULL PRIMARY KEY,
+            customer_unique_id CHAR(32) NOT NULL UNIQUE
+        )
+    """))
+    db_session.execute(
+        text("""
+            INSERT INTO customers (customer_id, customer_unique_id)
+            VALUES ('ci-customer-id', 'ci-customer-unique-id')
+        """)
+    )
+    yield
+    db_session.execute(text("DROP TEMPORARY TABLE IF EXISTS customers"))
+
+
+@pytest.fixture
 def mysql_product_tables(db_session):
     try:
         db_session.execute(text("""
@@ -79,6 +97,17 @@ def mysql_product_tables(db_session):
             )
         """))
         db_session.execute(text("""
+            CREATE TEMPORARY TABLE product_metrics_cache (
+                product_id VARCHAR(64) NOT NULL PRIMARY KEY,
+                total_units_sold INT NOT NULL,
+                total_revenue DECIMAL(10, 2) NOT NULL,
+                avg_price DECIMAL(10, 2) NOT NULL,
+                avg_freight DECIMAL(10, 2) NOT NULL,
+                avg_rating DECIMAL(3, 2) NOT NULL,
+                total_reviews INT NOT NULL
+            )
+        """))
+        db_session.execute(text("""
             INSERT INTO products VALUES ('ci-product', 'ci_category', 500, 2)
         """))
         db_session.execute(text("""
@@ -87,8 +116,13 @@ def mysql_product_tables(db_session):
         db_session.execute(text("""
             INSERT INTO order_reviews VALUES ('ci-review', 'ci-order', 5)
         """))
+        db_session.execute(text("""
+            INSERT INTO product_metrics_cache
+                VALUES ('ci-product', 1, 25.50, 25.50, 4.25, 5.00, 1)
+        """))
         yield
     finally:
+        db_session.execute(text("DROP TEMPORARY TABLE IF EXISTS product_metrics_cache"))
         db_session.execute(text("DROP TEMPORARY TABLE IF EXISTS order_reviews"))
         db_session.execute(text("DROP TEMPORARY TABLE IF EXISTS order_items"))
         db_session.execute(text("DROP TEMPORARY TABLE IF EXISTS products"))
@@ -132,6 +166,34 @@ def test_customer_id_availability_api_uses_mysql(client, ci_admin_headers, mysql
     assert existing.json() == {"available": False}
     assert available.status_code == 200
     assert available.json() == {"available": True}
+
+
+@pytest.mark.integration
+def test_customer_interactions_api_persists_and_reads_seeded_mysql_data(
+    client,
+    ci_admin_headers,
+    mysql_customer_for_interactions,
+):
+    created = client.post(
+        "/api/customers/ci-customer-unique-id/interactions",
+        headers=ci_admin_headers,
+        json={
+            "interaction_type": "Note",
+            "title": "CI interaction",
+            "description": "A deterministic database integration test.",
+        },
+    )
+
+    assert created.status_code == 200
+    assert created.json()["customer_id"] == "ci-customer-unique-id"
+    assert created.json()["title"] == "CI interaction"
+
+    history = client.get(
+        "/api/customers/ci-customer-unique-id/interactions",
+        headers=ci_admin_headers,
+    )
+    assert history.status_code == 200
+    assert [entry["title"] for entry in history.json()] == ["CI interaction"]
 
 
 @pytest.mark.integration

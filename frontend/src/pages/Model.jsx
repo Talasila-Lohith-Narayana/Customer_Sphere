@@ -236,23 +236,41 @@ export default function Model() {
     disabled: refreshDisabled,
     refresh,
   } = useAnalyticsRefresh();
-  const churnOverviewRequest = useRef({ refreshKey: null, promise: null });
-  const loadChurnOverview = useCallback(() => {
-    if (churnOverviewRequest.current.refreshKey !== panelProps.refreshKey) {
-      churnOverviewRequest.current = { refreshKey: panelProps.refreshKey, promise: null };
+  const requestCache = useRef({ refreshKey: panelProps.refreshKey, requests: new Map() });
+  const loadOnce = useCallback((load) => {
+    if (requestCache.current.refreshKey !== panelProps.refreshKey) {
+      requestCache.current = { refreshKey: panelProps.refreshKey, requests: new Map() };
     }
-    if (!churnOverviewRequest.current.promise) {
-      const request = analyticsService.churnOverview();
-      const sharedRequest = request.catch((error) => {
-        if (churnOverviewRequest.current.promise === sharedRequest) {
-          churnOverviewRequest.current.promise = null;
-        }
-        throw error;
-      });
-      churnOverviewRequest.current.promise = sharedRequest;
-    }
-    return churnOverviewRequest.current.promise;
+    const cache = requestCache.current;
+    const cachedRequest = cache.requests.get(load);
+    if (cachedRequest) return cachedRequest;
+
+    const request = Promise.resolve().then(load);
+    const sharedRequest = request.catch((error) => {
+      if (cache.requests.get(load) === sharedRequest) {
+        cache.requests.delete(load);
+      }
+      throw error;
+    });
+    cache.requests.set(load, sharedRequest);
+    return sharedRequest;
   }, [panelProps.refreshKey]);
+  const loadChurnOverview = useCallback(
+    () => loadOnce(analyticsService.churnOverview),
+    [loadOnce],
+  );
+  const loadModelPerformance = useCallback(
+    () => loadOnce(analyticsService.modelPerformance),
+    [loadOnce],
+  );
+  const loadModelComparison = useCallback(
+    () => loadOnce(analyticsService.modelComparison),
+    [loadOnce],
+  );
+  const loadModelImbalanceExperiments = useCallback(
+    () => loadOnce(analyticsService.modelImbalanceExperiments),
+    [loadOnce],
+  );
 
   return (
     <Page>
@@ -341,13 +359,13 @@ export default function Model() {
           <section className="analyticsPageSection tabPanelTransition" aria-labelledby="model-evaluation-heading">
             <h2 id="model-evaluation-heading">Model evaluation and feature behavior</h2>
             <div className="grid2">
-              <AnalyticsPanel {...panelProps} deferUntilVisible title="Model test performance" sub="Reported metrics for the evaluated test split" load={analyticsService.modelPerformance}>
+              <AnalyticsPanel {...panelProps} deferUntilVisible title="Model test performance" sub="Reported metrics for the evaluated test split" load={loadModelPerformance}>
                 {(data) => <Performance data={data} />}
               </AnalyticsPanel>
-              <AnalyticsPanel {...panelProps} deferUntilVisible title="Model comparison" sub="Comparison of logistic regression and LightGBM reports" load={analyticsService.modelComparison}>
+              <AnalyticsPanel {...panelProps} deferUntilVisible title="Model comparison" sub="Comparison of logistic regression and LightGBM reports" load={loadModelComparison}>
                 {(data) => <ModelComparison data={data} />}
               </AnalyticsPanel>
-              <AnalyticsPanel {...panelProps} deferUntilVisible title="Class-imbalance experiments" sub="Reported performance across imbalance strategies" load={analyticsService.modelImbalanceExperiments}>
+              <AnalyticsPanel {...panelProps} deferUntilVisible title="Class-imbalance experiments" sub="Reported performance across imbalance strategies" load={loadModelImbalanceExperiments}>
                 {(data) => <ImbalanceExperiments data={data} />}
               </AnalyticsPanel>
             </div>
@@ -381,13 +399,13 @@ export default function Model() {
             </section>
             <section className="analyticsPageSection tabPanelTransition" aria-labelledby="model-evaluation-heading">              <h2 id="model-evaluation-heading">Model evaluation and feature behavior</h2>
               <div className="grid2">
-                <AnalyticsPanel {...panelProps} deferUntilVisible title="Model test performance" sub="Reported metrics for the evaluated test split" load={analyticsService.modelPerformance}>
+                <AnalyticsPanel {...panelProps} deferUntilVisible title="Model test performance" sub="Reported metrics for the evaluated test split" load={loadModelPerformance}>
                   {(data) => <Performance data={data} />}
                 </AnalyticsPanel>
-                <AnalyticsPanel {...panelProps} deferUntilVisible title="Model comparison" sub="Comparison of logistic regression and LightGBM reports" load={analyticsService.modelComparison}>
+                <AnalyticsPanel {...panelProps} deferUntilVisible title="Model comparison" sub="Comparison of logistic regression and LightGBM reports" load={loadModelComparison}>
                   {(data) => <ModelComparison data={data} />}
                 </AnalyticsPanel>
-                <AnalyticsPanel {...panelProps} deferUntilVisible title="Class-imbalance experiments" sub="Reported performance across imbalance strategies" load={analyticsService.modelImbalanceExperiments}>
+                <AnalyticsPanel {...panelProps} deferUntilVisible title="Class-imbalance experiments" sub="Reported performance across imbalance strategies" load={loadModelImbalanceExperiments}>
                   {(data) => <ImbalanceExperiments data={data} />}
                 </AnalyticsPanel>
               </div>

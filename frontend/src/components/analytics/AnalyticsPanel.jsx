@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AlertTriangle, RotateCw } from "lucide-react";
+import { AlertTriangle, Eye, RotateCw } from "lucide-react";
 import { LoadingState, Panel } from "../States";
 
 export default function AnalyticsPanel({
@@ -93,9 +93,12 @@ export default function AnalyticsPanel({
 
   if (deferUntilVisible && !isVisible) {
     return (
-      <div ref={containerRef}>
+      <div ref={containerRef} aria-busy="false" aria-label={`${title} is waiting to load`}>
         <Panel title={title} sub={sub}>
-          <p className="analyticsMeta">This panel loads when you scroll to it.</p>
+          <p className="analyticsPanelDeferred" role="status">
+            <Eye size={15} aria-hidden="true" />
+            Loads when this panel enters view
+          </p>
         </Panel>
       </div>
     );

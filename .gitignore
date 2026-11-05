@@ -20,7 +20,9 @@ htmlcov/
 node_modules/
 frontend/dist/
 frontend/coverage/
-
+frontend/playwright-report/
+frontend/test-results/
+docs/
 # OS and IDE files
 .DS_Store
 .vscode/
@@ -33,4 +35,3 @@ frontend/coverage/
 *.sqlite3
 API_REFERENCE.md
 test-reports/
-docs/

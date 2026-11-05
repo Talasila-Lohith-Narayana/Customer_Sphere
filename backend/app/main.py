@@ -40,6 +40,7 @@ from .core.permissions import (
 )
 # Import all domain API routers
 from .api.auth.router import router as auth_router
+from .api.health import router as health_router
 from .api.dashboard.router import router as dashboard_router
 from .api.customers.router import router as customers_router
 from .api.orders.router import router as orders_router
@@ -83,6 +84,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Customer Sphere API", lifespan=lifespan)
+app.include_router(health_router)
 
 # Configure structured request logger
 logger = logging.getLogger("customer_sphere")

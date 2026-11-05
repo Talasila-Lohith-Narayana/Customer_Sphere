@@ -79,8 +79,8 @@ The existing Olist source tables are not replaced or migrated by the application
 
 ## Prerequisites
 
-- Python 3.10 or newer
-- Node.js 18.18 or newer and npm
+- Python 3.11 or newer
+- Node.js 24.x and npm (the version used in CI; see `frontend/.nvmrc`)
 - An accessible MySQL server containing the existing Olist database
 - Customer intelligence model files when using the analytics/model features
 
@@ -93,7 +93,8 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+python -m pip install uv
+uv pip sync requirements-lock.txt
 cp .env.example .env
 ```
 
@@ -168,11 +169,13 @@ startup no longer creates or alters tables automatically.
 
 ```bash
 cd frontend
-npm install
+npm ci
 cp .env.example .env
 ```
 
-Run the frontend linter with `npm run lint`.
+Run the frontend linter with `npm run lint`. Run the browser smoke tests with
+`npm run test:e2e`; install the Chromium browser once with
+`npx playwright install chromium`.
 
 The frontend API URL is configured with:
 
@@ -205,6 +208,11 @@ documentation at:
 
 - Swagger UI: `http://127.0.0.1:8000/docs`
 - ReDoc: `http://127.0.0.1:8000/redoc`
+
+Operational health probes are available at `/health/live` and `/health/ready`.
+See [deployment guidance](./docs/deployment.md) before exposing the service
+publicly. Cache ownership and invalidation are described in
+[cache policy](./docs/cache-policy.md).
 
 When `ALLOW_BOOTSTRAP_USERS` is explicitly set to true, the backend creates the
 configured default administrator and viewer accounts on startup only if those
