@@ -18,6 +18,67 @@ def test_customer_postal_prefix_preserves_leading_zero_and_accepts_legacy_intege
     assert prefixed.customer_zip_code_prefix == "01000"
     assert legacy.customer_zip_code_prefix == "1000"
 
+
+def test_customer_city_options_are_filtered_by_normalized_state():
+    class Result:
+        def fetchall(self):
+            return [
+                SimpleNamespace(_mapping={"customer_city": "Campinas"}),
+                SimpleNamespace(_mapping={"customer_city": "Sao Paulo"}),
+            ]
+
+    class Database:
+        def __init__(self):
+            self.statement = None
+            self.params = None
+
+        def execute(self, statement, params):
+            self.statement = str(statement)
+            self.params = params
+            return Result()
+
+    db = Database()
+    response = customer_router.customer_cities(state=" sp ", db=db, _={})
+
+    assert response == {"cities": ["Campinas", "Sao Paulo"]}
+    assert "SELECT DISTINCT customer_city FROM customers" in db.statement
+    assert "customer_state = :state" in db.statement
+    assert "ORDER BY customer_city" in db.statement
+    assert db.params == {"state": "SP"}
+
+
+def test_customer_zip_code_options_are_filtered_by_state_and_city():
+    class Result:
+        def fetchall(self):
+            return [
+                SimpleNamespace(_mapping={"customer_zip_code_prefix": "13010"}),
+                SimpleNamespace(_mapping={"customer_zip_code_prefix": "13015"}),
+            ]
+
+    class Database:
+        def __init__(self):
+            self.statement = None
+            self.params = None
+
+        def execute(self, statement, params):
+            self.statement = str(statement)
+            self.params = params
+            return Result()
+
+    db = Database()
+    response = customer_router.customer_zip_codes(
+        state="sp",
+        city=" Campinas ",
+        db=db,
+        _={},
+    )
+
+    assert response == {"zip_codes": ["13010", "13015"]}
+    assert "SELECT DISTINCT customer_zip_code_prefix FROM customers" in db.statement
+    assert "customer_state = :state AND customer_city = :city" in db.statement
+    assert db.params == {"state": "SP", "city": "Campinas"}
+
+
 def test_legacy_segment_filter_uses_model_probability_bands():
     class Result:
         def scalar(self):

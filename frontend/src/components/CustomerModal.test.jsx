@@ -84,7 +84,7 @@ describe("CustomerModal Component", () => {
     expect(checkIdAvailable).toHaveBeenCalledTimes(5);
   });
 
-  it("validates zip code, city, and state code errors", () => {
+  it("validates zip code and city errors", () => {
     const { container } = render(<CustomerModal customer={null} close={vi.fn()} save={vi.fn()} />);
 
     // Provide UID
@@ -109,11 +109,78 @@ describe("CustomerModal Component", () => {
     fireEvent.submit(form);
     expect(screen.getByText(/Please enter the customer's city name/i)).toBeInTheDocument();
 
-    // Valid city, invalid state
-    fireEvent.change(screen.getByLabelText(/City/i), { target: { value: "Campinas" } });
-    fireEvent.change(screen.getByPlaceholderText(/e\.g\. SP/i), { target: { value: "XX" } });
-    fireEvent.submit(form);
-    expect(screen.getByText(/"XX" is not a valid 2-letter Brazilian state code/i)).toBeInTheDocument();
+  });
+
+  it("only offers cities for the selected state and clears the city when state changes", async () => {
+    const loadCities = vi.fn((state) => Promise.resolve({
+      cities: state === "SP" ? ["Campinas", "Sao Paulo"] : ["Rio de Janeiro"],
+    }));
+
+    render(
+      <CustomerModal
+        customer={null}
+        close={vi.fn()}
+        save={vi.fn()}
+        loadCities={loadCities}
+      />
+    );
+
+    const citySelect = screen.getByLabelText("City");
+    await screen.findByRole("option", { name: "Campinas" });
+    fireEvent.change(citySelect, { target: { value: "Campinas" } });
+
+    fireEvent.change(screen.getByLabelText("State"), {
+      target: { value: "RJ" },
+    });
+
+    await screen.findByRole("option", { name: "Rio de Janeiro" });
+    expect(citySelect).toHaveValue("");
+    expect(screen.queryByRole("option", { name: "Campinas" })).not.toBeInTheDocument();
+    expect(loadCities).toHaveBeenNthCalledWith(1, "SP");
+    expect(loadCities).toHaveBeenLastCalledWith("RJ");
+  });
+
+  it("updates ZIP codes for the selected city and state", async () => {
+    const loadCities = vi.fn((state) => Promise.resolve({
+      cities: state === "SP" ? ["Campinas"] : ["Rio de Janeiro"],
+    }));
+    const loadZipCodes = vi.fn((state, city) => Promise.resolve({
+      zip_codes: state === "SP" && city === "Campinas"
+        ? ["13010", "13015"]
+        : ["20000"],
+    }));
+
+    render(
+      <CustomerModal
+        customer={null}
+        close={vi.fn()}
+        save={vi.fn()}
+        loadCities={loadCities}
+        loadZipCodes={loadZipCodes}
+      />
+    );
+
+    const citySelect = screen.getByLabelText("City");
+    const zipSelect = screen.getByLabelText("ZIP code");
+    await screen.findByRole("option", { name: "Campinas" });
+    fireEvent.change(citySelect, { target: { value: "Campinas" } });
+    await screen.findByRole("option", { name: "13015" });
+
+    fireEvent.change(zipSelect, { target: { value: "13015" } });
+    expect(zipSelect).toHaveValue("13015");
+    expect(loadZipCodes).toHaveBeenCalledWith("SP", "Campinas");
+
+    fireEvent.change(screen.getByLabelText("State"), {
+      target: { value: "RJ" },
+    });
+    expect(zipSelect).toHaveValue("");
+    await screen.findByRole("option", { name: "Rio de Janeiro" });
+    fireEvent.change(citySelect, { target: { value: "Rio de Janeiro" } });
+
+    await waitFor(() => {
+      expect(zipSelect).toHaveValue("20000");
+    });
+    expect(loadZipCodes).toHaveBeenLastCalledWith("RJ", "Rio de Janeiro");
   });
 
   it("submits valid customer data without a manually assigned risk segment", async () => {

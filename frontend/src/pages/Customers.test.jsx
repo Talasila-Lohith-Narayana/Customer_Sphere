@@ -98,6 +98,12 @@ describe("Customers Directory Page", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(ApiModule.customerService, "cities").mockResolvedValue({
+      cities: ["Campinas", "Sao Paulo", "Rio de Janeiro"],
+    });
+    vi.spyOn(ApiModule.customerService, "zipCodes").mockResolvedValue({
+      zip_codes: ["13010"],
+    });
     vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
       isAdmin: true,
     });
@@ -688,18 +694,14 @@ describe("Customers Directory Page", () => {
     expect(screen.getByRole("heading", { name: "Add customer" })).toBeInTheDocument();
 
     const addModal = document.querySelector("form.modal");
+    await screen.findByRole("option", { name: "Campinas" });
     fireEvent.change(within(addModal).getByPlaceholderText(/00172711b30d52eea8b313a7f2cced02/i), {
       target: { value: "00172711b30d52eea8b313a7f2cced02" },
-    });
-    fireEvent.change(within(addModal).getByLabelText(/ZIP code/i), {
-      target: { value: "13010" },
     });
     fireEvent.change(within(addModal).getByLabelText(/City/i), {
       target: { value: "Campinas" },
     });
-    fireEvent.change(within(addModal).getByPlaceholderText(/e\.g\. SP/i), {
-      target: { value: "SP" },
-    });
+    await screen.findByRole("option", { name: "13010" });
     fireEvent.click(within(addModal).getByRole("button", { name: /Add customer/i }));
 
     await waitFor(() => {

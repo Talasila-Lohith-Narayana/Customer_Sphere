@@ -354,6 +354,47 @@ def customers(
 # ------------------------------------------------------------------------------
 # 2. Add New Customer Profile (Admin Only)
 # ------------------------------------------------------------------------------
+@router.get("/api/customers/cities")
+def customer_cities(
+    state: str = Query(min_length=2, max_length=2),
+    db: Session = Depends(get_db),
+    _: str = Depends(admin_auth),
+):
+    result = db.execute(
+        text(
+            "SELECT DISTINCT customer_city FROM customers "
+            "WHERE customer_state = :state "
+            "AND customer_city IS NOT NULL AND TRIM(customer_city) != '' "
+            "ORDER BY customer_city"
+        ),
+        {"state": state.strip().upper()},
+    ).fetchall()
+    return {"cities": [row._mapping["customer_city"] for row in result]}
+
+
+@router.get("/api/customers/zip-codes")
+def customer_zip_codes(
+    state: str = Query(min_length=2, max_length=2),
+    city: str = Query(min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    _: str = Depends(admin_auth),
+):
+    result = db.execute(
+        text(
+            "SELECT DISTINCT customer_zip_code_prefix FROM customers "
+            "WHERE customer_state = :state AND customer_city = :city "
+            "AND customer_zip_code_prefix IS NOT NULL "
+            "ORDER BY customer_zip_code_prefix"
+        ),
+        {"state": state.strip().upper(), "city": city.strip()},
+    ).fetchall()
+    return {
+        "zip_codes": [
+            str(row._mapping["customer_zip_code_prefix"]) for row in result
+        ]
+    }
+
+
 @router.get("/api/customers/id-availability")
 def customer_id_availability(
     customer_unique_id: str = Query(min_length=1, max_length=32),

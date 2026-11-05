@@ -875,6 +875,8 @@ export default function Customers() {
       {showForm && (
         <CustomerModal
           close={() => setShowForm(false)}
+          loadCities={customerService.cities}
+          loadZipCodes={customerService.zipCodes}
           checkIdAvailable={customerService.isUniqueIdAvailable}
           save={async (payload) => {
             await customerService.create(payload);

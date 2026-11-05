@@ -233,6 +233,12 @@ export const productsService = {
 export const customerService = {
   /** List customers with search, filtering, sorting, and pagination */
   list: (params) => data(api.get("/customers", { params })),
+  /** Fetch the cities available for a Brazilian state */
+  cities: (state) =>
+    data(api.get("/customers/cities", { params: { state } })),
+  /** Fetch the postal code prefixes available for a city and state */
+  zipCodes: (state, city) =>
+    data(api.get("/customers/zip-codes", { params: { state, city } })),
   /** Check whether a customer unique ID is available */
   isUniqueIdAvailable: (customerUniqueId) =>
     data(api.get("/customers/id-availability", {
