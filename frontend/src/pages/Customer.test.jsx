@@ -84,6 +84,12 @@ function setupDefaultMocks() {
   vi.spyOn(ApiModule.customerService, "reviews").mockResolvedValue({ items: [mockReview] });
   vi.spyOn(ApiModule.customerService, "interactions").mockResolvedValue([mockInteraction]);
   vi.spyOn(ApiModule.customerService, "auditLogs").mockResolvedValue({ items: [mockAuditLog] });
+  vi.spyOn(ApiModule.customerService, "cities").mockResolvedValue({
+    cities: ["Sao Paulo", "Campinas"],
+  });
+  vi.spyOn(ApiModule.customerService, "zipCodes").mockResolvedValue({
+    zip_codes: ["13010", "13015"],
+  });
   vi.spyOn(ApiModule.predictionService, "get").mockResolvedValue(null);
 }
 
@@ -303,6 +309,8 @@ describe("Customer Page Orchestrator", () => {
     // Open edit modal
     fireEvent.click(screen.getByRole("button", { name: /edit customer/i }));
     expect(screen.getByRole("heading", { name: /edit customer/i })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Campinas" })).toBeInTheDocument();
+    expect(ApiModule.customerService.cities).toHaveBeenCalledWith("SP");
 
     // Submit edit
     fireEvent.click(screen.getByRole("button", { name: /save changes/i }));

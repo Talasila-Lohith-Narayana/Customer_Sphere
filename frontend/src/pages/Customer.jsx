@@ -450,6 +450,8 @@ export default function Customer() {
         <CustomerModal
           customer={customer}
           close={() => setShowEdit(false)}
+          loadCities={customerService.cities}
+          loadZipCodes={customerService.zipCodes}
           save={async (payload) => {
             await customerService.update(id, payload);
             publishDashboardDataChanged();
