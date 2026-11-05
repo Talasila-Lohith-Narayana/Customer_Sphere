@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AlertTriangle, RotateCw } from "lucide-react";
 import { LoadingState, Panel } from "../States";
 
@@ -12,11 +12,37 @@ export default function AnalyticsPanel({
   onLoadStateChange,
   onLoaded,
   panelUpdates = {},
+  deferUntilVisible = false,
 }) {
+  const containerRef = useRef(null);
+  const [isVisible, setIsVisible] = useState(!deferUntilVisible);
   const [result, setResult] = useState({ status: "loading", data: null });
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    if (!deferUntilVisible || isVisible || !containerRef.current) return undefined;
+
+    if (typeof window.IntersectionObserver !== "function") {
+      setIsVisible(true);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "0px" },
+    );
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [deferUntilVisible, isVisible]);
+
+  useEffect(() => {
+    if (deferUntilVisible && !isVisible) return undefined;
+
     let active = true;
     onLoadStateChange?.(title, true);
     setResult((current) =>
@@ -61,7 +87,19 @@ export default function AnalyticsPanel({
     preserveDataOnRefresh,
     refreshKey,
     title,
+    deferUntilVisible,
+    isVisible,
   ]);
+
+  if (deferUntilVisible && !isVisible) {
+    return (
+      <div ref={containerRef}>
+        <Panel title={title} sub={sub}>
+          <p className="analyticsMeta">This panel loads when you scroll to it.</p>
+        </Panel>
+      </div>
+    );
+  }
 
   return (
     <Panel title={title} sub={sub}>

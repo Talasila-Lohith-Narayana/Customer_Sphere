@@ -1,11 +1,46 @@
 import React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import Model from "./Model";
 import { analyticsService } from "../services/api";
 
 describe("Model diagnostics", () => {
   beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("loads each diagnostics panel only when it enters the viewport", async () => {
+    const observers = [];
+    class TestIntersectionObserver {
+      constructor(callback) {
+        this.callback = callback;
+        this.target = null;
+        observers.push(this);
+      }
+      observe(target) {
+        this.target = target;
+      }
+      disconnect() {}
+    }
+    vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
+    const modelPerformance = vi
+      .spyOn(analyticsService, "modelPerformance")
+      .mockResolvedValue({ metrics: {} });
+    const churnOverview = vi.spyOn(analyticsService, "churnOverview");
+
+    render(<Model />);
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+
+    expect(modelPerformance).not.toHaveBeenCalled();
+    expect(churnOverview).not.toHaveBeenCalled();
+
+    const performanceObserver = observers
+      .filter((observer) => observer.target?.textContent.includes("Model test performance"))
+      .pop();
+    performanceObserver.callback([{ isIntersecting: true }]);
+
+    await waitFor(() => expect(modelPerformance).toHaveBeenCalledTimes(1));
+    expect(churnOverview).not.toHaveBeenCalled();
+  });
 
   it("shows available feature diagnostics and honest empty states for missing reports", async () => {
     vi.spyOn(analyticsService, "modelPerformance").mockResolvedValue({
@@ -51,7 +86,7 @@ describe("Model diagnostics", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Refresh analytics data" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Refresh analytics data" }));
     await waitFor(() => {
-      expect(churnOverview).toHaveBeenCalledTimes(12);
+      expect(churnOverview).toHaveBeenCalledTimes(2);
       expect(screen.getByRole("button", { name: "Refresh analytics data" })).toBeEnabled();
     });
 

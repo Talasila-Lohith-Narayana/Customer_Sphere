@@ -8,7 +8,6 @@ describe("Analytics page", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
-
   it("renders live analytics sections and their data", async () => {
     vi.spyOn(analyticsService, "clvSummary").mockResolvedValue({
       customers: 96095,
