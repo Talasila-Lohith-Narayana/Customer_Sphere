@@ -26,6 +26,13 @@ Administrators can remove other accounts with
 `DELETE /api/auth/users/{username}`. The active administrator and the last
 administrator cannot be deleted, and tokens for deleted users are rejected.
 
+The optional analytics assistant uses OpenAI's API. Set `OPENAI_API_KEY` in the
+backend environment to enable it; `OPENAI_MODEL` defaults to `gpt-4o-mini`.
+Requests are available only to users with analytics access and use aggregated
+campaign and segment counts, never individual customer records. Without an API
+key, the application runs normally and the assistant reports that setup is
+required.
+
 Install the reproducible backend dependency set from the repository root with:
 
 ```bash

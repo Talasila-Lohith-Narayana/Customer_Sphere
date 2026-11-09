@@ -214,6 +214,12 @@ export const analyticsService = {
     data(api.get(`/analytics/customers/${encodeURIComponent(customerUniqueId)}/explanation`)),
 };
 
+/** LLM-powered aggregate analytics assistant */
+export const assistantService = {
+  status: () => data(api.get("/assistant/status")),
+  ask: (question) => data(api.post("/assistant/ask", { question })),
+};
+
 /** Products catalog service endpoints */
 export const productsService = {
   /** Fetch catalog products with filters, sorting and pagination */

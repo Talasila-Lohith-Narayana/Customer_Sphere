@@ -18,6 +18,7 @@ const Customer = lazy(() => import("./pages/Customer"));
 const Customers = lazy(() => import("./pages/Customers"));
 const Products = lazy(() => import("./pages/Products"));
 const Analytics = lazy(() => import("./pages/Analytics"));
+const Assistant = lazy(() => import("./pages/Assistant"));
 const Campaigns = lazy(() => import("./pages/Campaigns"));
 const Model = lazy(() => import("./pages/Model"));
 const Users = lazy(() => import("./pages/Users"));
@@ -61,6 +62,7 @@ function App() {
                       </Route>
                       <Route element={<AccessRoute page="analytics" />}>
                         <Route path="analytics" element={<Analytics />} />
+                        <Route path="assistant" element={<Assistant />} />
                       </Route>
                       <Route element={<AccessRoute page="campaigns" />}>
                         <Route path="campaigns" element={<Campaigns />} />

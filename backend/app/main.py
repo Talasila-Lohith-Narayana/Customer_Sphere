@@ -40,6 +40,7 @@ from .core.permissions import (
 )
 # Import all domain API routers
 from .api.auth.router import router as auth_router
+from .api.assistant.router import router as assistant_router
 from .api.health import router as health_router
 from .api.dashboard.router import router as dashboard_router
 from .api.customers.router import router as customers_router
@@ -194,6 +195,10 @@ app.add_middleware(
 
 # Register all modular routers
 app.include_router(auth_router)
+app.include_router(
+    assistant_router,
+    prefix="/api/assistant",
+)
 app.include_router(
     dashboard_router,
     dependencies=[Depends(require_page_access("dashboard"))],

@@ -258,6 +258,12 @@ export default function Shell() {
             {!collapsed && <span>Analytics</span>}
           </NavLink>
         )}
+        {canAccess("analytics") && (
+          <NavLink to="/assistant" title="Analytics assistant">
+            <Sparkles size={17} />
+            {!collapsed && <span>AI Assistant</span>}
+          </NavLink>
+        )}
         {canAccess("campaigns") && (
           <NavLink to="/campaigns" title="Campaigns">
             <Megaphone size={17} />
