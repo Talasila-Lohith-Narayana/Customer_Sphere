@@ -217,7 +217,16 @@ export const analyticsService = {
 /** LLM-powered aggregate analytics assistant */
 export const assistantService = {
   status: () => data(api.get("/assistant/status")),
-  ask: (question) => data(api.post("/assistant/ask", { question })),
+  sessions: () => data(api.get("/assistant/sessions")),
+  createSession: () => data(api.post("/assistant/sessions")),
+  renameSession: (sessionId, title) =>
+    data(api.patch(`/assistant/sessions/${sessionId}`, { title })),
+  history: (sessionId) =>
+    data(api.get(`/assistant/sessions/${sessionId}/history`)),
+  ask: (question, sessionId) =>
+    data(api.post("/assistant/ask", { question, session_id: sessionId })),
+  deleteSession: (sessionId) =>
+    data(api.delete(`/assistant/sessions/${sessionId}`)),
 };
 
 /** Products catalog service endpoints */

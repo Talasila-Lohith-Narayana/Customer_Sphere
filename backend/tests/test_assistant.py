@@ -3,24 +3,78 @@ import json
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 from app.api.assistant import router, service
-from app.api.assistant.schemas import AssistantQuestion
+from app.api.assistant.schemas import AssistantChatSessionUpdate, AssistantQuestion
+from app.models import AppUser, AssistantChatSession, AssistantChatTurn
 
 
 @pytest.mark.parametrize("question", ["", "   ", "\t\n"])
 def test_assistant_rejects_blank_questions(question):
     with pytest.raises(ValidationError):
-        AssistantQuestion(question=question)
+        AssistantQuestion(question=question, session_id=1)
 
 
 def test_assistant_limits_question_length():
     with pytest.raises(ValidationError):
-        AssistantQuestion(question="x" * 1001)
+        AssistantQuestion(question="x" * 1001, session_id=1)
 
 
 def test_assistant_trims_question():
-    assert AssistantQuestion(question="  campaign summary  ").question == "campaign summary"
+    assert AssistantQuestion(
+        question="  campaign summary  ",
+        session_id=1,
+    ).question == "campaign summary"
+
+
+def test_assistant_trims_chat_session_title():
+    assert AssistantChatSessionUpdate(title="  Monthly revenue  ").title == (
+        "Monthly revenue"
+    )
+    with pytest.raises(ValidationError):
+        AssistantChatSessionUpdate(title="   ")
+
+
+def test_rename_chat_session_updates_only_the_owner_session():
+    engine = create_engine("sqlite://")
+    AppUser.__table__.create(engine)
+    AssistantChatSession.__table__.create(engine)
+    try:
+        with Session(engine) as db:
+            first_user = AppUser(
+                username="first", password_hash="hash", role="viewer"
+            )
+            second_user = AppUser(
+                username="second", password_hash="hash", role="viewer"
+            )
+            db.add_all([first_user, second_user])
+            db.commit()
+            first_session = service.create_chat_session(db, first_user.id)
+            second_session = service.create_chat_session(db, second_user.id)
+
+            renamed = service.rename_chat_session(
+                db,
+                first_user.id,
+                first_session["id"],
+                "Monthly revenue",
+            )
+
+            assert renamed["title"] == "Monthly revenue"
+            assert service.get_chat_session(
+                db,
+                second_user.id,
+                second_session["id"],
+            ).title == "New chat"
+            assert service.rename_chat_session(
+                db,
+                first_user.id,
+                second_session["id"],
+                "Not yours",
+            ) is None
+    finally:
+        engine.dispose()
 
 
 @pytest.mark.parametrize(
@@ -42,24 +96,93 @@ def test_select_analytics_domains(question, expected_domains):
 @pytest.mark.parametrize("question", ["Hi!", "Tell me a joke"])
 def test_unmatched_question_uses_model_without_loading_analytics(monkeypatch, question):
     monkeypatch.setattr(service, "is_configured", lambda: True)
+    history_limits = []
+
+    def load_history(db, user_id, session_id, limit=100):
+        history_limits.append(limit)
+        return []
+
+    monkeypatch.setattr(service, "get_chat_session", lambda *args: object())
+    monkeypatch.setattr(service, "load_chat_turns", load_history)
+    monkeypatch.setattr(service, "save_chat_turn", lambda *args: None)
 
     def fail_if_called(*args, **kwargs):
         raise AssertionError("unmatched questions must not load analytics")
 
-    async def answer_without_analytics(received_question, context):
+    async def answer_without_analytics(received_question, context, history):
         assert received_question == question
-        assert "No analytics data is relevant" in context["privacy_note"]
+        assert context == {}
+        assert history == []
         return "Model-generated response."
 
     monkeypatch.setattr(service, "load_analytics_context", fail_if_called)
     monkeypatch.setattr(service, "generate_answer", answer_without_analytics)
 
     answer = asyncio.run(
-        router.ask_assistant(AssistantQuestion(question=question), db=None, _={})
+        router.ask_assistant(
+            AssistantQuestion(question=question, session_id=1),
+            db=None,
+            current_user={"user_id": 1},
+        )
     )
 
     assert answer.answer == "Model-generated response."
     assert answer.visualizations == []
+    assert history_limits == [20]
+
+
+def test_chat_history_is_persisted_and_isolated_by_user():
+    engine = create_engine("sqlite://")
+    AppUser.__table__.create(engine)
+    AssistantChatSession.__table__.create(engine)
+    AssistantChatTurn.__table__.create(engine)
+    try:
+        with Session(engine) as db:
+            first_user = AppUser(
+                username="first", password_hash="hash", role="viewer"
+            )
+            second_user = AppUser(
+                username="second", password_hash="hash", role="viewer"
+            )
+            db.add_all([first_user, second_user])
+            db.commit()
+
+            first_session = service.create_chat_session(db, first_user.id)
+            second_session = service.create_chat_session(db, second_user.id)
+            service.save_chat_turn(
+                db,
+                first_user.id,
+                first_session["id"],
+                "How are sales?",
+                "Sales increased.",
+                [{"title": "Monthly revenue", "data": [], "format": "currency"}],
+            )
+            service.save_chat_turn(
+                db,
+                second_user.id,
+                second_session["id"],
+                "How is churn?",
+                "Churn risk is low.",
+                [],
+            )
+
+            assert service.load_chat_turns(db, first_user.id, first_session["id"]) == [
+                {
+                    "question": "How are sales?",
+                    "answer": "Sales increased.",
+                    "visualizations": [
+                        {"title": "Monthly revenue", "data": [], "format": "currency"}
+                    ],
+                }
+            ]
+            assert service.load_chat_turns(db, first_user.id, second_session["id"]) == []
+            assert service.delete_chat_session(db, first_user.id, first_session["id"])
+            assert service.load_chat_turns(db, first_user.id, first_session["id"]) == []
+            assert service.load_chat_turns(db, second_user.id, second_session["id"])[0]["question"] == (
+                "How is churn?"
+            )
+    finally:
+        engine.dispose()
 
 
 def test_load_analytics_context_only_queries_selected_domain(monkeypatch):
@@ -124,6 +247,7 @@ def test_generate_answer_sends_only_given_aggregate_context(monkeypatch):
         service.generate_answer(
             "Which campaign is largest?",
             {"active_campaigns": [{"campaign_name": "Campaign A", "customer_count": 12}]},
+            [{"question": "What is Campaign A?", "answer": "A retention campaign."}],
         )
     )
 
@@ -135,7 +259,33 @@ def test_generate_answer_sends_only_given_aggregate_context(monkeypatch):
     assert captured["body"]["model"] == "test-model"
     assert captured["body"]["max_tokens"] == 1200
     assert "reasoning" not in captured["body"]
-    submitted = json.loads(captured["body"]["messages"][1]["content"])
+    system_prompt = captured["body"]["messages"][0]["content"]
+    assert "You are Nova" in system_prompt
+    assert "whenever asked your name or identity, say that you are Nova" in system_prompt
+    assert "general-knowledge questions normally" in system_prompt
+    assert "never invent metrics" in system_prompt
+    assert "use it naturally when relevant in later turns" in system_prompt
+    assert "Do not say you refuse to remember such details" in system_prompt
+    assert captured["body"]["messages"][1:] == [
+        {"role": "user", "content": "What is Campaign A?"},
+        {"role": "assistant", "content": "A retention campaign."},
+        {
+            "role": "user",
+            "content": json.dumps(
+                {
+                    "question": "Which campaign is largest?",
+                    "analytics": {
+                        "active_campaigns": [
+                            {"campaign_name": "Campaign A", "customer_count": 12}
+                        ]
+                    },
+                },
+                ensure_ascii=True,
+                separators=(",", ":"),
+            ),
+        },
+    ]
+    submitted = json.loads(captured["body"]["messages"][-1]["content"])
     assert submitted["question"] == "Which campaign is largest?"
     assert submitted["analytics"]["active_campaigns"][0]["customer_count"] == 12
 

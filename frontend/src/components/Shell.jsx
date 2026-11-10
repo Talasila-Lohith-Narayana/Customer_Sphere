@@ -259,9 +259,9 @@ export default function Shell() {
           </NavLink>
         )}
         {canAccess("analytics") && (
-          <NavLink to="/assistant" title="Analytics assistant">
+          <NavLink to="/assistant" title="Nova">
             <Sparkles size={17} />
-            {!collapsed && <span>AI Assistant</span>}
+            {!collapsed && <span>Nova</span>}
           </NavLink>
         )}
         {canAccess("campaigns") && (

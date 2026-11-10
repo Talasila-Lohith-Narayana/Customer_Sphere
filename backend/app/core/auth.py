@@ -33,6 +33,7 @@ def auth(
         raise HTTPException(401, "Invalid or expired token. Please log in again.")
     return {
         **payload,
+        "user_id": account.id,
         "role": account.role,
         "access_pages": get_user_access_pages(account),
     }

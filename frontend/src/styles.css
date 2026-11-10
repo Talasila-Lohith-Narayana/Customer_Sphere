@@ -89,6 +89,269 @@
   box-shadow: var(--assistant-shadow);
 }
 
+.page:has(.assistantWorkspace) {
+  padding: 24px;
+}
+
+.assistantWorkspace {
+  display: grid;
+  grid-template-columns: minmax(190px, 220px) minmax(0, 1fr);
+  max-width: 1180px;
+  height: min(740px, calc(100dvh - 165px));
+  min-height: 300px;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  background: var(--card-bg);
+  box-shadow: var(--assistant-shadow);
+}
+
+.assistantWorkspace > .assistantSidebar {
+  display: flex;
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  box-sizing: border-box;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  padding: 18px 12px;
+  overflow: hidden;
+  border-right: 1px solid var(--card-border);
+  background: var(--surface-subtle);
+  color: var(--text-main);
+  transition: none;
+}
+
+.assistantNewChat {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text-main);
+  cursor: pointer;
+  font: 600 13px "DM Sans", sans-serif;
+  text-align: left;
+}
+
+.assistantNewChat:hover:not(:disabled) {
+  border-color: var(--assistant-accent);
+  color: var(--assistant-accent);
+}
+
+.assistantNewChat:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.assistantSidebar h2 {
+  margin: 22px 10px 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.assistantSessionList {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  scrollbar-color: #94a3b8 transparent;
+  scrollbar-width: thin;
+}
+
+.assistantSession {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+  border-radius: 10px;
+}
+
+.assistantSession:hover,
+.assistantSession.isActive {
+  background: var(--hover-bg);
+}
+
+.assistantSession.isActive {
+  color: var(--assistant-accent);
+}
+
+.assistantSessionSelect,
+.assistantSessionRename,
+.assistantSessionDelete,
+.assistantSessionAction {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.assistantSessionSelect {
+  flex: 1;
+  gap: 9px;
+  padding: 10px 9px;
+  text-align: left;
+}
+
+.assistantSessionSelect {
+  padding: 10px 6px 10px 9px;
+}
+
+.assistantSessionRenameForm {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  padding-left: 6px;
+}
+
+.assistantSessionRenameForm input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--card-border);
+  border-radius: 7px;
+  background: var(--card-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 12px;
+}
+
+.assistantSessionRenameForm input:focus {
+  border-color: var(--assistant-accent);
+  outline: 2px solid color-mix(in srgb, var(--assistant-accent) 25%, transparent);
+}
+
+.assistantSessionAction,
+.assistantSessionRename {
+  justify-content: center;
+  width: 29px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  opacity: 0;
+}
+
+.assistantSession:hover .assistantSessionRename,
+.assistantSession.isActive .assistantSessionRename,
+.assistantSessionRename:focus-visible,
+.assistantSessionAction,
+.assistantSessionRenameForm:focus-within .assistantSessionAction {
+  opacity: 1;
+}
+
+.assistantSessionRename:hover,
+.assistantSessionAction:hover {
+  background: var(--card-bg);
+  color: var(--assistant-accent);
+}
+
+.assistantSessionSelect span {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistantSessionSelect:disabled,
+.assistantSessionRename:disabled,
+.assistantSessionAction:disabled,
+.assistantSessionDelete:disabled {
+  cursor: wait;
+}
+
+.assistantSessionDelete {
+  justify-content: center;
+  width: 29px;
+  height: 32px;
+  margin-right: 4px;
+  border-radius: 8px;
+  opacity: 0;
+}
+
+.assistantSession:hover .assistantSessionDelete,
+.assistantSession.isActive .assistantSessionDelete,
+.assistantSessionDelete:focus-visible {
+  opacity: 1;
+}
+
+.assistantSessionDelete:hover {
+  background: var(--card-bg);
+  color: #b91c1c;
+}
+
+.assistantSidebarHint {
+  margin: 8px 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.assistantChatPanel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  padding: 16px clamp(14px, 2.5vw, 30px);
+}
+
+.assistantEmptyState {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  overflow-y: auto;
+  text-align: center;
+}
+
+.assistantEmptyIcon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--assistant-accent-soft);
+  color: var(--assistant-accent);
+}
+
+.assistantEmptyState h2 {
+  margin: 16px 0 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(20px, 2.5vw, 27px);
+}
+
+.assistantEmptyState .assistantSuggestions {
+  display: grid;
+  width: 100%;
+  max-width: 620px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-content: center;
+  gap: 10px;
+  margin: 22px 0 0;
+}
+
+.assistantEmptyState .assistantSuggestion {
+  min-height: 54px;
+  padding: 11px 13px;
+  text-align: left;
+}
+
 .assistantIntro {
   align-items: flex-start;
   gap: 15px;
@@ -134,6 +397,48 @@
   line-height: 1.7;
 }
 
+.assistantResponse {
+  flex: 1;
+  max-height: none;
+  min-height: 0;
+  margin: 0;
+  padding: 8px 14px 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  scrollbar-color: color-mix(in srgb, var(--assistant-accent) 48%, var(--text-muted)) transparent;
+  scrollbar-width: thin;
+}
+
+.assistantResponse::-webkit-scrollbar {
+  width: 9px;
+}
+
+.assistantResponse::-webkit-scrollbar-track {
+  margin: 8px 0;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.assistantResponse::-webkit-scrollbar-thumb {
+  min-height: 42px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--assistant-accent) 48%, var(--text-muted));
+  background-clip: padding-box;
+}
+
+.assistantResponse::-webkit-scrollbar-thumb:hover {
+  background: var(--assistant-accent);
+  background-clip: padding-box;
+}
+
+.assistantResponse:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--assistant-accent) 40%, transparent);
+  outline-offset: 3px;
+}
+
 .assistantNoticeError {
   display: flex;
   justify-content: space-between;
@@ -142,6 +447,70 @@
   border-color: #fecaca;
   background: #fef2f2;
   color: #991b1b;
+}
+
+.assistantHistoryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.assistantHistoryHeader .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.assistantTurn + .assistantTurn {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--card-border);
+}
+
+.assistantTurn {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.assistantMessage {
+  max-width: min(88%, 760px);
+  padding: 12px 15px;
+  border: 1px solid var(--card-border);
+  border-radius: 15px;
+}
+
+.assistantMessage strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.assistantMessageUser {
+  align-self: flex-end;
+  border-color: color-mix(in srgb, var(--assistant-accent) 22%, var(--card-border));
+  background: var(--assistant-accent-soft);
+}
+
+.assistantMessageAssistant {
+  align-self: flex-start;
+  background: var(--card-bg);
+}
+
+.assistantMessage p {
+  overflow-wrap: anywhere;
+}
+
+.assistantThinking {
+  margin-top: 18px !important;
+  color: var(--text-muted);
 }
 
 .assistantSuggestions {
@@ -231,7 +600,9 @@
 }
 
 .assistantForm {
-  margin-top: 24px;
+  flex: 0 0 auto;
+  min-width: 0;
+  margin-top: 12px;
   padding: 15px 16px 12px;
   border: 1px solid var(--input-border);
   border-radius: 16px;
@@ -248,7 +619,8 @@
   box-sizing: border-box;
   display: block;
   width: 100%;
-  min-height: 84px;
+  min-height: 54px;
+  max-height: 160px;
   resize: vertical;
   border: 0;
   outline: 0;
@@ -275,6 +647,14 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
+}
+
+.assistantFormFooter button {
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 12px;
 }
 
 [data-theme="dark"] {
@@ -306,13 +686,56 @@
     overflow-wrap: anywhere;
   }
 
-  .assistantCard {
-    padding: 20px 16px;
-    border-radius: 17px;
+  .assistantWorkspace {
+    display: flex;
+    height: min(740px, calc(100dvh - 165px));
+    min-height: 300px;
+    flex-direction: column;
+    border-radius: 16px;
   }
 
-  .assistantIntro {
-    gap: 12px;
+  .assistantWorkspace > .assistantSidebar {
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    width: auto;
+    max-height: 145px;
+    flex: 0 0 auto;
+    overflow: hidden;
+    padding: 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--card-border);
+    transition: none;
+  }
+
+  .assistantSidebar h2 {
+    margin: 10px 8px 5px;
+  }
+
+  .assistantSessionList {
+    overflow-y: auto;
+  }
+
+  .assistantSessionDelete {
+    opacity: 1;
+  }
+
+  .assistantChatPanel {
+    flex: 1;
+    padding: 12px;
+  }
+
+  .assistantEmptyState .assistantSuggestions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assistantResponse {
+    padding: 8px 4px 16px;
+  }
+
+  .assistantMessage {
+    max-width: 96%;
   }
 
   .assistantIcon {

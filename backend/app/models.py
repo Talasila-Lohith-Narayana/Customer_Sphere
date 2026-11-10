@@ -1,5 +1,5 @@
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, Integer, Numeric, String, Text, DateTime
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.mysql import CHAR
 
 # Base declarative class for all ORM models
@@ -18,6 +18,41 @@ class AppUser(Base):
     role = Column(String(20), nullable=False, default="viewer")
     access_pages = Column(Text, nullable=True)
     token_version = Column(Integer, nullable=False, default=0, server_default="0")
+
+
+class AssistantChatSession(Base):
+    __tablename__ = "assistant_chat_sessions"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("ci_users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    title = Column(String(120), nullable=False, default="New chat")
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+
+
+class AssistantChatTurn(Base):
+    __tablename__ = "assistant_chat_turns"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("ci_users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    session_id = Column(
+        Integer,
+        ForeignKey("assistant_chat_sessions.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    visualizations = Column(Text, nullable=False, default="[]")
+    created_at = Column(DateTime, nullable=False)
 
 
 class ConsumerInteraction(Base):
