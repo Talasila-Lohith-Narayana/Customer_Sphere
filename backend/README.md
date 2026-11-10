@@ -26,12 +26,15 @@ Administrators can remove other accounts with
 `DELETE /api/auth/users/{username}`. The active administrator and the last
 administrator cannot be deleted, and tokens for deleted users are rejected.
 
-The optional analytics assistant uses OpenAI's API. Set `OPENAI_API_KEY` in the
-backend environment to enable it; `OPENAI_MODEL` defaults to `gpt-4o-mini`.
-Requests are available only to users with analytics access and use aggregated
-campaign and segment counts, never individual customer records. Without an API
-key, the application runs normally and the assistant reports that setup is
-required.
+The optional analytics assistant uses OpenRouter's Chat Completions API. Set
+`OPENROUTER_API_KEY` in the backend environment to enable it;
+`OPENROUTER_MODEL` defaults to `openrouter/free`, which routes requests to an
+available free model. The assistant can answer
+questions about aggregate sales and order trends, product categories, customer
+segments, churn risk, and campaigns, and can show a relevant chart for those
+topics. Requests are available only to users with analytics access and send
+aggregated data, never individual customer records. Without an API key, the
+application runs normally and the assistant reports that setup is required.
 
 Install the reproducible backend dependency set from the repository root with:
 

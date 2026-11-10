@@ -1,13 +1,35 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Bot, Send, Sparkles } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Page } from "../components/States";
 import { assistantService } from "../services/api";
 
 const suggestedQuestions = [
   "Which campaigns target the most customers?",
-  "How are campaigns distributed across segments?",
-  "What can you tell me about our current campaign mix?",
+  "How has monthly revenue changed?",
+  "Which product categories have the highest sales?",
+  "How many customers are in each churn-risk group?",
+  "Which customer segments are largest?",
 ];
+
+const formatValue = (value, format) => {
+  if (format === "currency") {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: "BRL",
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+  return new Intl.NumberFormat().format(value);
+};
 
 export default function Assistant() {
   const [status, setStatus] = useState(null);
@@ -40,11 +62,22 @@ export default function Assistant() {
     setAnswer("");
     try {
       const result = await assistantService.ask(trimmedQuestion);
-      setAnswer(result.answer);
+      setAnswer(result);
     } catch (requestError) {
       setError(requestError.message || "Unable to get an answer.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleQuestionKeyDown = (event) => {
+    if (
+      event.key === "Enter"
+      && !event.shiftKey
+      && !event.nativeEvent.isComposing
+    ) {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
     }
   };
 
@@ -54,7 +87,7 @@ export default function Assistant() {
         <div>
           <p className="eyebrow">CUSTOMER SPHERE</p>
           <h1>Analytics assistant</h1>
-          <p>Ask questions about campaign and customer-segment aggregates.</p>
+          <p>Explore sales, products, customer segments, churn, and campaigns.</p>
         </div>
         <span className="assistantModel">
           <Sparkles size={15} />
@@ -66,10 +99,11 @@ export default function Assistant() {
         <div className="assistantIntro">
           <span className="assistantIcon"><Bot size={22} /></span>
           <div>
-            <h2>Explore your campaign data</h2>
+            <h2>Explore your business data</h2>
             <p>
-              Answers are based on aggregate campaign counts and segment labels.
-              Individual customer records are not sent to the model.
+              Ask about sales trends, products, customer segments, churn, and
+              campaigns. Answers and charts use aggregated data only; individual
+              customer records are not sent to the model.
             </p>
           </div>
         </div>
@@ -85,7 +119,7 @@ export default function Assistant() {
 
         {status && !status.configured && (
           <div className="assistantNotice" role="status">
-            The assistant is not configured yet. Add <code>OPENAI_API_KEY</code> to
+            The assistant is not configured yet. Add <code>OPENROUTER_API_KEY</code> to
             the backend environment and restart the API.
           </div>
         )}
@@ -107,13 +141,65 @@ export default function Assistant() {
         {(answer || loading || error) && (
           <div className="assistantResponse" aria-live="polite">
             {loading ? (
-              <p>Reviewing the available aggregate data…</p>
+              <p>Thinking through your question…</p>
             ) : error ? (
               <p className="assistantAnswerError" role="alert">{error}</p>
             ) : (
               <>
                 <strong>Answer</strong>
-                <p>{answer}</p>
+                <p>{answer.answer}</p>
+                {answer.visualizations?.map((visualization) => (
+                  <section
+                    className="assistantVisualization"
+                    key={visualization.title}
+                    aria-label={visualization.title}
+                  >
+                    <h3>{visualization.title}</h3>
+                    <div className="assistantChart">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={visualization.data}
+                          margin={{ top: 8, right: 12, left: 8, bottom: 42 }}
+                        >
+                          <CartesianGrid
+                            stroke="var(--assistant-grid)"
+                            strokeDasharray="3 3"
+                            vertical={false}
+                          />
+                          <XAxis
+                            dataKey="label"
+                            angle={-25}
+                            textAnchor="end"
+                            interval={0}
+                            height={58}
+                            tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+                          />
+                          <YAxis
+                            tickFormatter={(value) => formatValue(value, visualization.format)}
+                            width={72}
+                            tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+                          />
+                          <Tooltip
+                            formatter={(value) => formatValue(value, visualization.format)}
+                            contentStyle={{
+                              background: "var(--card-bg)",
+                              borderColor: "var(--card-border)",
+                              borderRadius: 10,
+                              color: "var(--text-main)",
+                            }}
+                            labelStyle={{ color: "var(--text-main)" }}
+                            itemStyle={{ color: "var(--assistant-accent)" }}
+                          />
+                          <Bar
+                            dataKey="value"
+                            fill="var(--assistant-accent)"
+                            radius={[5, 5, 0, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </section>
+                ))}
               </>
             )}
           </div>
@@ -126,7 +212,8 @@ export default function Assistant() {
             value={question}
             maxLength={1000}
             onChange={(event) => setQuestion(event.target.value)}
-            placeholder="Ask about campaigns or customer segments…"
+            onKeyDown={handleQuestionKeyDown}
+            placeholder="Ask about sales, products, churn, segments, or campaigns…"
             rows={3}
             disabled={!status?.configured || loading}
           />

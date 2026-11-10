@@ -33,24 +33,32 @@
   --surface-subtle: var(--subtle-bg);
   --surface: var(--card-bg);
   --text: var(--text-main);
+  --assistant-accent: #4f46e5;
+  --assistant-accent-soft: #eef2ff;
+  --assistant-grid: #e2e8f0;
+  --assistant-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
 }
 
 .assistantHeader {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 18px;
-  margin-bottom: 20px;
+  align-items: center;
+  gap: 24px;
+  max-width: 1080px;
+  margin: 0 auto 24px;
 }
 
 .assistantHeader h1 {
-  margin: 0 0 6px;
+  margin: 5px 0 7px;
   font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(26px, 3vw, 34px);
+  letter-spacing: -0.035em;
 }
 
 .assistantHeader p:last-child {
   margin: 0;
   color: var(--text-muted);
+  font-size: 14px;
 }
 
 .assistantModel,
@@ -62,62 +70,68 @@
 
 .assistantModel {
   flex: 0 0 auto;
-  padding: 8px 11px;
+  padding: 9px 13px;
   border: 1px solid var(--card-border);
   border-radius: 999px;
-  background: var(--card-bg);
+  background: var(--surface-subtle);
   color: var(--text-muted);
   font-size: 12px;
+  font-weight: 600;
 }
 
 .assistantCard {
-  max-width: 900px;
-  padding: 24px;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: clamp(20px, 3vw, 34px);
   border: 1px solid var(--card-border);
-  border-radius: 16px;
+  border-radius: 22px;
   background: var(--card-bg);
-  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--assistant-shadow);
 }
 
 .assistantIntro {
   align-items: flex-start;
-  margin-bottom: 22px;
+  gap: 15px;
+  margin: -4px 0 24px;
 }
 
 .assistantIcon {
   display: grid;
-  flex: 0 0 42px;
-  width: 42px;
-  height: 42px;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
   place-items: center;
-  border-radius: 12px;
-  background: #eff6ff;
-  color: #2563eb;
+  border: 1px solid color-mix(in srgb, var(--assistant-accent) 20%, transparent);
+  border-radius: 15px;
+  background: var(--assistant-accent-soft);
+  color: var(--assistant-accent);
 }
 
 .assistantIntro h2 {
-  margin: 0 0 5px;
+  margin: 1px 0 6px;
   font-family: "Space Grotesk", sans-serif;
-  font-size: 17px;
+  font-size: 19px;
+  letter-spacing: -0.02em;
 }
 
 .assistantIntro p {
+  max-width: 720px;
   margin: 0;
   color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.65;
 }
 
 .assistantNotice,
 .assistantResponse {
-  margin: 16px 0;
-  padding: 13px 15px;
+  margin: 20px 0;
+  padding: 18px 20px;
   border: 1px solid var(--card-border);
-  border-radius: 10px;
+  border-radius: 16px;
   background: var(--surface-subtle);
-  color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.6;
+  color: var(--text-main);
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .assistantNoticeError {
@@ -133,23 +147,30 @@
 .assistantSuggestions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin: 18px 0;
+  gap: 9px;
+  margin: 24px 0 20px;
 }
 
 .assistantSuggestion {
-  padding: 8px 11px;
+  padding: 10px 14px;
   border: 1px solid var(--card-border);
-  border-radius: 999px;
-  background: var(--card-bg);
+  border-radius: 12px;
+  background: var(--surface-subtle);
   color: var(--text-main);
   cursor: pointer;
-  font: 500 12px "DM Sans", sans-serif;
+  font: 500 13px/1.35 "DM Sans", sans-serif;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
 }
 
 .assistantSuggestion:hover:not(:disabled) {
-  border-color: #93c5fd;
-  background: #eff6ff;
+  transform: translateY(-1px);
+  border-color: var(--assistant-accent);
+  background: var(--assistant-accent-soft);
+  color: var(--assistant-accent);
 }
 
 .assistantSuggestion:disabled {
@@ -157,13 +178,33 @@
   opacity: 0.55;
 }
 
+.assistantSuggestion:focus-visible,
+.assistantForm textarea:focus-visible,
+.assistantForm button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--assistant-accent) 40%, transparent);
+  outline-offset: 3px;
+}
+
+.assistantResponse > strong {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--assistant-accent);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .assistantResponse strong {
   color: var(--text-main);
 }
 
 .assistantResponse p {
-  margin: 5px 0 0;
+  margin: 0;
   white-space: pre-wrap;
+}
+
+.assistantResponse > p:not(.assistantAnswerError) {
+  font-size: 14px;
 }
 
 .assistantResponse .assistantAnswerError {
@@ -171,28 +212,54 @@
   color: #b91c1c;
 }
 
+.assistantVisualization {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--card-border);
+}
+
+.assistantVisualization h3 {
+  margin: 0 0 14px;
+  color: var(--text-main);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 15px;
+}
+
+.assistantChart {
+  width: 100%;
+  height: 320px;
+}
+
 .assistantForm {
-  padding: 12px;
+  margin-top: 24px;
+  padding: 15px 16px 12px;
   border: 1px solid var(--input-border);
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--input-bg);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.assistantForm:focus-within {
+  border-color: var(--assistant-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--assistant-accent) 12%, transparent);
 }
 
 .assistantForm textarea {
   box-sizing: border-box;
   display: block;
   width: 100%;
-  min-height: 76px;
+  min-height: 84px;
   resize: vertical;
   border: 0;
   outline: 0;
   background: transparent;
   color: var(--text-main);
-  font: 14px/1.5 "DM Sans", sans-serif;
+  font: 15px/1.6 "DM Sans", sans-serif;
 }
 
 .assistantForm textarea::placeholder {
   color: var(--text-muted);
+  opacity: 0.85;
 }
 
 .assistantFormFooter {
@@ -201,13 +268,75 @@
   align-items: center;
   gap: 12px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .assistantFormFooter .btn {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+}
+
+[data-theme="dark"] {
+  --assistant-accent: #a5b4fc;
+  --assistant-accent-soft: #20294b;
+  --assistant-grid: #334155;
+  --assistant-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+}
+
+[data-theme="dark"] .assistantNoticeError {
+  border-color: #7f1d1d;
+  background: #450a0a;
+  color: #fecaca;
+}
+
+[data-theme="dark"] .assistantResponse .assistantAnswerError {
+  color: #fca5a5;
+}
+
+@media (max-width: 640px) {
+  .assistantHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .assistantModel {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .assistantCard {
+    padding: 20px 16px;
+    border-radius: 17px;
+  }
+
+  .assistantIntro {
+    gap: 12px;
+  }
+
+  .assistantIcon {
+    flex-basis: 42px;
+    width: 42px;
+    height: 42px;
+  }
+
+  .assistantIntro h2 {
+    font-size: 17px;
+  }
+
+  .assistantSuggestions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .assistantSuggestion {
+    text-align: left;
+  }
+
+  .assistantChart {
+    height: 280px;
+  }
 }
 
 .visuallyHidden {

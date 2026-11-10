@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -13,8 +15,20 @@ class AssistantQuestion(BaseModel):
         return question
 
 
+class AssistantChartDatum(BaseModel):
+    label: str
+    value: int | float
+
+
+class AssistantVisualization(BaseModel):
+    title: str
+    data: list[AssistantChartDatum]
+    format: Literal["number", "currency"]
+
+
 class AssistantAnswer(BaseModel):
     answer: str
+    visualizations: list[AssistantVisualization] = Field(default_factory=list)
 
 
 class AssistantStatus(BaseModel):
