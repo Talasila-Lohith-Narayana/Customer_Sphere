@@ -5,6 +5,7 @@ Revises: 20261030_0002
 Create Date: 2026-10-30
 """
 from alembic import op
+import sqlalchemy as sa
 
 from app.core.database import ANALYTICS_DB_NAME
 
@@ -16,7 +17,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    if op.get_bind().dialect.name == "sqlite":
+    connection = op.get_bind()
+    if connection.dialect.name == "sqlite":
+        return
+    if "churn_predictions" not in sa.inspect(connection).get_table_names(
+        schema=ANALYTICS_DB_NAME
+    ):
         return
     op.create_index(
         "ix_churn_predictions_customer_probability",
@@ -28,7 +34,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    if op.get_bind().dialect.name == "sqlite":
+    connection = op.get_bind()
+    if connection.dialect.name == "sqlite":
+        return
+    if "churn_predictions" not in sa.inspect(connection).get_table_names(
+        schema=ANALYTICS_DB_NAME
+    ):
         return
     op.drop_index(
         "ix_churn_predictions_customer_probability",
