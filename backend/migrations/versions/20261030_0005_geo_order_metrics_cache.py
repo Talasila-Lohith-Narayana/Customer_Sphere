@@ -5,6 +5,7 @@ Revises: 20261030_0004
 Create Date: 2026-10-30
 """
 from alembic import op
+import sqlalchemy as sa
 
 
 revision = "20261030_0005"
@@ -50,7 +51,11 @@ def _create_trigger(name: str, timing: str, table: str, body: str) -> None:
 
 
 def upgrade() -> None:
-    if op.get_bind().dialect.name == "sqlite":
+    connection = op.get_bind()
+    if connection.dialect.name == "sqlite":
+        return
+    required_tables = {"orders", "customers", "order_payments"}
+    if not required_tables.issubset(sa.inspect(connection).get_table_names()):
         return
 
     op.execute(
@@ -152,7 +157,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    if op.get_bind().dialect.name == "sqlite":
+    connection = op.get_bind()
+    if connection.dialect.name == "sqlite":
+        return
+    if "geo_order_metrics_cache" not in sa.inspect(connection).get_table_names():
         return
 
     for trigger in (

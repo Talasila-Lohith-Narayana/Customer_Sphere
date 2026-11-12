@@ -58,10 +58,14 @@ describe("Analytics assistant page", () => {
 
     render(<Assistant />);
 
-    fireEvent.click(await screen.findByRole("button", {
-      name: "Which campaigns target the most customers?",
-    }));
-    fireEvent.click(await screen.findByRole("button", { name: "Send message" }));
+    const messageInput = await screen.findByRole("textbox", { name: "Message" });
+    await waitFor(() => expect(messageInput).toBeEnabled());
+    fireEvent.change(messageInput, {
+      target: { value: "Which campaigns target the most customers?" },
+    });
+    const sendButton = screen.getByRole("button", { name: "Send message" });
+    await waitFor(() => expect(sendButton).toBeEnabled());
+    fireEvent.click(sendButton);
 
     expect(await screen.findByText("Priority Recovery targets 4,936 customers."))
       .toBeInTheDocument();

@@ -5,6 +5,7 @@ Revises: 20261030_0007
 Create Date: 2026-10-30
 """
 from alembic import op
+import sqlalchemy as sa
 
 
 revision = "20261030_0008"
@@ -49,16 +50,33 @@ INDEXES = (
 
 
 def upgrade() -> None:
-    if op.get_bind().dialect.name == "sqlite":
+    connection = op.get_bind()
+    if connection.dialect.name == "sqlite":
         return
+    inspector = sa.inspect(connection)
+    tables = set(inspector.get_table_names())
+    table_columns = {
+        table: {column["name"] for column in inspector.get_columns(table)}
+        for _, table, _ in INDEXES
+        if table in tables
+    }
 
     for name, table, columns in INDEXES:
+        if table not in table_columns or not set(columns).issubset(table_columns[table]):
+            continue
         op.create_index(name, table, columns)
 
 
 def downgrade() -> None:
-    if op.get_bind().dialect.name == "sqlite":
+    connection = op.get_bind()
+    if connection.dialect.name == "sqlite":
         return
+    inspector = sa.inspect(connection)
+    tables = set(inspector.get_table_names())
 
     for name, table, _ in reversed(INDEXES):
-        op.drop_index(name, table_name=table)
+        if table not in tables:
+            continue
+        indexes = {index["name"] for index in inspector.get_indexes(table)}
+        if name in indexes:
+            op.drop_index(name, table_name=table)

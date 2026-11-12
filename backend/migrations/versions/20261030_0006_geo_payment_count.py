@@ -35,7 +35,11 @@ def _create_trigger(name: str, timing: str, body: str) -> None:
 
 
 def upgrade() -> None:
-    if op.get_bind().dialect.name == "sqlite":
+    connection = op.get_bind()
+    if connection.dialect.name == "sqlite":
+        return
+    tables = set(sa.inspect(connection).get_table_names())
+    if not {"geo_order_metrics_cache", "order_payments"}.issubset(tables):
         return
 
     op.add_column(
@@ -79,7 +83,17 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    if op.get_bind().dialect.name == "sqlite":
+    connection = op.get_bind()
+    if connection.dialect.name == "sqlite":
+        return
+    inspector = sa.inspect(connection)
+    if "geo_order_metrics_cache" not in inspector.get_table_names():
+        return
+    columns = {
+        column["name"]
+        for column in inspector.get_columns("geo_order_metrics_cache")
+    }
+    if "payment_count" not in columns:
         return
 
     for trigger in (
