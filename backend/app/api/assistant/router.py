@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
@@ -146,6 +147,17 @@ async def ask_assistant(
         raise HTTPException(status_code=404, detail="Conversation not found.")
 
     domains = service.select_analytics_domains(payload.question)
+    customer_match = re.search(r"\b[a-fA-F0-9]{32}\b", payload.question)
+    customer_id = customer_match.group(0) if customer_match else None
+    if (
+        customer_id
+        and current_user["role"] != "admin"
+        and "customers" not in current_user["access_pages"]
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Access to customer records is not permitted.",
+        )
 
     if not service.is_configured():
         raise HTTPException(
@@ -186,6 +198,24 @@ async def ask_assistant(
             ) from exc
     else:
         analytics_context = {}
+
+    if customer_id:
+        try:
+            customer_context = await run_in_threadpool(
+                service.load_customer_context,
+                db,
+                customer_id,
+                current_user,
+            )
+        except HTTPException:
+            raise
+        except SQLAlchemyError as exc:
+            logger.exception("Could not load customer context for Nova.")
+            raise HTTPException(
+                status_code=503,
+                detail="Customer information is temporarily unavailable.",
+            ) from exc
+        analytics_context["customer"] = customer_context
 
     try:
         answer = await service.generate_answer(

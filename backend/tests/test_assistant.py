@@ -2,6 +2,7 @@ import asyncio
 import json
 
 import pytest
+from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -129,6 +130,28 @@ def test_unmatched_question_uses_model_without_loading_analytics(monkeypatch, qu
     assert answer.answer == "Model-generated response."
     assert answer.visualizations == []
     assert history_limits == [20]
+
+
+def test_customer_question_requires_customer_page_access(monkeypatch):
+    monkeypatch.setattr(service, "get_chat_session", lambda *args: object())
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            router.ask_assistant(
+                AssistantQuestion(
+                    question="Tell me about customer 0123456789abcdef0123456789abcdef",
+                    session_id=1,
+                ),
+                db=None,
+                current_user={
+                    "user_id": 1,
+                    "role": "viewer",
+                    "access_pages": ["assistant"],
+                },
+            )
+        )
+
+    assert error.value.status_code == 403
 
 
 def test_chat_history_is_persisted_and_isolated_by_user():
