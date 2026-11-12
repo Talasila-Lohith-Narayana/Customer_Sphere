@@ -133,6 +133,29 @@ describe("Shell Navigation & Layout Component", () => {
     expect(screen.queryByRole("button", { name: /Admin Activity/i })).not.toBeInTheDocument();
   });
 
+  it("shows Nova when a viewer has assistant access without analytics access", () => {
+    vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+      user: "nova_viewer",
+      role: "viewer",
+      accounts: {},
+      isAdmin: false,
+      hasAccess: (page) => page === "assistant",
+      logout: mockLogout,
+      logoutAll: mockLogoutAll,
+      switchToAccount: mockSwitchToAccount,
+      loginAndSwitch: mockLoginAndSwitch,
+    });
+
+    render(
+      <MemoryRouter>
+        <Shell />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("link", { name: "Nova" })).toHaveAttribute("href", "/assistant");
+    expect(screen.queryByRole("link", { name: "Analytics" })).not.toBeInTheDocument();
+  });
+
   it("displays logged-in user profile badge and role indicator", () => {
     render(
       <MemoryRouter>

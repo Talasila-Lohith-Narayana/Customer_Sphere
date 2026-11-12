@@ -432,15 +432,65 @@ async def generate_answer(
             response.raise_for_status()
     except httpx.TimeoutException as exc:
         logger.warning("LLM request timed out.")
-        raise TimeoutError("The LLM provider did not respond in time.") from exc
-    except httpx.HTTPStatusError as exc:
-        logger.error("OpenRouter returned HTTP %s.", exc.response.status_code)
-        raise ConnectionError(
-            f"OpenRouter returned HTTP {exc.response.status_code}."
+        raise TimeoutError(
+            "Nova's AI service took too long to respond. Please try again in a moment."
         ) from exc
+    except httpx.HTTPStatusError as exc:
+        status_code = exc.response.status_code
+        provider_code = None
+        try:
+            error_payload = exc.response.json()
+            provider_code = (
+                error_payload.get("error", {})
+                .get("metadata", {})
+                .get("provider_code")
+            )
+        except (ValueError, AttributeError):
+            pass
+
+        logger.error(
+            "OpenRouter request failed (HTTP %s, provider_code=%s, model=%s).",
+            status_code,
+            provider_code,
+            OPENROUTER_MODEL,
+        )
+        messages = {
+            401: (
+                "Nova couldn't authenticate with OpenRouter. Check the "
+                "OPENROUTER_API_KEY setting in the backend configuration."
+            ),
+            402: (
+                "Nova's OpenRouter account has insufficient credits or has "
+                "reached a spending limit. Check the account balance and API "
+                "key budget in OpenRouter."
+            ),
+            403: (
+                "OpenRouter denied this request. Check that the selected model "
+                "is available to your account."
+            ),
+            404: (
+                "The configured OpenRouter model was not found. Check the "
+                "OPENROUTER_MODEL setting in the backend configuration."
+            ),
+            429: (
+                "OpenRouter is rate-limiting this request. The free-model "
+                "daily quota may be used up, or the model provider may be busy. "
+                "Wait and try again, check your OpenRouter usage limits, or "
+                "switch to another model."
+            ),
+        }
+        message = messages.get(
+            status_code,
+            "Nova couldn't get a response from OpenRouter. The service may be "
+            "temporarily unavailable; please try again shortly.",
+        )
+        raise ConnectionError(message) from exc
     except httpx.RequestError as exc:
-        logger.warning("Unable to reach the LLM provider: %s", exc)
-        raise ConnectionError("Unable to reach the LLM provider.") from exc
+        logger.warning("Unable to reach OpenRouter: %s", exc)
+        raise ConnectionError(
+            "Nova couldn't connect to OpenRouter. Check the backend's internet "
+            "connection and try again."
+        ) from exc
 
     try:
         payload = response.json()
@@ -448,7 +498,9 @@ async def generate_answer(
         answer = choice["message"]["content"]
     except (ValueError, KeyError, IndexError, TypeError) as exc:
         logger.error("LLM provider returned an invalid response.")
-        raise ConnectionError("The LLM provider returned an invalid response.") from exc
+        raise ConnectionError(
+            "Nova received an unexpected response from its AI service. Please try again."
+        ) from exc
 
     if not isinstance(answer, str) or not answer.strip():
         finish_reason = choice.get("finish_reason", "unknown")

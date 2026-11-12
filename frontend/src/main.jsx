@@ -62,6 +62,8 @@ function App() {
                       </Route>
                       <Route element={<AccessRoute page="analytics" />}>
                         <Route path="analytics" element={<Analytics />} />
+                      </Route>
+                      <Route element={<AccessRoute page="assistant" />}>
                         <Route path="assistant" element={<Assistant />} />
                       </Route>
                       <Route element={<AccessRoute page="campaigns" />}>

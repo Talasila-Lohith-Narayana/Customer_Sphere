@@ -7,6 +7,7 @@ ACCESS_PAGES = (
     "customers",
     "products",
     "analytics",
+    "assistant",
     "campaigns",
     "model",
     "audit_logs",

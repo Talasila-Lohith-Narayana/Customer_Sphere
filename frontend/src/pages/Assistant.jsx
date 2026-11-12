@@ -406,7 +406,7 @@ export default function Assistant() {
         </aside>
 
         <div className="assistantChatPanel" role="region" aria-label="Current conversation">
-          {turns.length === 0 && !loading && !historyLoading ? (
+          {turns.length === 0 && !loading && !historyLoading && !error ? (
             <div className="assistantEmptyState">
               <span className="assistantEmptyIcon"><Bot size={25} /></span>
               <h2>What can I help with?</h2>

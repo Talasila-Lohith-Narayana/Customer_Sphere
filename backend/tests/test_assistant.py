@@ -297,14 +297,45 @@ def test_generate_answer_requires_provider_key(monkeypatch):
         asyncio.run(service.generate_answer("Question", {}))
 
 
-def test_generate_answer_reports_openrouter_http_status(monkeypatch):
+@pytest.mark.parametrize(
+    ("status_code", "message_fragment"),
+    [
+        (401, "Check the OPENROUTER_API_KEY"),
+        (402, "insufficient credits or has reached a spending limit"),
+        (403, "selected model is available"),
+        (404, "OPENROUTER_MODEL"),
+        (429, "free-model daily quota may be used up"),
+        (503, "temporarily unavailable"),
+    ],
+)
+def test_generate_answer_explains_openrouter_errors(
+    monkeypatch,
+    status_code,
+    message_fragment,
+):
     class FakeResponse:
         def raise_for_status(self):
             raise service.httpx.HTTPStatusError(
-                "Unauthorized",
+                "Provider error",
                 request=service.httpx.Request("POST", service.OPENROUTER_CHAT_COMPLETIONS_URL),
-                response=service.httpx.Response(401),
+                response=service.httpx.Response(
+                    status_code,
+                    json={
+                        "error": {
+                            "message": "provider details that should not be shown",
+                            "metadata": {"provider_code": "TEST_PROVIDER_CODE"},
+                        }
+                    },
+                ),
             )
+
+        def json(self):
+            return {
+                "error": {
+                    "message": "provider details that should not be shown",
+                    "metadata": {"provider_code": "TEST_PROVIDER_CODE"},
+                }
+            }
 
     class FakeAsyncClient:
         def __init__(self, timeout):
@@ -322,8 +353,9 @@ def test_generate_answer_reports_openrouter_http_status(monkeypatch):
     monkeypatch.setattr(service, "OPENROUTER_API_KEY", "test-key")
     monkeypatch.setattr(service.httpx, "AsyncClient", FakeAsyncClient)
 
-    with pytest.raises(ConnectionError, match="OpenRouter returned HTTP 401"):
+    with pytest.raises(ConnectionError, match=message_fragment) as error:
         asyncio.run(service.generate_answer("Question", {}))
+    assert "provider details that should not be shown" not in str(error.value)
 
 
 def test_generate_answer_reports_empty_visible_output(monkeypatch):

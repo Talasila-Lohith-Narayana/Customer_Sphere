@@ -258,7 +258,7 @@ export default function Shell() {
             {!collapsed && <span>Analytics</span>}
           </NavLink>
         )}
-        {canAccess("analytics") && (
+        {canAccess("assistant") && (
           <NavLink to="/assistant" title="Nova">
             <Sparkles size={17} />
             {!collapsed && <span>Nova</span>}

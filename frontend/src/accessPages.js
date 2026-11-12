@@ -3,6 +3,7 @@ export const ACCESS_PAGES = [
   { key: "customers", label: "Customers" },
   { key: "products", label: "Products" },
   { key: "analytics", label: "Analytics" },
+  { key: "assistant", label: "Nova" },
   { key: "campaigns", label: "Campaigns" },
   { key: "model", label: "Model diagnostics" },
   { key: "audit_logs", label: "Admin activity" },
@@ -20,6 +21,7 @@ export const ACCESS_PAGE_PATHS = [
   { key: "customers", path: "/customers" },
   { key: "products", path: "/products" },
   { key: "analytics", path: "/analytics" },
+  { key: "assistant", path: "/assistant" },
   { key: "campaigns", path: "/campaigns" },
   { key: "model", path: "/model" },
 ];

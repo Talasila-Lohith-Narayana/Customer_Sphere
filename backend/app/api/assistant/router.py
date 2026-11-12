@@ -23,7 +23,7 @@ router = APIRouter(tags=["Analytics assistant"])
 
 
 @router.get("/status", response_model=AssistantStatus)
-def assistant_status(_: dict = Depends(require_page("analytics"))):
+def assistant_status(_: dict = Depends(require_page("assistant"))):
     return AssistantStatus(
         configured=service.is_configured(),
         model=service.OPENROUTER_MODEL,
@@ -33,7 +33,7 @@ def assistant_status(_: dict = Depends(require_page("analytics"))):
 @router.get("/sessions", response_model=AssistantChatSessions)
 def assistant_sessions(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_page("analytics")),
+    current_user: dict = Depends(require_page("assistant")),
 ):
     try:
         sessions = service.list_chat_sessions(db, current_user["user_id"])
@@ -49,7 +49,7 @@ def assistant_sessions(
 @router.post("/sessions", response_model=AssistantChatSession, status_code=201)
 def create_assistant_session(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_page("analytics")),
+    current_user: dict = Depends(require_page("assistant")),
 ):
     try:
         return service.create_chat_session(db, current_user["user_id"])
@@ -67,7 +67,7 @@ def rename_assistant_session(
     session_id: int,
     payload: AssistantChatSessionUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_page("analytics")),
+    current_user: dict = Depends(require_page("assistant")),
 ):
     try:
         session = service.rename_chat_session(
@@ -92,7 +92,7 @@ def rename_assistant_session(
 def assistant_session_history(
     session_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_page("analytics")),
+    current_user: dict = Depends(require_page("assistant")),
 ):
     session = service.get_chat_session(db, current_user["user_id"], session_id)
     if session is None:
@@ -112,7 +112,7 @@ def assistant_session_history(
 def delete_assistant_session(
     session_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_page("analytics")),
+    current_user: dict = Depends(require_page("assistant")),
 ):
     try:
         deleted = service.delete_chat_session(
@@ -135,7 +135,7 @@ def delete_assistant_session(
 async def ask_assistant(
     payload: AssistantQuestion,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_page("analytics")),
+    current_user: dict = Depends(require_page("assistant")),
 ):
     session = service.get_chat_session(
         db,

@@ -142,7 +142,7 @@ describe("AuthContext and AuthProvider", () => {
         username: "renamed_admin",
         role: "admin",
         access_token: "jwt_renamed",
-        access_pages: ["dashboard", "customers", "products", "analytics", "campaigns", "model", "audit_logs"],
+        access_pages: ["dashboard", "customers", "products", "analytics", "assistant", "campaigns", "model", "audit_logs"],
       },
     });
     expect(screen.getByTestId("isAdmin").textContent).toBe("yes");

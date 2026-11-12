@@ -6,7 +6,6 @@ from fastapi import HTTPException
 import pytest
 from jose import jwt
 from app.core.config import ADMIN_USERNAME, ADMIN_PASSWORD, VIEWER_USERNAME, VIEWER_PASSWORD, SECRET, ALGO
-from app.core.database import SessionLocal
 from app.models import AppUser
 from app.api.auth.router import delete_user
 from app.main import app
@@ -80,7 +79,7 @@ def test_login_rejects_invalid_request_shape(client):
         assert response.status_code == 422
 
 
-def test_admin_can_create_user_and_new_user_can_log_in(client, admin_headers):
+def test_admin_can_create_user_and_new_user_can_log_in(client, admin_headers, db_session):
     username = f"user_test_{datetime.now(timezone.utc).timestamp():.0f}"
     password = "new-user-password"
     try:
@@ -106,9 +105,8 @@ def test_admin_can_create_user_and_new_user_can_log_in(client, admin_headers):
         users_response = client.get("/api/auth/users", headers=admin_headers)
         assert any(user["username"] == username for user in users_response.json())
     finally:
-        with SessionLocal() as db:
-            db.query(AppUser).filter_by(username=username).delete()
-            db.commit()
+        db_session.query(AppUser).filter_by(username=username).delete()
+        db_session.commit()
 
 
 def test_only_admin_can_manage_users(client, viewer_headers):
@@ -122,6 +120,52 @@ def test_only_admin_can_manage_users(client, viewer_headers):
             "role": "admin",
         },
     ).status_code == 403
+
+
+def test_admin_can_grant_nova_access_to_a_viewer(client, admin_headers, db_session):
+    username = f"nova_user_{datetime.now(timezone.utc).timestamp():.0f}"
+    password = "nova-user-password"
+    try:
+        create_response = client.post(
+            "/api/auth/users",
+            headers=admin_headers,
+            json={
+                "username": username,
+                "password": password,
+                "role": "viewer",
+                "access_pages": ["dashboard"],
+            },
+        )
+        assert create_response.status_code == 201
+
+        update_response = client.patch(
+            f"/api/auth/users/{username}",
+            headers=admin_headers,
+            json={"access_pages": ["assistant"]},
+        )
+        assert update_response.status_code == 200
+        assert update_response.json()["access_pages"] == ["assistant"]
+        assert update_response.json()["sessions_revoked"] is True
+
+        login_response = client.post(
+            "/api/auth/login",
+            json={"username": username, "password": password},
+        )
+        assert login_response.status_code == 200
+        nova_headers = {
+            "Authorization": f"Bearer {login_response.json()['access_token']}"
+        }
+        assert client.get(
+            "/api/assistant/status",
+            headers=nova_headers,
+        ).status_code == 200
+        assert client.get(
+            "/api/analytics/clv/summary",
+            headers=nova_headers,
+        ).status_code == 403
+    finally:
+        db_session.query(AppUser).filter_by(username=username).delete()
+        db_session.commit()
 
 
 def test_viewer_is_forbidden_from_every_mutating_route(client, viewer_headers):
@@ -171,7 +215,11 @@ def test_viewer_is_forbidden_from_every_mutating_route(client, viewer_headers):
     assert routes_checked > 0, "No mutating routes were discovered."
 
 
-def test_user_page_access_is_returned_on_login_and_enforced(client, admin_headers):
+def test_user_page_access_is_returned_on_login_and_enforced(
+    client,
+    admin_headers,
+    db_session,
+):
     username = f"scoped_user_{datetime.now(timezone.utc).timestamp():.0f}"
     password = "scoped-user-password"
     try:
@@ -322,9 +370,8 @@ def test_user_page_access_is_returned_on_login_and_enforced(client, admin_header
         ):
             assert client.get(path, headers=scoped_headers).status_code != 403, path
     finally:
-        with SessionLocal() as db:
-            db.query(AppUser).filter_by(username=username).delete()
-            db.commit()
+        db_session.query(AppUser).filter_by(username=username).delete()
+        db_session.commit()
 
 
 def test_viewer_must_have_at_least_one_valid_page(client, admin_headers):
@@ -378,6 +425,7 @@ def test_viewer_must_have_at_least_one_valid_page(client, admin_headers):
 def test_ungranted_viewer_cannot_view_analytics_and_model_details(
     client,
     admin_headers,
+    db_session,
     path,
 ):
     username = f"no_model_access_{datetime.now(timezone.utc).timestamp():.0f}"
@@ -402,9 +450,8 @@ def test_ungranted_viewer_cannot_view_analytics_and_model_details(
         headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
         assert client.get(path, headers=headers).status_code == 403
     finally:
-        with SessionLocal() as db:
-            db.query(AppUser).filter_by(username=username).delete()
-            db.commit()
+        db_session.query(AppUser).filter_by(username=username).delete()
+        db_session.commit()
 
 
 def test_authenticated_users_can_list_profiles_but_anonymous_users_cannot(
@@ -435,7 +482,7 @@ def test_duplicate_user_creation_returns_conflict(client, admin_headers):
     assert response.status_code == 409
 
 
-def test_admin_can_update_username_and_password(client, admin_headers):
+def test_admin_can_update_username_and_password(client, admin_headers, db_session):
     original_username = f"edit_user_{datetime.now(timezone.utc).timestamp():.0f}"
     updated_username = f"{original_username}_renamed"
     initial_password = "initial-user-password"
@@ -483,14 +530,18 @@ def test_admin_can_update_username_and_password(client, admin_headers):
         assert login_response.status_code == 200
         assert login_response.json()["role"] == "viewer"
     finally:
-        with SessionLocal() as db:
-            db.query(AppUser).filter(
-                AppUser.username.in_([original_username, updated_username])
-            ).delete(synchronize_session=False)
-            db.commit()
+        db_session.query(AppUser).filter(
+            AppUser.username.in_([original_username, updated_username])
+        ).delete(synchronize_session=False)
+        db_session.commit()
 
 
-def test_user_update_requires_admin_and_valid_values(client, admin_headers, viewer_headers):
+def test_user_update_requires_admin_and_valid_values(
+    client,
+    admin_headers,
+    viewer_headers,
+    db_session,
+):
     username = f"edit_guard_{datetime.now(timezone.utc).timestamp():.0f}"
     try:
         created = client.post(
@@ -532,12 +583,15 @@ def test_user_update_requires_admin_and_valid_values(client, admin_headers, view
         assert empty_update.status_code == 422
         assert missing_user.status_code == 404
     finally:
-        with SessionLocal() as db:
-            db.query(AppUser).filter_by(username=username).delete()
-            db.commit()
+        db_session.query(AppUser).filter_by(username=username).delete()
+        db_session.commit()
 
 
-def test_admin_can_delete_user_and_deleted_sessions_are_revoked(client, admin_headers):
+def test_admin_can_delete_user_and_deleted_sessions_are_revoked(
+    client,
+    admin_headers,
+    db_session,
+):
     username = f"delete_user_{datetime.now(timezone.utc).timestamp():.0f}"
     password = "delete-user-password"
     try:
@@ -575,15 +629,15 @@ def test_admin_can_delete_user_and_deleted_sessions_are_revoked(client, admin_he
             headers=user_headers,
         ).status_code == 401
     finally:
-        with SessionLocal() as db:
-            db.query(AppUser).filter_by(username=username).delete()
-            db.commit()
+        db_session.query(AppUser).filter_by(username=username).delete()
+        db_session.commit()
 
 
 def test_only_admin_can_delete_users_and_active_admin_cannot_delete_self(
     client,
     admin_headers,
     viewer_headers,
+    db_session,
 ):
     username = f"delete_guard_{datetime.now(timezone.utc).timestamp():.0f}"
     try:
@@ -606,9 +660,8 @@ def test_only_admin_can_delete_users_and_active_admin_cannot_delete_self(
         assert forbidden.status_code == 403
         assert self_delete.status_code == 409
     finally:
-        with SessionLocal() as db:
-            db.query(AppUser).filter_by(username=username).delete()
-            db.commit()
+        db_session.query(AppUser).filter_by(username=username).delete()
+        db_session.commit()
 
 
 def test_delete_user_prevents_deleting_the_last_administrator():
@@ -693,11 +746,11 @@ def _api_operations():
 
 
 def test_api_operation_inventory_is_complete():
-    """The application exposes the documented 65-operation API surface."""
+    """The application exposes the documented 72-operation API surface."""
     from app.main import app
 
     operations = _api_operations()
-    assert len(operations) == 65
+    assert len(operations) == 72
     removed_paths = {
         "/api/health",
         "/api/analytics/clv/by-segment",

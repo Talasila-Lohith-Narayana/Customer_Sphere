@@ -74,6 +74,33 @@ describe("Analytics assistant page", () => {
     );
   });
 
+  it("shows a clear provider error when Nova cannot answer", async () => {
+    vi.spyOn(assistantService, "status").mockResolvedValue({
+      configured: true,
+      model: "openrouter/free",
+    });
+    const askSpy = vi.spyOn(assistantService, "ask").mockRejectedValue(
+      new Error(
+        "OpenRouter is rate-limiting this request. The free-model daily quota may be used up.",
+      ),
+    );
+
+    render(<Assistant />);
+    const input = await screen.findByRole("textbox", { name: "Message" });
+    const sendButton = screen.getByRole("button", { name: "Send message" });
+    fireEvent.change(input, { target: { value: "How are sales trending?" } });
+    await waitFor(() => expect(sendButton).toBeEnabled());
+    fireEvent.submit(sendButton.closest("form"));
+
+    await waitFor(() => expect(askSpy).toHaveBeenCalledWith(
+      "How are sales trending?",
+      1,
+    ));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The free-model daily quota may be used up.",
+    );
+  });
+
   it("sends on Enter and preserves Shift+Enter for a newline", async () => {
     vi.spyOn(assistantService, "status").mockResolvedValue({
       configured: true,

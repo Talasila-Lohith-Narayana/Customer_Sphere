@@ -30,7 +30,7 @@ describe("User management page", () => {
     userService.create.mockResolvedValue({
       username: "new_user",
       role: "viewer",
-      access_pages: ["dashboard", "customers"],
+      access_pages: ["dashboard", "customers", "assistant"],
     });
 
     render(
@@ -55,6 +55,7 @@ describe("User management page", () => {
     });
     fireEvent.click(screen.getByLabelText("Dashboard"));
     fireEvent.click(screen.getByLabelText("Customers"));
+    fireEvent.click(screen.getByLabelText("Nova"));
     fireEvent.submit(
       screen.getByRole("button", { name: /create user/i }).closest("form"),
     );
@@ -64,7 +65,7 @@ describe("User management page", () => {
         username: "new_user",
         password: "safe-password",
         role: "viewer",
-        access_pages: ["dashboard", "customers"],
+        access_pages: ["dashboard", "customers", "assistant"],
       });
     });
     expect(screen.getByRole("tab", { name: "View & edit users" })).toHaveAttribute(
@@ -79,7 +80,7 @@ describe("User management page", () => {
     userService.create.mockResolvedValue({
       username: "new_admin",
       role: "admin",
-      access_pages: ["dashboard", "customers", "products", "analytics", "campaigns", "model", "audit_logs"],
+      access_pages: ["dashboard", "customers", "products", "analytics", "assistant", "campaigns", "model", "audit_logs"],
     });
 
     render(
@@ -204,7 +205,7 @@ describe("User management page", () => {
     userService.update.mockResolvedValue({
       username: "admin",
       role: "admin",
-      access_pages: ["dashboard", "customers", "products", "analytics", "campaigns", "model", "audit_logs"],
+      access_pages: ["dashboard", "customers", "products", "analytics", "assistant", "campaigns", "model", "audit_logs"],
       sessions_revoked: true,
     });
     const logout = vi.fn();
