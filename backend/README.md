@@ -32,9 +32,10 @@ The optional analytics assistant uses OpenRouter's Chat Completions API. Set
 available free model. The assistant can answer
 questions about aggregate sales and order trends, product categories, customer
 segments, churn risk, and campaigns, and can show a relevant chart for those
-topics. Requests are available only to users with analytics access and send
-aggregated data, never individual customer records. Without an API key, the
-application runs normally and the assistant reports that setup is required.
+topics. Admins can grant Nova access independently from Analytics through the
+Users page. Assistant requests require the Nova permission and send aggregated
+data, never individual customer records. Without an API key, the application
+runs normally and the assistant reports that setup is required.
 
 Install the reproducible backend dependency set from the repository root with:
 

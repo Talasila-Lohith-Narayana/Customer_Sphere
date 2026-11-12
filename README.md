@@ -7,11 +7,13 @@ campaign, and machine-learning insights in one authenticated workspace.
 ## Highlights
 
 - JWT authentication with administrator and read-only viewer roles
+- Administrator-managed per-page access, including independent Nova access
 - Responsive dashboard with live KPI cards and charts
 - Customer search, filtering, pagination, and detailed customer profiles
 - RFM and behavioral metrics, order history, category preferences, reviews, and ratings
 - Manual customer interaction and activity capture
 - Customer lifetime value (CLV), delivery, payment, cohort, churn, and campaign analytics
+- Nova AI assistant for conversational questions and aggregate-data visualizations
 - Model evaluation, threshold analysis, imbalance experiments, performance metrics,
   and confusion-matrix visualization
 - Administrator user management, profile switching, audit logging, and theme support
@@ -69,13 +71,21 @@ The application reads the existing Olist schema, including:
 `order_payments`, `products`, `sellers`, `geolocation`,
 `olist_customers_dataset`, and `olist_sellers_dataset`.
 
-Customer Sphere owns only the application tables needed for authentication and
-manual activity capture:
+Customer Sphere owns application tables for authentication, user activity,
+audit history, chat history, and cached metrics:
 
 - `ci_users`
 - `consumer_interactions`
+- `audit_logs`
+- `assistant_chat_sessions`
+- `assistant_chat_turns`
+- `customer_metrics_cache`
+- `product_metrics_cache` and `geo_order_metrics_cache` when the required
+  source tables are present
 
-The existing Olist source tables are not replaced or migrated by the application.
+Alembic migrations create and update these application-owned tables and
+analytics indexes. They do not create or populate the Olist source tables; those
+must already exist in the configured MySQL database.
 
 ## Prerequisites
 
@@ -154,9 +164,10 @@ installing dependencies and configuring `backend/.env`:
 alembic upgrade head
 ```
 
-Run this once for an existing installation before starting the updated
-application. The initial migration creates missing application tables and adds
-missing authentication columns without replacing existing tables or user data.
+Run this for a new installation and whenever an update adds a migration, before
+starting the application. The initial migration creates missing application
+tables and adds missing authentication columns without replacing existing tables
+or user data.
 The assistant chat-history migration stores each user's conversations and
 turns in the application database; users can manage their own chat sessions
 from the assistant page.
@@ -166,7 +177,9 @@ create triggers and indexes.
 For future schema changes, generate a revision with
 `alembic revision --autogenerate -m "describe schema change"`, review the
 generated migration, then apply it with `alembic upgrade head`. Application
-startup no longer creates or alters tables automatically.
+startup does not create or alter tables automatically. Cache migrations skip
+data-dependent cache objects when their required Olist source tables are absent;
+analytics features still require the appropriate source data.
 
 ### Frontend
 
@@ -231,14 +244,17 @@ local development.
 | `/customers` | Authenticated | Customer search and list |
 | `/customers/:id` | Authenticated | Customer profile and activity |
 | `/products` | Authenticated | Product and category insights |
-| `/analytics` | Administrator | CLV, cohort, churn, delivery, payment, and model analytics |
-| `/campaigns` | Administrator | Campaign forecasts and customer segments |
-| `/model` | Administrator | Model comparison and evaluation diagnostics |
-| `/users` | Authenticated | User profile and account management |
+| `/analytics` | Individually granted | CLV, cohort, churn, delivery, payment, and model analytics |
+| `/assistant` | Individually granted | Nova conversational assistant and saved chats |
+| `/campaigns` | Individually granted | Campaign forecasts and customer segments |
+| `/model` | Individually granted | Model comparison and evaluation diagnostics |
+| `/users` | Administrator | User and page-access management |
 
-Viewer accounts can use the general customer workspace. Analytics, campaign,
-and model pages require administrator access because their API routes are
-protected accordingly.
+Administrators have full access. Admins can grant viewers access to Analytics,
+Nova, Campaigns, and Model independently through the Users page; Nova access
+does not imply Analytics access. Viewer default access includes the dashboard,
+customers, products, and admin activity. Backend API routes enforce page access
+as well as frontend route guards.
 
 ## Main API areas
 
@@ -269,6 +285,9 @@ Analytics routes are grouped under `/api/analytics` and include churn,
 campaign forecasting, cohort trends, CLV/delivery/payments, and model
 evaluation endpoints. The complete request and response definitions are
 available in Swagger UI.
+
+Nova's status, saved-chat, and question endpoints are grouped under
+`/api/assistant` and require the independently assignable Nova permission.
 
 ## Testing
 
@@ -312,5 +331,5 @@ npm test -- --run src/pages/Model.test.jsx
   backend `CORS_ORIGINS` setting.
 - Analytics pages depend on the configured analytics database and generated
   model artifacts; the core customer workspace can be developed independently.
-- The backend uses the existing database schema and creates only its app-owned
-  tables during startup.
+- The backend reads an existing Olist schema; Alembic creates and updates
+  application-owned tables when explicitly run, not during startup.
