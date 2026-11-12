@@ -746,11 +746,11 @@ def _api_operations():
 
 
 def test_api_operation_inventory_is_complete():
-    """The application exposes the documented 72-operation API surface."""
+    """The application exposes the documented 75-operation API surface."""
     from app.main import app
 
     operations = _api_operations()
-    assert len(operations) == 72
+    assert len(operations) == 75
     removed_paths = {
         "/api/health",
         "/api/analytics/clv/by-segment",

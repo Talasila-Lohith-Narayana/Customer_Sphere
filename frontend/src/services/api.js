@@ -225,6 +225,11 @@ export const assistantService = {
     data(api.get(`/assistant/sessions/${sessionId}/history`)),
   ask: (question, sessionId) =>
     data(api.post("/assistant/ask", { question, session_id: sessionId })),
+  proposeAction: (action) => data(api.post("/assistant/actions", { action })),
+  confirmAction: (actionId) =>
+    data(api.post(`/assistant/actions/${encodeURIComponent(actionId)}/confirm`)),
+  cancelAction: (actionId) =>
+    data(api.delete(`/assistant/actions/${encodeURIComponent(actionId)}`)),
   deleteSession: (sessionId) =>
     data(api.delete(`/assistant/sessions/${sessionId}`)),
 };

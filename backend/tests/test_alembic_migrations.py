@@ -32,9 +32,26 @@ def test_initial_migration_creates_application_tables(tmp_path):
             )
             assert connection.execute(
                 text("SELECT version_num FROM alembic_version")
-            ).scalar_one() == "20261110_0010"
+            ).scalar_one() == "20261112_0011"
             assert {"assistant_chat_sessions", "assistant_chat_turns"}.issubset(
                 inspector.get_table_names()
+            )
+            assert "assistant_pending_actions" in inspector.get_table_names()
+            assert {
+                "id",
+                "user_id",
+                "action_type",
+                "payload",
+                "summary",
+                "status",
+                "created_at",
+                "expires_at",
+                "completed_at",
+            }.issubset(
+                {
+                    column["name"]
+                    for column in inspector.get_columns("assistant_pending_actions")
+                }
             )
             assert {
                 "user_id",

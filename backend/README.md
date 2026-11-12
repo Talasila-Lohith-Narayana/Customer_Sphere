@@ -33,9 +33,22 @@ available free model. The assistant can answer
 questions about aggregate sales and order trends, product categories, customer
 segments, churn risk, and campaigns, and can show a relevant chart for those
 topics. Admins can grant Nova access independently from Analytics through the
-Users page. Assistant requests require the Nova permission and send aggregated
-data, never individual customer records. Without an API key, the application
-runs normally and the assistant reports that setup is required.
+Users page. Assistant requests require the Nova permission. Customer-specific
+answers can include the requested customer's profile, orders, reviews, and CRM
+interactions; this selected context is sent to OpenRouter. Administrators can
+request customer-profile changes, CRM interaction logging, customer deletion,
+or deletion of specific orders in chat. Nova generates customer IDs and asks
+for required details that were not provided. Each action is validated and shown
+inline as a short-lived pending action, then requires explicit confirmation by
+the same administrator before execution. Confirm using the inline button or a
+clear reply such as “confirm” or “proceed” in the same conversation. Customer
+and order deletions reuse existing endpoints; customer deletion is blocked
+when order history exists, and order deletion requires the target customer and
+exact order IDs. These writes use the same validation, role restrictions, and
+audit behavior as the customer APIs. Apply the Alembic migrations before
+starting the backend.
+Without an API key, the application runs normally and the assistant reports
+that setup is required.
 
 Install the reproducible backend dependency set from the repository root with:
 

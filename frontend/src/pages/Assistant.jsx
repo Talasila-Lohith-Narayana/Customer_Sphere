@@ -56,6 +56,7 @@ export default function Assistant() {
   const [sessionAction, setSessionAction] = useState(false);
   const [renamingSessionId, setRenamingSessionId] = useState(null);
   const [sessionTitleDraft, setSessionTitleDraft] = useState("");
+  const [actionBusyId, setActionBusyId] = useState(null);
   const conversationRef = useRef(null);
   const sessionIdRef = useRef(null);
 
@@ -215,6 +216,54 @@ export default function Assistant() {
     }
   };
 
+  const confirmAction = async (turnIndex, proposal) => {
+    if (actionBusyId) return;
+    setActionBusyId(proposal.id);
+    setTurns((previous) => previous.map((turn, index) => (
+      index === turnIndex ? { ...turn, action_error: "" } : turn
+    )));
+    try {
+      const result = await assistantService.confirmAction(proposal.id);
+      setTurns((previous) => previous.map((turn, index) => (
+        index === turnIndex
+          ? { ...turn, action_proposal: null, action_result: result.message }
+          : turn
+      )));
+    } catch (requestError) {
+      setTurns((previous) => previous.map((turn, index) => (
+        index === turnIndex
+          ? { ...turn, action_error: requestError.message || "Unable to complete this action." }
+          : turn
+      )));
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
+  const cancelAction = async (turnIndex, proposal) => {
+    if (actionBusyId) return;
+    setActionBusyId(proposal.id);
+    setTurns((previous) => previous.map((turn, index) => (
+      index === turnIndex ? { ...turn, action_error: "" } : turn
+    )));
+    try {
+      await assistantService.cancelAction(proposal.id);
+      setTurns((previous) => previous.map((turn, index) => (
+        index === turnIndex
+          ? { ...turn, action_proposal: null, action_result: "Action cancelled." }
+          : turn
+      )));
+    } catch (requestError) {
+      setTurns((previous) => previous.map((turn, index) => (
+        index === turnIndex
+          ? { ...turn, action_error: requestError.message || "Unable to cancel this action." }
+          : turn
+      )));
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
   const askQuestion = async (event) => {
     event.preventDefault();
     const trimmedQuestion = question.trim();
@@ -233,10 +282,23 @@ export default function Assistant() {
     setError("");
     try {
       const result = await assistantService.ask(trimmedQuestion, sessionId);
-      setTurns((previousTurns) => [
-        ...previousTurns,
-        { question: trimmedQuestion, ...result },
-      ]);
+      setTurns((previousTurns) => {
+        const confirmedTurns = result.confirmed_action_id
+          ? previousTurns.map((turn) => (
+            turn.action_proposal?.id === result.confirmed_action_id
+              ? {
+                ...turn,
+                action_proposal: null,
+                action_result: null,
+              }
+              : turn
+          ))
+          : previousTurns;
+        return [
+          ...confirmedTurns,
+          { question: trimmedQuestion, ...result },
+        ];
+      });
       setSessions((previousSessions) => previousSessions.map((session) => (
         session.id === sessionId && session.title === "New chat"
           ? {
@@ -443,6 +505,48 @@ export default function Assistant() {
                     <strong><Bot size={15} /> Nova</strong>
                     <p>{turn.answer}</p>
                   </div>
+                  {turn.action_proposal && (
+                    <section
+                      className="assistantActionPreview"
+                      role="group"
+                      aria-label="Review Nova's proposed action"
+                    >
+                      <strong>Proposed customer action</strong>
+                      <p>{turn.action_proposal.summary}</p>
+                      <p>
+                        Expires {new Date(turn.action_proposal.expires_at).toLocaleString()}.
+                        Nothing is saved until you confirm.
+                      </p>
+                      {turn.action_error && (
+                        <p className="assistantAnswerError" role="alert">
+                          {turn.action_error}
+                        </p>
+                      )}
+                      <div className="assistantActionControls">
+                        <button
+                          type="button"
+                          className="btn primary"
+                          onClick={() => void confirmAction(index, turn.action_proposal)}
+                          disabled={Boolean(actionBusyId)}
+                        >
+                          {actionBusyId === turn.action_proposal.id ? "Working…" : "Confirm action"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn ghost"
+                          onClick={() => void cancelAction(index, turn.action_proposal)}
+                          disabled={Boolean(actionBusyId)}
+                        >
+                          Cancel action
+                        </button>
+                      </div>
+                    </section>
+                  )}
+                  {turn.action_result && (
+                    <p className="assistantActionSuccess" role="status">
+                      {turn.action_result}
+                    </p>
+                  )}
                   {turn.visualizations?.map((visualization) => (
                     <section
                       className="assistantVisualization"

@@ -55,6 +55,24 @@ class AssistantChatTurn(Base):
     created_at = Column(DateTime, nullable=False)
 
 
+class AssistantPendingAction(Base):
+    __tablename__ = "assistant_pending_actions"
+    id = Column(String(64), primary_key=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("ci_users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    action_type = Column(String(40), nullable=False)
+    payload = Column(Text, nullable=False)
+    summary = Column(Text, nullable=False)
+    status = Column(String(20), nullable=False, default="pending")
+    created_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+
+
 class ConsumerInteraction(Base):
     """
     CRM interaction logs recorded by team members against a specific customer.

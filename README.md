@@ -13,7 +13,8 @@ campaign, and machine-learning insights in one authenticated workspace.
 - RFM and behavioral metrics, order history, category preferences, reviews, and ratings
 - Manual customer interaction and activity capture
 - Customer lifetime value (CLV), delivery, payment, cohort, churn, and campaign analytics
-- Nova AI assistant for conversational questions and aggregate-data visualizations
+- Nova AI assistant for conversational questions, aggregate analytics,
+  permission-checked customer lookups, and confirmed admin customer actions
 - Model evaluation, threshold analysis, imbalance experiments, performance metrics,
   and confusion-matrix visualization
 - Administrator user management, profile switching, audit logging, and theme support
@@ -245,7 +246,7 @@ local development.
 | `/customers/:id` | Authenticated | Customer profile and activity |
 | `/products` | Authenticated | Product and category insights |
 | `/analytics` | Individually granted | CLV, cohort, churn, delivery, payment, and model analytics |
-| `/assistant` | Individually granted | Nova conversational assistant and saved chats |
+| `/assistant` | Individually granted | Nova assistant, customer lookups, and admin-only confirmed customer actions |
 | `/campaigns` | Individually granted | Campaign forecasts and customer segments |
 | `/model` | Individually granted | Model comparison and evaluation diagnostics |
 | `/users` | Administrator | User and page-access management |
@@ -286,8 +287,14 @@ campaign forecasting, cohort trends, CLV/delivery/payments, and model
 evaluation endpoints. The complete request and response definitions are
 available in Swagger UI.
 
-Nova's status, saved-chat, and question endpoints are grouped under
-`/api/assistant` and require the independently assignable Nova permission.
+Nova's status, saved-chat, question, and customer-action endpoints are grouped
+under `/api/assistant` and require the independently assignable Nova permission.
+Customer actions, including customer and selected-order deletion, are
+administrator-only and require a separate confirmation. Customer deletion is
+blocked when the customer has order history; order deletion requires the
+customer ID and exact order IDs. Confirm with the inline button or a clear
+confirmation reply in the same conversation. Apply Alembic migrations before
+using customer actions.
 
 ## Testing
 

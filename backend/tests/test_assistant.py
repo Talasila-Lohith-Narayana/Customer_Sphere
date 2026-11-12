@@ -1,15 +1,28 @@
 import asyncio
 import json
+from datetime import datetime
 
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import Session
 
 from app.api.assistant import router, service
-from app.api.assistant.schemas import AssistantChatSessionUpdate, AssistantQuestion
-from app.models import AppUser, AssistantChatSession, AssistantChatTurn
+from app.api.assistant.schemas import (
+    AssistantActionProposal,
+    AssistantChatSessionUpdate,
+    AssistantQuestion,
+    CustomerActionIntent,
+    DeleteOrdersAction,
+)
+from app.models import (
+    AppUser,
+    AssistantChatSession,
+    AssistantChatTurn,
+    AssistantPendingAction,
+)
 
 
 @pytest.mark.parametrize("question", ["", "   ", "\t\n"])
@@ -94,6 +107,459 @@ def test_select_analytics_domains(question, expected_domains):
     assert service.select_analytics_domains(question) == expected_domains
 
 
+def test_customer_action_detection_distinguishes_direct_requests():
+    assert service.looks_like_customer_action(
+        "Create a customer in Campinas, SP."
+    )
+    assert service.looks_like_customer_action(
+        "Log a note for customer 0123456789abcdef0123456789abcdef."
+    )
+    assert not service.looks_like_customer_action(
+        "How do I create a customer?"
+    )
+    assert service.looks_like_customer_action(
+        "Delete customer 0123456789abcdef0123456789abcdef"
+    )
+
+
+def test_action_clarification_uses_previous_chat_turns():
+    history = [
+        {
+            "question": "Create a customer in Campinas, SP.",
+            "answer": "I can create the customer, but I still need the postal code prefix.",
+        }
+    ]
+    assert service.awaiting_customer_action_details(history)
+    assert not service.awaiting_customer_action_details(
+        [{"question": "Hello", "answer": "Hi there."}]
+    )
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Add a customer",
+        "Please create a customer",
+        "Can you add a customer?",
+        "Could you please create a customer?",
+        "Would you register a customer?",
+    ],
+)
+def test_explicit_customer_creation_request_detection(question):
+    assert service._is_explicit_customer_creation_request(question)
+    assert not service._is_explicit_customer_creation_request(
+        f"How do I {question.casefold()}?"
+    )
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Can I add a customer?",
+        "How can you add a customer?",
+        "Could adding a customer be automated?",
+    ],
+)
+def test_customer_creation_questions_are_not_treated_as_write_requests(question):
+    assert not service._is_explicit_customer_creation_request(question)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Delete customer 0123456789abcdef0123456789abcdef",
+        "Remove customer 0123456789abcdef0123456789abcdef",
+        "Can you delete customer 0123456789abcdef0123456789abcdef?",
+    ],
+)
+def test_explicit_customer_delete_request_detection(question):
+    assert service._is_explicit_customer_delete_request(question)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "How do I delete a customer?",
+        "I do not want to delete this customer.",
+    ],
+)
+def test_customer_delete_questions_are_not_write_requests(question):
+    assert not service._is_explicit_customer_delete_request(question)
+
+
+def test_customer_delete_intent_is_extracted_without_openrouter(monkeypatch):
+    monkeypatch.setattr(service, "OPENROUTER_API_KEY", "")
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("customer deletion intent should be extracted locally")
+
+    monkeypatch.setattr(service.httpx, "AsyncClient", fail_if_called)
+    customer_id = "0123456789abcdef0123456789abcdef"
+
+    intent = asyncio.run(
+        service.extract_customer_action(f"Delete customer {customer_id}")
+    )
+
+    assert intent.kind == "delete_customer"
+    assert intent.customer_id == customer_id
+
+
+def test_customer_delete_intent_uses_id_from_follow_up_history(monkeypatch):
+    monkeypatch.setattr(service, "OPENROUTER_API_KEY", "")
+    customer_id = "0123456789abcdef0123456789abcdef"
+
+    intent = asyncio.run(
+        service.extract_customer_action(
+            customer_id,
+            [{
+                "question": "Delete this customer",
+                "answer": "Which customer should I delete? Please provide their customer ID.",
+            }],
+        )
+    )
+
+    assert intent.kind == "delete_customer"
+    assert intent.customer_id == customer_id
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Delete orders",
+        "Delete order 12345678 for customer 87654321",
+        "Remove these orders for customer 87654321: 12345678, 12345679",
+        "I want the orders to be deleted",
+        "Please delete all of the customer's orders",
+    ],
+)
+def test_order_delete_request_detection(question):
+    assert service.looks_like_customer_action(question)
+    assert service._is_explicit_order_delete_request(question)
+
+
+def test_passive_order_delete_request_uses_local_intent_extraction(monkeypatch):
+    monkeypatch.setattr(service, "OPENROUTER_API_KEY", "")
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("order deletion extraction should be local")
+
+    monkeypatch.setattr(service.httpx, "AsyncClient", fail_if_called)
+
+    intent = asyncio.run(
+        service.extract_customer_action("I want the orders to be deleted")
+    )
+
+    assert intent.kind == "delete_orders"
+    assert intent.customer_id is None
+    assert intent.order_ids == []
+
+
+def test_order_delete_request_is_not_treated_as_an_action_question():
+    assert not service._is_explicit_order_delete_request(
+        "How do I delete orders?"
+    )
+
+
+def test_order_delete_details_separate_customer_and_order_ids():
+    customer_id = "87654321876543218765432187654321"
+    first_order_id = "12345678123456781234567812345678"
+    second_order_id = "abcdefab123456781234567812345678"
+
+    extracted_customer_id, order_ids = service._order_delete_details(
+        f"Delete orders {first_order_id}, {second_order_id} "
+        f"for customer {customer_id}"
+    )
+
+    assert extracted_customer_id == customer_id
+    assert order_ids == [first_order_id, second_order_id]
+
+
+def test_delete_orders_action_rejects_duplicate_order_ids():
+    with pytest.raises(ValidationError):
+        DeleteOrdersAction(
+            kind="delete_orders",
+            customer_id="87654321876543218765432187654321",
+            order_ids=[
+                "12345678123456781234567812345678",
+                "12345678123456781234567812345678",
+            ],
+        )
+
+
+def test_order_delete_intent_can_collect_ids_from_clarification_turns(monkeypatch):
+    monkeypatch.setattr(service, "OPENROUTER_API_KEY", "")
+    customer_id = "87654321876543218765432187654321"
+    order_id = "12345678123456781234567812345678"
+    history = [
+        {
+            "question": "Delete orders",
+            "answer": "Which customer's order(s) should I delete? Please provide the customer ID.",
+        },
+        {
+            "question": customer_id,
+            "answer": "Which order ID(s) should I delete? Please provide the exact order ID(s).",
+        },
+    ]
+
+    intent = asyncio.run(service.extract_customer_action(order_id, history))
+
+    assert intent.kind == "delete_orders"
+    assert intent.customer_id == customer_id
+    assert intent.order_ids == [order_id]
+
+
+def test_customer_creation_details_are_recovered_from_follow_up_turn():
+    history = [
+        {
+            "question": "Add a customer",
+            "answer": (
+                "I can create the customer, but I still need the city, state code, "
+                "postal code prefix."
+            ),
+        }
+    ]
+
+    details = service._extract_customer_creation_details(
+        "Campinas, SP, 13010",
+        history,
+    )
+
+    assert details == {
+        "customer_city": "Campinas",
+        "customer_state": "SP",
+        "customer_zip_code_prefix": "13010",
+    }
+
+
+def test_customer_creation_details_support_explicit_field_labels():
+    details = service._extract_customer_creation_details(
+        "Create a customer with city: Campinas, state: SP, postal code prefix: 13010"
+    )
+
+    assert details == {
+        "customer_city": "Campinas",
+        "customer_state": "SP",
+        "customer_zip_code_prefix": "13010",
+    }
+
+
+def test_customer_creation_does_not_depend_on_action_extraction_model(monkeypatch):
+    monkeypatch.setattr(service, "OPENROUTER_API_KEY", "")
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("customer creation extraction should be local")
+
+    monkeypatch.setattr(service.httpx, "AsyncClient", fail_if_called)
+    intent = asyncio.run(service.extract_customer_action("Add a customer"))
+
+    assert intent.kind == "create_customer"
+    assert intent.customer_city is None
+    assert intent.customer_state is None
+    assert intent.customer_zip_code_prefix is None
+
+
+def test_customer_creation_follow_up_details_are_extracted_locally(monkeypatch):
+    monkeypatch.setattr(service, "OPENROUTER_API_KEY", "")
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("customer creation extraction should be local")
+
+    monkeypatch.setattr(service.httpx, "AsyncClient", fail_if_called)
+    intent = asyncio.run(
+        service.extract_customer_action(
+            "Campinas, SP, 13010",
+            [{
+                "question": "Add a customer",
+                "answer": (
+                    "I can create the customer, but I still need the city, state "
+                    "code, postal code prefix."
+                ),
+            }],
+        )
+    )
+
+    assert intent.kind == "create_customer"
+    assert intent.customer_city == "Campinas"
+    assert intent.customer_state == "SP"
+    assert intent.customer_zip_code_prefix == "13010"
+
+
+def test_action_extraction_accepts_nested_data_response(monkeypatch):
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "choices": [{
+                    "message": {
+                        "content": json.dumps({
+                            "kind": "update_customer",
+                            "customer_id": "customer_1234",
+                            "data": {
+                                "customer_city": "Campinas",
+                                "customer_state": "SP",
+                                "customer_zip_code_prefix": "13010",
+                            },
+                        })
+                    }
+                }]
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, timeout):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        async def post(self, *args, **kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr(service, "OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(service.httpx, "AsyncClient", FakeAsyncClient)
+
+    intent = asyncio.run(
+        service.extract_customer_action("Update customer customer_1234 to Campinas, SP, 13010")
+    )
+
+    assert intent.kind == "update_customer"
+    assert intent.customer_id == "customer_1234"
+    assert intent.customer_city == "Campinas"
+    assert intent.customer_state == "SP"
+    assert intent.customer_zip_code_prefix == "13010"
+
+
+def test_customer_action_intent_treats_blank_details_as_missing():
+    intent = CustomerActionIntent(
+        kind="create_customer",
+        customer_city=" ",
+        customer_state="SP",
+        customer_zip_code_prefix="13010",
+    )
+
+    assert intent.customer_city is None
+
+
+def test_customer_action_proposal_rejects_blank_required_details():
+    with pytest.raises(ValidationError):
+        AssistantActionProposal.model_validate(
+            {
+                "action": {
+                    "kind": "create_customer",
+                    "data": {
+                        "customer_city": " ",
+                        "customer_state": "SP",
+                        "customer_zip_code_prefix": "13010",
+                    },
+                }
+            }
+        )
+
+
+def test_extract_customer_action_parses_model_response_for_update(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "choices": [{
+                    "message": {
+                        "content": f"```json\n{json.dumps({
+                            "kind": "update_customer",
+                            "customer_id": "customer_1234",
+                            "data": {
+                                "customer_city": "Campinas",
+                                "customer_state": "SP",
+                                "customer_zip_code_prefix": "13010",
+                            },
+                        })}\n```"
+                    }
+                }]
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, timeout):
+            captured["timeout"] = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        async def post(self, url, headers, json):
+            captured.update(headers=headers, body=json)
+            return FakeResponse()
+
+    monkeypatch.setattr(service, "OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(service.httpx, "AsyncClient", FakeAsyncClient)
+
+    intent = asyncio.run(
+        service.extract_customer_action(
+            "Update customer customer_1234 to Campinas, SP, 13010.",
+            [{
+                "question": "Update customer customer_1234.",
+                "answer": "What should I change?",
+            }],
+        )
+    )
+
+    assert intent.kind == "update_customer"
+    assert intent.customer_id == "customer_1234"
+    assert intent.customer_zip_code_prefix == "13010"
+    assert captured["headers"] == {
+        "Authorization": f"Bearer {service.OPENROUTER_API_KEY}"
+    }
+    assert "response_format" not in captured["body"]
+    assert captured["body"]["messages"][-2]["content"] == (
+        "What should I change?"
+    )
+    assert captured["body"]["messages"][-1]["content"] == (
+        "Update customer customer_1234 to Campinas, SP, 13010."
+    )
+
+
+def test_extract_customer_action_reports_provider_rate_limit(monkeypatch):
+    class FakeAsyncClient:
+        def __init__(self, timeout):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        async def post(self, *args, **kwargs):
+            response = service.httpx.Response(
+                429,
+                json={"error": {"metadata": {"provider_code": "RATE_LIMIT"}}},
+            )
+            request = service.httpx.Request("POST", "https://openrouter.ai")
+            raise service.httpx.HTTPStatusError(
+                "Rate limited",
+                request=request,
+                response=response,
+            )
+
+    monkeypatch.setattr(service, "OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(service.httpx, "AsyncClient", FakeAsyncClient)
+
+    with pytest.raises(ConnectionError, match="rate-limiting Nova"):
+        asyncio.run(
+            service.extract_customer_action(
+                "Update customer customer_1234 city to Campinas"
+            )
+        )
+
+
 @pytest.mark.parametrize("question", ["Hi!", "Tell me a joke"])
 def test_unmatched_question_uses_model_without_loading_analytics(monkeypatch, question):
     monkeypatch.setattr(service, "is_configured", lambda: True)
@@ -134,6 +600,7 @@ def test_unmatched_question_uses_model_without_loading_analytics(monkeypatch, qu
 
 def test_customer_question_requires_customer_page_access(monkeypatch):
     monkeypatch.setattr(service, "get_chat_session", lambda *args: object())
+    monkeypatch.setattr(service, "load_chat_turns", lambda *args: [])
 
     with pytest.raises(HTTPException) as error:
         asyncio.run(
@@ -152,6 +619,681 @@ def test_customer_question_requires_customer_page_access(monkeypatch):
         )
 
     assert error.value.status_code == 403
+
+
+def test_customer_lookup_matches_non_hex_customer_ids():
+    class FakeResult:
+        def first(self):
+            return ("customer_1234",)
+
+    class FakeDb:
+        def __init__(self):
+            self.queries = []
+
+        def execute(self, query, params):
+            self.queries.append(params["customer_id"])
+            return FakeResult() if params["customer_id"] == "customer_1234" else object()
+
+    db = FakeDb()
+    assert service.find_customer_id(
+        db,
+        "Tell me about customer customer_1234, please.",
+    ) == "customer_1234"
+    assert db.queries == ["customer_1234"]
+
+
+def test_customer_lookup_accepts_alphabetic_32_character_ids():
+    customer_id = "a" * 32
+    assert service.customer_id_candidates(
+        f"Tell me about customer {customer_id}"
+    ) == [customer_id]
+
+
+def test_customer_question_includes_profile_context_in_model_prompt(monkeypatch):
+    monkeypatch.setattr(service, "is_configured", lambda: True)
+    monkeypatch.setattr(service, "get_chat_session", lambda *args: object())
+    monkeypatch.setattr(service, "load_chat_turns", lambda *args: [])
+    monkeypatch.setattr(service, "find_customer_id", lambda *args: "customer_1234")
+    monkeypatch.setattr(
+        service,
+        "load_customer_context",
+        lambda *args: {
+            "profile": {"customer_city": "Campinas", "customer_state": "SP"},
+            "orders": {"items": [{"order_value": 125.5}]},
+        },
+    )
+    monkeypatch.setattr(service, "save_chat_turn", lambda *args: None)
+    received_context = {}
+
+    async def answer_from_context(question, context, history):
+        received_context.update(context)
+        assert question == "Tell me about customer customer_1234"
+        assert history == []
+        return "The customer lives in Campinas."
+
+    monkeypatch.setattr(service, "generate_answer", answer_from_context)
+
+    answer = asyncio.run(
+        router.ask_assistant(
+            AssistantQuestion(
+                question="Tell me about customer customer_1234",
+                session_id=1,
+            ),
+            db=object(),
+            current_user={
+                "user_id": 1,
+                "role": "viewer",
+                "access_pages": ["assistant", "customers"],
+            },
+        )
+    )
+
+    assert answer.answer == "The customer lives in Campinas."
+    assert received_context["customer"]["profile"]["customer_city"] == "Campinas"
+    assert "privacy_note" not in received_context
+
+
+def test_chat_customer_create_prepares_confirmation_and_generates_customer_id(monkeypatch):
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    AppUser.__table__.create(engine)
+    AssistantChatSession.__table__.create(engine)
+    AssistantPendingAction.__table__.create(engine)
+    try:
+        with Session(engine) as db:
+            admin = AppUser(
+                username="admin", password_hash="hash", role="admin"
+            )
+            db.add(admin)
+            db.commit()
+            db.execute(
+                text(
+                    "CREATE TABLE customers "
+                    "(customer_id CHAR(32), customer_unique_id CHAR(32))"
+                )
+            )
+            db.commit()
+            history = []
+            monkeypatch.setattr(service, "is_configured", lambda: True)
+            monkeypatch.setattr(service, "get_chat_session", lambda *args: object())
+            monkeypatch.setattr(
+                service,
+                "load_chat_turns",
+                lambda *args: list(history),
+            )
+
+            async def extracted_action(question, prior_turns):
+                if question.startswith("Create"):
+                    return CustomerActionIntent(
+                        kind="create_customer",
+                        customer_city="Campinas",
+                        customer_state="SP",
+                    )
+                assert prior_turns[-1]["answer"].endswith("postal code prefix.")
+                return CustomerActionIntent(
+                    kind="create_customer",
+                    customer_city="Campinas",
+                    customer_state="SP",
+                    customer_zip_code_prefix="13010",
+                )
+
+            monkeypatch.setattr(service, "extract_customer_action", extracted_action)
+            monkeypatch.setattr(
+                service,
+                "save_chat_turn",
+                lambda db, user_id, session_id, question, answer, visualizations:
+                    history.append({"question": question, "answer": answer}),
+            )
+
+            clarification = asyncio.run(
+                router.ask_assistant(
+                    AssistantQuestion(
+                        question="Create a customer in Campinas, SP",
+                        session_id=1,
+                    ),
+                    db,
+                    {
+                        "user_id": admin.id,
+                        "role": "admin",
+                        "access_pages": ["assistant"],
+                    },
+                )
+            )
+            assert clarification.action_proposal is None
+            assert "postal code prefix" in clarification.answer
+
+            response = asyncio.run(
+                router.ask_assistant(
+                    AssistantQuestion(question="13010", session_id=1),
+                    db,
+                    {
+                        "user_id": admin.id,
+                        "role": "admin",
+                        "access_pages": ["assistant"],
+                    },
+                )
+            )
+
+            assert response.action_proposal is not None
+            assert "Nothing has been saved yet" in response.answer
+            assert len(response.action_proposal.summary.split()[2]) == 32
+            assert db.query(AssistantPendingAction).one().status == "pending"
+    finally:
+        engine.dispose()
+
+
+def test_delete_customer_action_requires_confirmation_and_calls_existing_endpoint(
+    monkeypatch,
+):
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    AppUser.__table__.create(engine)
+    AssistantPendingAction.__table__.create(engine)
+    customer_id = "0123456789abcdef0123456789abcdef"
+    try:
+        with Session(engine) as db:
+            admin = AppUser(
+                username="admin", password_hash="hash", role="admin"
+            )
+            db.add(admin)
+            db.commit()
+            db.execute(
+                text(
+                    "CREATE TABLE customers "
+                    "(customer_id CHAR(32), customer_unique_id CHAR(32))"
+                )
+            )
+            db.execute(
+                text("INSERT INTO customers VALUES (:id, :id)"),
+                {"id": customer_id},
+            )
+            db.commit()
+
+            calls = []
+
+            def fake_delete_customer(target_id, action_db, user):
+                calls.append((target_id, user["user_id"]))
+                action_db.commit()
+                return {"deleted": True, "customer_id": target_id}
+
+            monkeypatch.setattr(
+                "app.api.customers.router.delete_customer",
+                fake_delete_customer,
+            )
+            monkeypatch.setattr(service, "is_configured", lambda: True)
+            monkeypatch.setattr(service, "get_chat_session", lambda *args: object())
+            monkeypatch.setattr(service, "load_chat_turns", lambda *args: [])
+            monkeypatch.setattr(service, "save_chat_turn", lambda *args: None)
+
+            response = asyncio.run(
+                router.ask_assistant(
+                    AssistantQuestion(
+                        question=f"Delete customer {customer_id}",
+                        session_id=1,
+                    ),
+                    db,
+                    {
+                        "user_id": admin.id,
+                        "role": "admin",
+                        "access_pages": ["assistant"],
+                    },
+                )
+            )
+
+            proposal = response.action_proposal
+            assert proposal is not None
+            assert "Nothing has been saved yet" in response.answer
+            assert calls == []
+            assert customer_id in proposal.summary
+            assert "order history" in proposal.summary
+
+            result = router.confirm_assistant_action(
+                proposal.id,
+                db,
+                {
+                    "user_id": admin.id,
+                    "role": "admin",
+                    "access_pages": ["assistant"],
+                },
+            )
+
+            assert result.message == "Customer deleted."
+            assert calls == [(customer_id, admin.id)]
+    finally:
+        engine.dispose()
+
+
+def test_delete_orders_action_requires_confirmation_and_calls_bulk_endpoint(
+    monkeypatch,
+):
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    AppUser.__table__.create(engine)
+    AssistantPendingAction.__table__.create(engine)
+    customer_id = "87654321876543218765432187654321"
+    order_id = "12345678123456781234567812345678"
+    try:
+        with Session(engine) as db:
+            admin = AppUser(
+                username="admin", password_hash="hash", role="admin"
+            )
+            db.add(admin)
+            db.commit()
+            db.execute(
+                text(
+                    "CREATE TABLE customers "
+                    "(customer_id CHAR(32), customer_unique_id CHAR(32))"
+                )
+            )
+            db.execute(
+                text("INSERT INTO customers VALUES (:id, :id)"),
+                {"id": customer_id},
+            )
+            db.commit()
+            calls = []
+
+            def fake_bulk_delete(
+                target_customer_id,
+                payload,
+                action_db,
+                user,
+            ):
+                calls.append(
+                    (
+                        target_customer_id,
+                        payload.order_ids,
+                        user["user_id"],
+                    )
+                )
+                action_db.commit()
+                return {"deleted": True, "order_ids": payload.order_ids, "count": 1}
+
+            monkeypatch.setattr(
+                "app.api.orders.router.bulk_delete_orders",
+                fake_bulk_delete,
+            )
+            monkeypatch.setattr(service, "is_configured", lambda: True)
+            monkeypatch.setattr(service, "get_chat_session", lambda *args: object())
+            monkeypatch.setattr(service, "load_chat_turns", lambda *args: [])
+            monkeypatch.setattr(service, "save_chat_turn", lambda *args: None)
+
+            response = asyncio.run(
+                router.ask_assistant(
+                    AssistantQuestion(
+                        question=(
+                            f"Delete order {order_id} for customer {customer_id}"
+                        ),
+                        session_id=1,
+                    ),
+                    db,
+                    {
+                        "user_id": admin.id,
+                        "role": "admin",
+                        "access_pages": ["assistant"],
+                    },
+                )
+            )
+
+            assert response.action_proposal is not None
+            assert order_id in response.action_proposal.summary
+            assert customer_id in response.action_proposal.summary
+            assert "payments" in response.action_proposal.summary
+            assert calls == []
+
+            result = router.confirm_assistant_action(
+                response.action_proposal.id,
+                db,
+                {
+                    "user_id": admin.id,
+                    "role": "admin",
+                    "access_pages": ["assistant"],
+                },
+            )
+
+            assert result.message == "1 order(s) and associated records deleted."
+            assert calls == [(customer_id, [order_id], admin.id)]
+    finally:
+        engine.dispose()
+
+
+def test_typed_confirmation_executes_latest_pending_order_deletion(monkeypatch):
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    AppUser.__table__.create(engine)
+    AssistantPendingAction.__table__.create(engine)
+    customer_id = "87654321876543218765432187654321"
+    order_id = "12345678123456781234567812345678"
+    try:
+        with Session(engine) as db:
+            admin = AppUser(
+                username="admin", password_hash="hash", role="admin"
+            )
+            db.add(admin)
+            db.commit()
+            db.execute(
+                text(
+                    "CREATE TABLE customers "
+                    "(customer_id CHAR(32), customer_unique_id CHAR(32))"
+                )
+            )
+            db.execute(
+                text("INSERT INTO customers VALUES (:id, :id)"),
+                {"id": customer_id},
+            )
+            db.commit()
+            turns = []
+            calls = []
+
+            def save_turn(_db, _user_id, _session_id, question, answer, _visualizations):
+                turns.append({"question": question, "answer": answer})
+
+            monkeypatch.setattr(service, "is_configured", lambda: False)
+            monkeypatch.setattr(service, "get_chat_session", lambda *args: object())
+            monkeypatch.setattr(service, "load_chat_turns", lambda *args: list(turns))
+            monkeypatch.setattr(service, "save_chat_turn", save_turn)
+
+            def fake_bulk_delete(
+                target_customer_id,
+                payload,
+                action_db,
+                user,
+            ):
+                calls.append((target_customer_id, payload.order_ids, user["user_id"]))
+                action_db.commit()
+                return {"deleted": True, "order_ids": payload.order_ids, "count": 1}
+
+            monkeypatch.setattr(
+                "app.api.orders.router.bulk_delete_orders",
+                fake_bulk_delete,
+            )
+            current_user = {
+                "user_id": admin.id,
+                "role": "admin",
+                "access_pages": ["assistant"],
+            }
+
+            proposal = asyncio.run(
+                router.ask_assistant(
+                    AssistantQuestion(
+                        question=f"Delete order {order_id} for customer {customer_id}",
+                        session_id=1,
+                    ),
+                    db,
+                    current_user,
+                )
+            )
+            assert proposal.action_proposal is not None
+            assert calls == []
+
+            result = asyncio.run(
+                router.ask_assistant(
+                    AssistantQuestion(
+                        question="Please proceed with deleting the order.",
+                        session_id=1,
+                    ),
+                    db,
+                    current_user,
+                )
+            )
+
+            assert result.answer == "1 order(s) and associated records deleted."
+            assert result.action_proposal is None
+            assert calls == [(customer_id, [order_id], admin.id)]
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Yes, please delete those orders.",
+        "I want you to delete the orders.",
+        "Please proceed with deleting the order.",
+        "Go ahead and remove them.",
+    ],
+)
+def test_explicit_natural_language_action_confirmations(question):
+    assert router._is_explicit_action_confirmation(question)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Should I proceed with deleting the orders?",
+        "I do not want you to delete those orders.",
+        "What happens if I proceed?",
+        "Cancel the deletion.",
+    ],
+)
+def test_questions_and_negative_statements_are_not_confirmations(question):
+    assert not router._is_explicit_action_confirmation(question)
+
+
+def test_incomplete_order_delete_is_clarified_without_model_generation(monkeypatch):
+    engine = create_engine("sqlite://")
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("an order deletion request must not use answer generation")
+
+    monkeypatch.setattr(service, "is_configured", lambda: True)
+    monkeypatch.setattr(service, "get_chat_session", lambda *args: object())
+    monkeypatch.setattr(service, "load_chat_turns", lambda *args: [])
+    monkeypatch.setattr(service, "save_chat_turn", lambda *args: None)
+    monkeypatch.setattr(service, "generate_answer", fail_if_called)
+
+    try:
+        with Session(engine) as db:
+            response = asyncio.run(
+                router.ask_assistant(
+                    AssistantQuestion(
+                        question="I want the orders to be deleted",
+                        session_id=1,
+                    ),
+                    db,
+                    {
+                        "user_id": 1,
+                        "role": "admin",
+                        "access_pages": ["assistant"],
+                    },
+                )
+            )
+
+        assert response.action_proposal is None
+        assert "Which customer's order(s)" in response.answer
+    finally:
+        engine.dispose()
+
+
+def test_assistant_action_requires_admin():
+    with pytest.raises(HTTPException) as error:
+        router.propose_assistant_action(
+            AssistantActionProposal(
+                action={
+                    "kind": "create_customer",
+                    "data": {
+                        "customer_unique_id": "a" * 32,
+                        "customer_zip_code_prefix": "12345",
+                        "customer_city": "Campinas",
+                        "customer_state": "SP",
+                    },
+                }
+            ),
+            db=None,
+            current_user={
+                "user_id": 1,
+                "role": "viewer",
+                "access_pages": ["assistant", "customers"],
+            },
+        )
+
+    assert error.value.status_code == 403
+
+
+def test_assistant_action_confirmation_requires_admin():
+    with pytest.raises(HTTPException) as error:
+        router.confirm_assistant_action(
+            "pending-action",
+            db=None,
+            current_user={
+                "user_id": 1,
+                "role": "viewer",
+                "access_pages": ["assistant", "customers"],
+            },
+        )
+
+    assert error.value.status_code == 403
+
+
+def test_confirmed_assistant_action_executes_once_for_its_owner(monkeypatch):
+    engine = create_engine("sqlite://")
+    AppUser.__table__.create(engine)
+    AssistantPendingAction.__table__.create(engine)
+    try:
+        with Session(engine) as db:
+            admin = AppUser(
+                username="admin", password_hash="hash", role="admin"
+            )
+            other_admin = AppUser(
+                username="other", password_hash="hash", role="admin"
+            )
+            db.add_all([admin, other_admin])
+            db.commit()
+            db.execute(
+                text(
+                    "CREATE TABLE customers "
+                    "(customer_id CHAR(32), customer_unique_id CHAR(32))"
+                )
+            )
+            db.execute(
+                text("INSERT INTO customers VALUES (:id, :id)"),
+                {"id": "a" * 32},
+            )
+            db.commit()
+
+            calls = []
+
+            def fake_add_interaction(customer_id, payload, action_db, user):
+                calls.append((customer_id, payload.title, user["user_id"]))
+                action_db.commit()
+
+            monkeypatch.setattr(
+                "app.api.interactions.router.add_interaction",
+                fake_add_interaction,
+            )
+            proposal = router.propose_assistant_action(
+                AssistantActionProposal(
+                    action={
+                        "kind": "log_interaction",
+                        "customer_id": "a" * 32,
+                        "data": {
+                            "interaction_type": "Note",
+                            "title": "Follow-up",
+                            "description": "Discussed next steps.",
+                        },
+                    }
+                ),
+                db,
+                {
+                    "user_id": admin.id,
+                    "role": "admin",
+                    "access_pages": ["assistant"],
+                },
+            )
+
+            assert calls == []
+            assert "Description: Discussed next steps." in proposal.summary
+            with pytest.raises(HTTPException) as ownership_error:
+                router.confirm_assistant_action(
+                    proposal.id,
+                    db,
+                    {
+                        "user_id": other_admin.id,
+                        "role": "admin",
+                        "access_pages": ["assistant"],
+                    },
+                )
+            assert ownership_error.value.status_code == 404
+
+            result = router.confirm_assistant_action(
+                proposal.id,
+                db,
+                {
+                    "user_id": admin.id,
+                    "role": "admin",
+                    "access_pages": ["assistant"],
+                },
+            )
+            assert result.message == "Customer interaction logged."
+            assert calls == [(("a" * 32), "Follow-up", admin.id)]
+
+            with pytest.raises(HTTPException) as replay_error:
+                router.confirm_assistant_action(
+                    proposal.id,
+                    db,
+                    {
+                        "user_id": admin.id,
+                        "role": "admin",
+                        "access_pages": ["assistant"],
+                    },
+                )
+            assert replay_error.value.status_code == 409
+            assert len(calls) == 1
+    finally:
+        engine.dispose()
+
+
+def test_expired_assistant_action_cannot_be_confirmed():
+    engine = create_engine("sqlite://")
+    AppUser.__table__.create(engine)
+    AssistantPendingAction.__table__.create(engine)
+    try:
+        with Session(engine) as db:
+            admin = AppUser(
+                username="admin", password_hash="hash", role="admin"
+            )
+            db.add(admin)
+            db.commit()
+            pending = AssistantPendingAction(
+                id="expired-action",
+                user_id=admin.id,
+                action_type="log_interaction",
+                payload="{}",
+                summary="Expired action",
+                status="pending",
+                created_at=datetime(2026, 1, 1),
+                expires_at=datetime(2026, 1, 1),
+            )
+            db.add(pending)
+            db.commit()
+
+            with pytest.raises(HTTPException) as error:
+                router.confirm_assistant_action(
+                    pending.id,
+                    db,
+                    {
+                        "user_id": admin.id,
+                        "role": "admin",
+                        "access_pages": ["assistant"],
+                    },
+                )
+
+            assert error.value.status_code == 410
+            db.refresh(pending)
+            assert pending.status == "expired"
+    finally:
+        engine.dispose()
 
 
 def test_chat_history_is_persisted_and_isolated_by_user():

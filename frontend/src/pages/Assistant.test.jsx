@@ -78,6 +78,80 @@ describe("Analytics assistant page", () => {
     );
   });
 
+  it("shows a proposed chat action and requires confirmation before saving", async () => {
+    vi.spyOn(assistantService, "status").mockResolvedValue({
+      configured: true,
+      model: "openrouter/free",
+    });
+    const askSpy = vi.spyOn(assistantService, "ask").mockResolvedValue({
+      answer: "I prepared this customer change for your review.",
+      visualizations: [],
+      action_proposal: {
+        id: "pending-1",
+        summary: "Create customer customer-123 in Campinas, SP.",
+        expires_at: "2026-11-12T10:00:00Z",
+      },
+    });
+    const confirmSpy = vi.spyOn(assistantService, "confirmAction").mockResolvedValue({
+      message: "Customer created.",
+    });
+
+    render(<Assistant />);
+    const input = await screen.findByRole("textbox", { name: "Message" });
+    fireEvent.change(input, {
+      target: { value: "Create a customer in Campinas, SP with postal code 13010" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(await screen.findByRole("group", { name: "Review Nova's proposed action" }))
+      .toBeInTheDocument();
+    expect(askSpy).toHaveBeenCalledWith(
+      "Create a customer in Campinas, SP with postal code 13010",
+      1,
+    );
+    expect(confirmSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm action" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Customer created.");
+    expect(confirmSpy).toHaveBeenCalledWith("pending-1");
+  });
+
+  it("clears the proposal when confirmed in chat", async () => {
+    vi.spyOn(assistantService, "status").mockResolvedValue({
+      configured: true,
+      model: "openrouter/free",
+    });
+    const askSpy = vi.spyOn(assistantService, "ask")
+      .mockResolvedValueOnce({
+        answer: "I prepared this customer change for your review.",
+        visualizations: [],
+        action_proposal: {
+          id: "pending-2",
+          summary: "Delete order order-123 for customer customer-123.",
+          expires_at: "2026-11-12T10:00:00Z",
+        },
+      })
+      .mockResolvedValueOnce({
+        answer: "1 order(s) and associated records deleted.",
+        confirmed_action_id: "pending-2",
+      });
+
+    render(<Assistant />);
+    const input = await screen.findByRole("textbox", { name: "Message" });
+    fireEvent.change(input, { target: { value: "Delete order order-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    expect(await screen.findByRole("group", { name: "Review Nova's proposed action" }))
+      .toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "Proceed" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(await screen.findByText("1 order(s) and associated records deleted."))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Review Nova's proposed action" }))
+      .not.toBeInTheDocument();
+  });
+
   it("shows a clear provider error when Nova cannot answer", async () => {
     vi.spyOn(assistantService, "status").mockResolvedValue({
       configured: true,
