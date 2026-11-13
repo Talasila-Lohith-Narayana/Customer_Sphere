@@ -468,18 +468,19 @@ def test_extract_customer_action_parses_model_response_for_update(monkeypatch):
             return None
 
         def json(self):
+            content = json.dumps({
+                "kind": "update_customer",
+                "customer_id": "customer_1234",
+                "data": {
+                    "customer_city": "Campinas",
+                    "customer_state": "SP",
+                    "customer_zip_code_prefix": "13010",
+                },
+            })
             return {
                 "choices": [{
                     "message": {
-                        "content": f"```json\n{json.dumps({
-                            "kind": "update_customer",
-                            "customer_id": "customer_1234",
-                            "data": {
-                                "customer_city": "Campinas",
-                                "customer_state": "SP",
-                                "customer_zip_code_prefix": "13010",
-                            },
-                        })}\n```"
+                        "content": f"```json\n{content}\n```"
                     }
                 }]
             }
