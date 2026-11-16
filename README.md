@@ -258,6 +258,8 @@ Operational health probes are available at `/health/live` and `/health/ready`.
 See [deployment guidance](./docs/deployment.md) before exposing the service
 publicly. Cache ownership and invalidation are described in
 [cache policy](./docs/cache-policy.md).
+Nova customer and product analytics coverage is described in
+[Nova coverage guidance](./docs/nova-customer-product-coverage.md).
 
 When `ALLOW_BOOTSTRAP_USERS` is explicitly set to true, the backend creates the
 configured default administrator and viewer accounts on startup only if those

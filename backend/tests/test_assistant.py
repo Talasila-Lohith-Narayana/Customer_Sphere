@@ -51,6 +51,223 @@ def test_assistant_trims_chat_session_title():
         AssistantChatSessionUpdate(title="   ")
 
 
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("How many customers have more than 10 orders?", (">", 10)),
+        ("How many buyers have at least 5 orders?", (">=", 5)),
+        ("Customers with fewer than 3 orders", ("<", 3)),
+        ("Customers with exactly 2 orders", ("=", 2)),
+    ],
+)
+def test_order_frequency_filter_parses_thresholds(question, expected):
+    assert service._order_frequency_filter(question) == expected
+
+
+def test_customer_product_questions_select_relevant_domains():
+    domains = service.select_analytics_domains(
+        "How many customers bought products in the last month?"
+    )
+    assert {"products", "sales"} <= domains
+
+
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("How many customers spent more than R$100?", (">", 100.0)),
+        ("Customers who spent at least 250 reais", (">=", 250.0)),
+        ("How many customers spent under 50 BRL?", ("<", 50.0)),
+    ],
+)
+def test_spending_filter_parses_thresholds(question, expected):
+    assert service._spending_filter(question) == expected
+
+
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("How many customers used a credit card?", "credit_card"),
+        ("Customers who paid with debit card", "debit_card"),
+        ("How many used boleto?", "boleto"),
+    ],
+)
+def test_payment_type_filter_parses_supported_methods(question, expected):
+    assert service._payment_type_filter(question) == expected
+
+
+def test_payment_count_question_selects_customer_domain():
+    assert "customers" in service.select_analytics_domains(
+        "How many used a credit card?"
+    )
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_label"),
+    [
+        ("revenue last month", "last month"),
+        ("sales this month", "this month"),
+        ("orders last quarter", "last quarter"),
+        ("sales last year", "last year"),
+        ("sales between 2026-01-01 and 2026-02-01", "2026-01-01 to 2026-02-01"),
+        ("orders last 30 days", "the last 30 days"),
+    ],
+)
+def test_date_filter_parses_supported_periods(question, expected_label):
+    date_filter = service._date_filter(question)
+    assert date_filter is not None
+    assert date_filter[2] == expected_label
+    assert date_filter[0] < date_filter[1]
+
+
+def test_specialized_metric_filters_and_domains_are_detected():
+    assert service._rating_filter("products rated below 3 stars") == ("<", 3)
+    assert service._installment_filter("customers with more than 4 installments") == (">", 4)
+    assert "customers" in service.select_analytics_domains(
+        "How many customers paid in more than 3 installments?"
+    )
+    assert service.select_analytics_domains("Which customers are in SP?") >= {"geography", "customers"}
+    assert service.select_analytics_domains("Which customers bought category books?") >= {
+        "relationships",
+        "customers",
+    }
+
+
+def test_specialized_intents_include_filters():
+    assert service.extract_analytics_intent(
+        "How many customers paid in more than 3 installments?"
+    )["metric"] == "customers_by_installments"
+    assert service.extract_analytics_intent(
+        "Which customers bought category books?"
+    )["filters"]["category"] == "books"
+
+
+def test_extract_analytics_intent_normalizes_order_threshold():
+    assert service.extract_analytics_intent(
+        "How many customers have more than 10 orders?"
+    ) == {
+        "subject": "customer",
+        "operation": "count",
+        "metric": "customers_by_order_count",
+        "filters": {"order_count": {"operator": ">", "value": 10}},
+    }
+
+
+def test_analytics_metadata_includes_metric_definition_and_freshness():
+    metadata = service.analytics_metadata(
+        "How many customers have more than 10 orders?",
+        {
+            "customer_order_frequency_definition": (
+                "Distinct customers with more than 10 orders."
+            )
+        },
+    )
+    assert metadata["metric_definition"] == "Distinct customers with more than 10 orders."
+    assert metadata["data_as_of"].tzinfo is not None
+    assert metadata["warnings"] == []
+
+
+def test_analytics_follow_up_reuses_previous_subject_and_metric():
+    history = [
+        {
+            "question": "How many customers have more than 2 orders?",
+            "answer": "There are 10 customers.",
+        }
+    ]
+    resolved = service.resolve_analytics_question("More than 3?", history)
+    assert resolved.startswith("More than 3 orders")
+    assert "customers have more than 2 orders" in resolved
+    assert service._order_frequency_filter(resolved) == (">", 3)
+    assert "customers" in service.select_analytics_domains(resolved)
+
+
+def test_cohort_follow_up_reuses_previous_order_threshold():
+    history = [
+        {
+            "question": "How many customers have more than 5 orders?",
+            "answer": "10 customers.",
+        }
+    ]
+    resolved = service.resolve_analytics_question(
+        "What did those customers buy?",
+        history,
+    )
+    assert "more than 5 orders" in resolved
+    assert "those customers" in resolved
+    assert service._order_frequency_filter(resolved) == (">", 5)
+
+
+def test_pronoun_cohort_follow_up_reuses_previous_order_threshold():
+    history = [
+        {
+            "question": "How many customers have more than 6 orders?",
+            "answer": "5 customers.",
+        }
+    ]
+    resolved = service.resolve_analytics_question(
+        "What products did they buy?",
+        history,
+    )
+    assert "more than 6 orders" in resolved
+    assert "what products did they buy" in resolved.casefold()
+    assert service._order_frequency_filter(resolved) == (">", 6)
+
+
+def test_customer_id_candidates_accept_short_labeled_ids():
+    assert service.customer_id_candidates("Show the customer whose id is Lohith") == [
+        "Lohith"
+    ]
+
+
+def test_find_customer_id_accepts_short_labeled_id():
+    class FakeDatabase:
+        def execute(self, query, parameters):
+            assert parameters == {"customer_id": "Lohith"}
+            return self
+
+        def first(self):
+            return ("Lohith",)
+
+    assert service.find_customer_id(
+        FakeDatabase(),
+        "Show the customer whose id is Lohith",
+    ) == "Lohith"
+
+
+def test_order_threshold_customer_question_loads_cohort_context(monkeypatch):
+    keys = []
+
+    def fake_records(db, query, limit=None, parameters=None):
+        keys.append(query)
+        if "customer_count" in query and "customer_orders" in query:
+            return [{"customer_count": 2}]
+        return [{"customer_unique_id": "customer-1", "order_count": 6}]
+
+    monkeypatch.setattr(service, "_records", fake_records)
+    context = service.load_analytics_context(
+        object(),
+        {"customers", "products", "relationships"},
+        "Which customers have more than 5 orders?",
+    )
+
+    assert "customer_order_frequency_cohort" in context
+    assert "cohort_product_categories" in context
+    assert "cohort_payment_methods" in context
+    assert any("customer_unique_id" in query for query in keys)
+
+
+def test_analytics_follow_up_reuses_previous_subject_for_payment_method():
+    history = [
+        {
+            "question": "How many customers spent more than R$100?",
+            "answer": "There are 10 customers.",
+        }
+    ]
+    resolved = service.resolve_analytics_question("What about credit card?", history)
+    assert "credit card" in resolved
+    assert "customers spent more than" in resolved
+    assert service._payment_type_filter(resolved) == "credit_card"
+
+
 def test_rename_chat_session_updates_only_the_owner_session():
     engine = create_engine("sqlite://")
     AppUser.__table__.create(engine)
@@ -1369,6 +1586,27 @@ def test_load_analytics_context_only_queries_selected_domain(monkeypatch):
     assert all("product_metrics_cache" not in query for query in called_queries)
 
 
+def test_date_filtered_monthly_sales_query_interpolates_date_clause(monkeypatch):
+    queries = []
+
+    def fake_records(db, query, limit=None, parameters=None):
+        queries.append(query)
+        if "average_order_value" in query:
+            return [{"orders": 1, "revenue": 10, "average_order_value": 10}]
+        return [{"month": "2026-01", "orders": 1, "revenue": 10}]
+
+    monkeypatch.setattr(service, "_records", fake_records)
+    service.load_analytics_context(
+        object(),
+        {"sales"},
+        "Show sales last month",
+    )
+
+    monthly_query = next(query for query in queries if "DATE_FORMAT" in query)
+    assert "{date_clause}" not in monthly_query
+    assert "date_start" in monthly_query
+
+
 def test_load_analytics_context_keeps_churn_rows_as_a_list(monkeypatch):
     monkeypatch.setattr(
         service,
@@ -1423,13 +1661,15 @@ def test_generate_answer_sends_only_given_aggregate_context(monkeypatch):
         "Authorization": f"Bearer {service.OPENROUTER_API_KEY}"
     }
     assert captured["body"]["model"] == "test-model"
-    assert captured["body"]["max_tokens"] == 1200
+    assert captured["body"]["max_tokens"] == 2000
     assert "reasoning" not in captured["body"]
     system_prompt = captured["body"]["messages"][0]["content"]
     assert "You are Nova" in system_prompt
     assert "whenever asked your name or identity, say that you are Nova" in system_prompt
     assert "general-knowledge questions normally" in system_prompt
     assert "never invent metrics" in system_prompt
+    assert "Never expose internal JSON keys" in system_prompt
+    assert "customer_order_frequency.customer_count is 2" in system_prompt
     assert "use it naturally when relevant in later turns" in system_prompt
     assert "Do not say you refuse to remember such details" in system_prompt
     assert captured["body"]["messages"][1:] == [
@@ -1557,6 +1797,47 @@ def test_generate_answer_reports_empty_visible_output(monkeypatch):
 
     with pytest.raises(ConnectionError, match="no visible answer"):
         asyncio.run(service.generate_answer("Question", {}))
+
+
+def test_generate_answer_accepts_structured_text_content(monkeypatch):
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": [
+                                {"type": "output_text", "text": "01001000"},
+                                {"type": "output_text", "text": " 01101001"},
+                            ]
+                        },
+                        "finish_reason": "stop",
+                    }
+                ]
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, timeout):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        async def post(self, url, headers, json):
+            return FakeResponse()
+
+    monkeypatch.setattr(service, "OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(service.httpx, "AsyncClient", FakeAsyncClient)
+
+    assert asyncio.run(service.generate_answer("Speak in binary.", {})) == (
+        "01001000 01101001"
+    )
 
 
 @pytest.mark.parametrize(

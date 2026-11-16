@@ -22,7 +22,8 @@ frontend/dist/
 frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
-docs/
+docs/*
+!docs/nova-customer-product-coverage.md
 # OS and IDE files
 .DS_Store
 .vscode/

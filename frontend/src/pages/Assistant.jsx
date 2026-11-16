@@ -42,6 +42,20 @@ const formatValue = (value, format) => {
   return new Intl.NumberFormat().format(value);
 };
 
+const downloadVisualizationCsv = (visualization) => {
+  const rows = [["Label", "Value"], ...visualization.data.map((item) => [item.label, item.value])];
+  const csv = rows
+    .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${visualization.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
 export default function Assistant() {
   const [status, setStatus] = useState(null);
   const [statusError, setStatusError] = useState("");
@@ -596,6 +610,13 @@ export default function Assistant() {
                       aria-label={visualization.title}
                     >
                       <h3>{visualization.title}</h3>
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={() => downloadVisualizationCsv(visualization)}
+                      >
+                        Download CSV
+                      </button>
                       <div className="assistantChart">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart
@@ -641,6 +662,21 @@ export default function Assistant() {
                       </div>
                     </section>
                   ))}
+                  {turn.suggestions?.length > 0 && (
+                    <div className="assistantFollowUps" aria-label="Suggested follow-up questions">
+                      {turn.suggestions.map((suggestion) => (
+                        <button
+                          type="button"
+                          className="assistantSuggestion"
+                          key={suggestion}
+                          disabled={loading || sessionAction}
+                          onClick={() => setQuestion(suggestion)}
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </article>
               ))}
               {loading && <p className="assistantThinking">Thinking…</p>}

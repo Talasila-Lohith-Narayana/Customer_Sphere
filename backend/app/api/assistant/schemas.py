@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -30,10 +30,22 @@ class AssistantVisualization(BaseModel):
     format: Literal["number", "currency"]
 
 
+class AssistantIntent(BaseModel):
+    subject: str | None = None
+    operation: str | None = None
+    metric: str | None = None
+    filters: dict[str, Any] = Field(default_factory=dict)
+
+
 class AssistantChatTurn(BaseModel):
     question: str
     answer: str
     visualizations: list[AssistantVisualization] = Field(default_factory=list)
+    intent: AssistantIntent | None = None
+    metric_definition: str | None = None
+    data_as_of: datetime | None = None
+    warnings: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
 
 
 class AssistantHistory(BaseModel):
@@ -208,5 +220,10 @@ class CustomerActionIntent(BaseModel):
 class AssistantAnswer(BaseModel):
     answer: str
     visualizations: list[AssistantVisualization] = Field(default_factory=list)
+    intent: AssistantIntent | None = None
+    metric_definition: str | None = None
+    data_as_of: datetime | None = None
+    warnings: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
     action_proposal: AssistantActionPending | None = None
     confirmed_action_id: str | None = None

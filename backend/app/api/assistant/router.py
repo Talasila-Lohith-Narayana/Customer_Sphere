@@ -720,7 +720,8 @@ async def ask_assistant(
                 confirmed_action_id=action_id,
             )
 
-    domains = service.select_analytics_domains(payload.question)
+    analytics_question = service.resolve_analytics_question(payload.question, history)
+    domains = service.select_analytics_domains(analytics_question)
     action_intent = None
     continuing_action = service.awaiting_customer_action_details(history)
     if service.looks_like_customer_action(payload.question) or continuing_action:
@@ -749,8 +750,11 @@ async def ask_assistant(
             [payload.question]
             + [turn["question"] for turn in reversed(history[-5:])]
         )
+    product_relationship_question = service.refers_to_product(analytics_question)
 
     if (
+        not product_relationship_question
+        and
         service.customer_id_candidates(customer_lookup_question)
         and current_user["role"] != "admin"
         and "customers" not in current_user["access_pages"]
@@ -774,6 +778,8 @@ async def ask_assistant(
         ) from exc
 
     if (
+        not product_relationship_question
+        and
         not customer_id
         and service.customer_id_candidates(payload.question)
         and service.refers_to_customer(payload.question)
@@ -857,6 +863,7 @@ async def ask_assistant(
                 service.load_analytics_context,
                 db,
                 domains,
+                analytics_question,
             )
         except SQLAlchemyError as exc:
             logger.exception("Could not load aggregate data for the analytics assistant.")
@@ -897,7 +904,17 @@ async def ask_assistant(
     except ConnectionError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    visualizations = service.build_visualizations(payload.question, analytics_context)
+    visualizations = service.build_visualizations(analytics_question, analytics_context)
+    metadata = service.analytics_metadata(analytics_question, analytics_context)
+    intent = metadata["intent"]
+    suggestions = service.follow_up_suggestions(analytics_question, intent)
+    data_as_of = metadata["data_as_of"]
+    logger.info(
+        "Nova analytics request completed: intent=%s duration_ms=%s visualization_count=%s",
+        intent,
+        0,
+        len(visualizations),
+    )
     try:
         await run_in_threadpool(
             service.save_chat_turn,
@@ -919,4 +936,12 @@ async def ask_assistant(
             detail="The answer was generated but could not be saved to chat history.",
         ) from exc
 
-    return AssistantAnswer(answer=answer, visualizations=visualizations)
+    return AssistantAnswer(
+        answer=answer,
+        visualizations=visualizations,
+        intent=intent,
+        metric_definition=metadata["metric_definition"],
+        data_as_of=data_as_of,
+        warnings=metadata["warnings"],
+        suggestions=suggestions,
+    )
