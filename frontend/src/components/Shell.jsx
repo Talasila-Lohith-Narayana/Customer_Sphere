@@ -225,61 +225,57 @@ export default function Shell() {
           <div className="brandIcon">
             <Sparkles size={18} />
           </div>
-          {!collapsed && (
-            <>
-              <b>Customer</b>
-              <b>Sphere</b>
-            </>
-          )}
+          <b>Customer</b>
+          <b>Sphere</b>
         </div>
-        {!collapsed && <small>WORKSPACE</small>}
+        <small>WORKSPACE</small>
         
         {canAccess("dashboard") && (
           <NavLink to="/" end title="Dashboard">
             <LayoutDashboard size={17} />
-            {!collapsed && <span>Dashboard</span>}
+            <span>Dashboard</span>
           </NavLink>
         )}
         {canAccess("customers") && (
           <NavLink to="/customers" title="Customers">
             <Users size={17} />
-            {!collapsed && <span>Customers</span>}
+            <span>Customers</span>
           </NavLink>
         )}
         {canAccess("products") && (
           <NavLink to="/products" title="Products">
             <Package size={17} />
-            {!collapsed && <span>Products</span>}
+            <span>Products</span>
           </NavLink>
         )}
         {canAccess("analytics") && (
           <NavLink to="/analytics" title="Analytics">
             <BarChart3 size={17} />
-            {!collapsed && <span>Analytics</span>}
+            <span>Analytics</span>
           </NavLink>
         )}
         {canAccess("assistant") && (
           <NavLink to="/assistant" title="Nova">
             <Sparkles size={17} />
-            {!collapsed && <span>Nova</span>}
+            <span>Nova</span>
           </NavLink>
         )}
         {canAccess("campaigns") && (
           <NavLink to="/campaigns" title="Campaigns">
             <Megaphone size={17} />
-            {!collapsed && <span>Campaigns</span>}
+            <span>Campaigns</span>
           </NavLink>
         )}
         {canAccess("model") && (
           <NavLink to="/model" title="Model diagnostics">
             <Activity size={17} />
-            {!collapsed && <span>Model</span>}
+            <span>Model</span>
           </NavLink>
         )}
         {isAdmin && (
           <NavLink to="/users" title="User management">
             <UserPlus size={17} />
-            {!collapsed && <span>Users</span>}
+            <span>Users</span>
           </NavLink>
         )}
         
@@ -292,7 +288,7 @@ export default function Shell() {
             title="Admin Activity: View audit trail and history"
           >
             <History size={17} />
-            {!collapsed && <span>Admin Activity</span>}
+            <span>Admin Activity</span>
           </button>
         )}
         
@@ -306,29 +302,25 @@ export default function Shell() {
             title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
           >
             {isDark ? <Sun size={15} color="#f59e0b" /> : <Moon size={15} color="#93c5fd" />}
-            {!collapsed && <span>{isDark ? "Light Mode" : "Dark Mode"}</span>}
-            {!collapsed && (
-              <span style={{ fontSize: 10, background: isDark ? "#334155" : "#0f172a", padding: "2px 6px", borderRadius: 4, color: "#94a3b8" }}>
+            <span className="sideThemeLabel">{isDark ? "Light Mode" : "Dark Mode"}</span>
+            <span className="sideThemeValue" style={{ fontSize: 10, background: isDark ? "#334155" : "#0f172a", padding: "2px 6px", borderRadius: 4, color: "#94a3b8" }}>
                 {theme.toUpperCase()}
-              </span>
-            )}
+            </span>
           </button>
 
           <div className="user" title={`${user} (${roleLabel})`}>
             <div className="avatar">{user?.[0]?.toUpperCase()}</div>
-            {!collapsed && (
-              <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-                <b style={{ whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{user}</b>
-                <span>{roleLabel}</span>
-              </div>
-            )}
+            <div className="sideUserDetails" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+              <b style={{ whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{user}</b>
+              <span>{roleLabel}</span>
+            </div>
           </div>
 
           {profileSwitcher}
 
           <button onClick={() => setShowSignOutConfirm(true)} title="Sign out" className="sideSignOutBtn">
             <LogOut size={16} />
-            {!collapsed && <span>Sign out</span>}
+            <span>Sign out</span>
           </button>
         </div>
       </aside>

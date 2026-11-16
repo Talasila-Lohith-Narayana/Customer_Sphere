@@ -38,6 +38,14 @@ threshold questions, date-filtered questions, comparisons, or detailed
 customer/product relationships. These remain explicit follow-on handlers rather
 than being guessed by the model.
 
+For unsupported exploratory analytics questions, Nova now has a guarded
+generated-SQL fallback. The model may propose one parameterized `SELECT` query
+over the approved analytics tables, but the backend validates the statement,
+blocks write operations and protected fields, enforces a maximum of 100 rows,
+and executes only the validated query. This is not unrestricted SQL execution;
+production deployments should additionally configure a database credential or
+read replica with `SELECT`-only permissions.
+
 ## Target architecture
 
 Use the following request pipeline:

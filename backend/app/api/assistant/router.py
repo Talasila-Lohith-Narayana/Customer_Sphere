@@ -722,6 +722,7 @@ async def ask_assistant(
 
     analytics_question = service.resolve_analytics_question(payload.question, history)
     domains = service.select_analytics_domains(analytics_question)
+    use_generated_sql = service.should_generate_sql(analytics_question, domains)
     action_intent = None
     continuing_action = service.awaiting_customer_action_details(history)
     if service.looks_like_customer_action(payload.question) or continuing_action:
@@ -857,7 +858,34 @@ async def ask_assistant(
             ),
         )
 
-    if domains:
+    if use_generated_sql:
+        try:
+            generated_query, generated_parameters = await service.generate_sql_query(
+                analytics_question,
+                history,
+            )
+            generated_rows = await run_in_threadpool(
+                service.execute_generated_sql,
+                db,
+                generated_query,
+                generated_parameters,
+            )
+            analytics_context = {
+                "generated_query_result": generated_rows,
+                "generated_query_definition": (
+                    "A read-only exploratory query over approved analytics tables. "
+                    f"Results are limited to {service.GENERATED_SQL_MAX_ROWS} rows."
+                ),
+            }
+        except SQLAlchemyError as exc:
+            logger.exception("Generated Nova analytics SQL failed during execution.")
+            raise HTTPException(
+                status_code=503,
+                detail="Nova could not execute the analytics query safely.",
+            ) from exc
+        except (ConnectionError, TimeoutError) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+    elif domains:
         try:
             analytics_context = await run_in_threadpool(
                 service.load_analytics_context,

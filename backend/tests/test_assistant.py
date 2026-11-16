@@ -233,6 +233,51 @@ def test_find_customer_id_accepts_short_labeled_id():
     ) == "Lohith"
 
 
+@pytest.mark.parametrize(
+    "query",
+    [
+        "DELETE FROM customers",
+        "SELECT password_hash FROM customers",
+        "SELECT * FROM unknown_table",
+        "SELECT * FROM customers; SELECT * FROM orders",
+    ],
+)
+def test_generated_sql_rejects_unsafe_queries(query):
+    with pytest.raises(ValueError):
+        service.validate_generated_sql(query, {})
+
+
+def test_generated_sql_is_read_only_bounded_and_parameterized():
+    query, parameters = service.validate_generated_sql(
+        "SELECT customer_state, COUNT(*) AS total FROM customers "
+        "WHERE customer_state = :state GROUP BY customer_state",
+        {"state": "SP"},
+    )
+    assert query.endswith("LIMIT 100")
+    assert parameters == {"state": "SP"}
+
+
+def test_generated_sql_executes_only_validated_query():
+    calls = []
+
+    def fake_records(db, query, limit=None, parameters=None):
+        calls.append((query, limit, parameters))
+        return [{"customer_state": "SP", "total": 2}]
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(service, "_records", fake_records)
+    try:
+        rows = service.execute_generated_sql(
+            object(),
+            "SELECT customer_state FROM customers",
+            {},
+        )
+    finally:
+        monkeypatch.undo()
+    assert rows == [{"customer_state": "SP", "total": 2}]
+    assert calls[0][1] == service.GENERATED_SQL_MAX_ROWS
+
+
 def test_order_threshold_customer_question_loads_cohort_context(monkeypatch):
     keys = []
 
@@ -253,6 +298,23 @@ def test_order_threshold_customer_question_loads_cohort_context(monkeypatch):
     assert "cohort_product_categories" in context
     assert "cohort_payment_methods" in context
     assert any("customer_unique_id" in query for query in keys)
+
+
+def test_customer_cohort_context_does_not_claim_ids_are_unavailable(monkeypatch):
+    def fake_records(db, query, limit=None, parameters=None):
+        if "customer_count" in query and "customer_orders" in query:
+            return [{"customer_count": 2}]
+        return [{"customer_unique_id": "Lohith", "order_count": 7}]
+
+    monkeypatch.setattr(service, "_records", fake_records)
+    context = service.load_analytics_context(
+        object(),
+        {"customers"},
+        "Which customers have more than 6 orders?",
+    )
+
+    assert "customer_order_frequency_cohort" in context
+    assert "privacy_note" not in context
 
 
 def test_analytics_follow_up_reuses_previous_subject_for_payment_method():

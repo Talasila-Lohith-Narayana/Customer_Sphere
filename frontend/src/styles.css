@@ -2902,7 +2902,10 @@ button {
   padding: 22px 15px;
   display: flex;
   flex-direction: column;
-  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), padding 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: width, padding;
   z-index: 40;
 }
 
@@ -2919,6 +2922,73 @@ button {
   justify-content: center;
   gap: 0;
   padding: 0;
+}
+
+.shell aside > small,
+.shell aside a span,
+.shell aside .sideNavBtn span,
+.sideThemeLabel,
+.sideThemeValue,
+.sideUserDetails,
+.sideSignOutBtn span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity 0.18s ease,
+    max-width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.shell aside > small {
+  max-width: 180px;
+}
+
+.shell aside a span,
+.shell aside .sideNavBtn span,
+.sideThemeLabel,
+.sideThemeValue,
+.sideUserDetails,
+.sideSignOutBtn span {
+  max-width: 180px;
+}
+
+.shell aside.collapsed > small,
+.shell aside.collapsed a span,
+.shell aside.collapsed .sideNavBtn span,
+.shell aside.collapsed .sideThemeLabel,
+.shell aside.collapsed .sideThemeValue,
+.shell aside.collapsed .sideUserDetails,
+.shell aside.collapsed .sideSignOutBtn span {
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+}
+
+.shell aside.collapsed .brand b {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition:
+    opacity 0.18s ease,
+    max-width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.shell aside .brand b {
+  max-width: 90px;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity 0.18s ease,
+    max-width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .shell aside.collapsed a svg,
@@ -2946,12 +3016,6 @@ button {
   justify-content: center;
 }
 
-.shell aside.collapsed .sideBottom .user > div:not(.avatar),
-.shell aside.collapsed .sideBottom .user b,
-.shell aside.collapsed .sideBottom .user span,
-.shell aside.collapsed .brand > :not(.brandIcon),
-.shell aside.collapsed .sideThemeBtn > span,
-.shell aside.collapsed .sideSignOutBtn > span,
 .shell aside.collapsed .profileSwitcherHeading,
 .shell aside.collapsed .profileSwitcherError,
 .shell aside.collapsed .profileSwitcher:not(.compact) select,
@@ -3315,11 +3379,28 @@ button {
 .shell main {
   margin-left: 245px;
   min-height: 100vh;
-  transition: margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: margin-left 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: margin-left;
 }
 
 .shell main.expanded {
   margin-left: 72px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell aside,
+  .shell main,
+  .shell aside > small,
+  .shell aside a span,
+  .shell aside .sideNavBtn span,
+  .shell aside .brand b,
+  .sideThemeLabel,
+  .sideThemeValue,
+  .sideUserDetails,
+  .sideSignOutBtn span {
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+  }
 }
 
 .page {

@@ -21,6 +21,21 @@ OPENROUTER_MODEL = (
     or "openrouter/free"
 )
 OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
+GENERATED_SQL_MAX_ROWS = 100
+GENERATED_SQL_TABLES = {
+    "customers",
+    "orders",
+    "order_items",
+    "order_payments",
+    "order_reviews",
+    "products",
+}
+GENERATED_SQL_BLOCKED_TERMS = re.compile(
+    r"\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|GRANT|REVOKE|"
+    r"REPLACE|CALL|EXEC|EXECUTE|LOAD_FILE|INTO\s+OUTFILE|INTO\s+DUMPFILE|"
+    r"SLEEP|BENCHMARK)\b",
+    re.I,
+)
 
 
 def _visible_answer(content: Any) -> str:
@@ -42,6 +57,186 @@ def _visible_answer(content: Any) -> str:
 
 def is_configured() -> bool:
     return bool(OPENROUTER_API_KEY)
+
+
+def should_generate_sql(question: str, domains: set[str]) -> bool:
+    if domains or customer_id_candidates(question):
+        return False
+    return bool(
+        re.search(
+            r"\b(customer|customers|orders?|products?|sales|revenue|payment|"
+            r"review|rating|category|categories|state|city|spend|bought|"
+            r"purchased|database|data|analytics|how many|which|what)\b",
+            question,
+            re.I,
+        )
+    )
+
+
+def _parse_generated_sql_payload(content: Any) -> tuple[str, dict[str, Any]]:
+    if isinstance(content, list):
+        content = _visible_answer(content)
+    if not isinstance(content, str):
+        raise ValueError("SQL planner returned a non-text response.")
+    cleaned = content.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned, flags=re.I)
+    payload = json.loads(cleaned)
+    if not isinstance(payload, dict) or not isinstance(payload.get("sql"), str):
+        raise ValueError("SQL planner response must contain a sql field.")
+    parameters = payload.get("parameters", {})
+    if not isinstance(parameters, dict):
+        raise ValueError("SQL planner parameters must be an object.")
+    return payload["sql"], parameters
+
+
+def validate_generated_sql(
+    query: str,
+    parameters: dict[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    normalized = query.strip()
+    if not normalized:
+        raise ValueError("Generated SQL was empty.")
+    if normalized.endswith(";"):
+        normalized = normalized[:-1].rstrip()
+    if ";" in normalized or not re.match(r"^(?:SELECT|WITH)\b", normalized, re.I):
+        raise ValueError("Only one read-only SELECT query is permitted.")
+    if GENERATED_SQL_BLOCKED_TERMS.search(normalized):
+        raise ValueError("Generated SQL contains a blocked operation.")
+    if "--" in normalized or "/*" in normalized or "*/" in normalized:
+        raise ValueError("SQL comments are not permitted.")
+
+    cte_names = {
+        name.casefold()
+        for name in re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\s+AS\s*\(", normalized, re.I)
+    }
+    table_matches = re.findall(
+        r"\b(?:FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)",
+        normalized,
+        re.I,
+    )
+    unknown_tables = {
+        table.casefold()
+        for table in table_matches
+        if table.casefold() not in GENERATED_SQL_TABLES
+        and table.casefold() not in cte_names
+    }
+    if unknown_tables:
+        raise ValueError("Generated SQL referenced an unapproved table.")
+
+    if re.search(
+        r"\b(?:password_hash|token_version|access_pages|email|phone|"
+        r"authorization|secret|api_key)\b",
+        normalized,
+        re.I,
+    ):
+        raise ValueError("Generated SQL requested a protected field.")
+
+    limit_match = re.search(r"\bLIMIT\s+(\d+)\b", normalized, re.I)
+    if limit_match and int(limit_match.group(1)) > GENERATED_SQL_MAX_ROWS:
+        raise ValueError("Generated SQL requested too many rows.")
+    if not limit_match:
+        normalized = f"{normalized}\nLIMIT {GENERATED_SQL_MAX_ROWS}"
+
+    for name, value in parameters.items():
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(name)):
+            raise ValueError("Generated SQL contained an invalid parameter name.")
+        if isinstance(value, (dict, list, tuple, set)):
+            raise ValueError("Generated SQL parameters must be scalar values.")
+    return normalized, parameters
+
+
+def execute_generated_sql(
+    db,
+    query: str,
+    parameters: dict[str, Any],
+) -> list[dict[str, Any]]:
+    validated_query, validated_parameters = validate_generated_sql(query, parameters)
+    rows = _records(
+        db,
+        validated_query,
+        limit=GENERATED_SQL_MAX_ROWS,
+        parameters=validated_parameters,
+    )
+    return rows
+
+
+async def generate_sql_query(
+    question: str,
+    history: list[dict[str, str]] | None = None,
+) -> tuple[str, dict[str, Any]]:
+    if not OPENROUTER_API_KEY:
+        raise RuntimeError("The LLM provider is not configured.")
+    catalog = {
+        "customers": ["customer_id", "customer_unique_id", "customer_city", "customer_state"],
+        "orders": ["order_id", "customer_id", "order_status", "order_purchase_timestamp"],
+        "order_items": ["order_id", "product_id", "price", "freight_value"],
+        "order_payments": ["order_id", "payment_type", "payment_value", "payment_installments"],
+        "order_reviews": ["review_id", "order_id", "review_score"],
+        "products": ["product_id", "product_category_name"],
+    }
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are Nova's read-only analytics SQL planner. Return only one JSON "
+                "object with sql and parameters fields. Generate only one SELECT or "
+                "WITH query using the tables and columns in this catalog. Never use "
+                "writes, schema changes, comments, multiple statements, protected "
+                "fields, or unrestricted customer contact data. Use named bind "
+                "parameters such as :state instead of interpolating user values. "
+                f"Always include LIMIT {GENERATED_SQL_MAX_ROWS} or less. "
+                f"Catalog: {json.dumps(catalog, separators=(',', ':'))}"
+            ),
+        }
+    ]
+    for turn in (history or [])[-4:]:
+        messages.extend(
+            [
+                {"role": "user", "content": turn["question"]},
+                {"role": "assistant", "content": turn["answer"]},
+            ]
+        )
+    messages.append({"role": "user", "content": question})
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                OPENROUTER_CHAT_COMPLETIONS_URL,
+                headers=_openrouter_headers(),
+                json={
+                    "model": OPENROUTER_MODEL,
+                    "messages": messages,
+                    "temperature": 0,
+                    "max_tokens": 700,
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+            content = payload["choices"][0]["message"].get("content")
+            query, parameters = _parse_generated_sql_payload(content)
+            return validate_generated_sql(query, parameters)
+    except httpx.TimeoutException as exc:
+        raise TimeoutError(
+            "Nova's analytics planner took too long to respond. Please try again."
+        ) from exc
+    except httpx.HTTPStatusError as exc:
+        logger.error(
+            "Generated SQL planning failed (HTTP %s, model=%s).",
+            exc.response.status_code,
+            OPENROUTER_MODEL,
+        )
+        raise ConnectionError(
+            "Nova could not create a safe analytics query. Please try again."
+        ) from exc
+    except httpx.RequestError as exc:
+        raise ConnectionError(
+            "Nova could not connect to its analytics planner."
+        ) from exc
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
+        logger.warning("Nova returned an invalid generated SQL plan: %s", type(exc).__name__)
+        raise ConnectionError(
+            "Nova could not create a valid read-only analytics query."
+        ) from exc
 
 
 def _openrouter_headers() -> dict[str, str]:
@@ -982,7 +1177,12 @@ def load_analytics_context(
         if "segments" in domains:
             context["campaigns_by_segment"] = repository.campaigns_by_segment()[:40]
 
-    if "customer" not in context:
+    has_customer_level_context = any(
+        key.startswith("customer_order_frequency_cohort")
+        or key in {"customers_by_product", "customers_by_state"}
+        for key in context
+    )
+    if "customer" not in context and not has_customer_level_context:
         context["privacy_note"] = (
             "The supplied analytics are aggregated and contain no individual "
             "customer names, email addresses, or customer IDs."
