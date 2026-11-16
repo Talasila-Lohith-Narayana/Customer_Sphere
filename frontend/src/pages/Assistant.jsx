@@ -59,6 +59,7 @@ export default function Assistant() {
   const [sessionTitleDraft, setSessionTitleDraft] = useState("");
   const [actionBusyId, setActionBusyId] = useState(null);
   const conversationRef = useRef(null);
+  const questionInputRef = useRef(null);
   const sessionIdRef = useRef(null);
 
   const loadStatus = useCallback(async () => {
@@ -125,6 +126,14 @@ export default function Assistant() {
       conversation.scrollTop = conversation.scrollHeight;
     }
   }, [historyLoading, loading, turns]);
+
+  useEffect(() => {
+    const input = questionInputRef.current;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 144)}px`;
+    input.style.overflowY = input.scrollHeight > 144 ? "auto" : "hidden";
+  }, [question]);
 
   const startNewChat = async () => {
     setSessionAction(true);
@@ -643,16 +652,17 @@ export default function Assistant() {
             <label className="visuallyHidden" htmlFor="assistant-question">Message</label>
             <textarea
               id="assistant-question"
+              className="assistantQuestionInput"
+              ref={questionInputRef}
               value={question}
               maxLength={1000}
               onChange={(event) => setQuestion(event.target.value)}
               onKeyDown={handleQuestionKeyDown}
               placeholder="Message Nova"
-              rows={2}
+              rows={1}
               disabled={!status?.configured || loading || sessionsLoading || sessionAction}
             />
             <div className="assistantFormFooter">
-              <span className="assistantCharacterCount">{question.length} / 1000</span>
               <button
                 type="submit"
                 className="btn primary"

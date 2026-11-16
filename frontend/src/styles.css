@@ -811,14 +811,24 @@
   box-sizing: border-box;
   display: block;
   width: 100%;
-  min-height: 52px;
+  min-height: 56px;
   max-height: 144px;
+  padding: 8px 4px 4px;
   resize: none;
   border: 0;
+  border-radius: 10px;
   outline: 0;
   background: transparent;
   color: #f0f3ff;
   font: 14px/1.65 "DM Sans", sans-serif;
+  appearance: none;
+}
+
+.assistantForm textarea:focus,
+.assistantForm textarea:focus-visible {
+  border: 0;
+  outline: none;
+  box-shadow: none;
 }
 
 .assistantForm textarea::placeholder {
@@ -1154,25 +1164,42 @@
 }
 
 .assistantWorkspace .assistantForm {
-  border: 1px solid #303b61;
-  background: rgba(31, 39, 73, 0.82);
+  position: relative;
+  padding-right: 58px;
+  border: 1px solid #465174;
+  border-radius: 18px;
+  background: #202846;
   box-shadow:
-    0 12px 30px rgba(2, 6, 23, 0.28),
-    inset 0 1px rgba(255, 255, 255, 0.07);
+    0 8px 24px rgba(2, 6, 23, 0.2),
+    inset 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .assistantWorkspace .assistantForm:focus-within {
-  border-color: #7569d7;
-  background: rgba(35, 43, 82, 0.9);
+  border-color: #6471a0;
+  background: #202846;
   box-shadow:
-    0 0 0 3px rgba(124, 92, 246, 0.12),
-    0 14px 34px rgba(2, 6, 23, 0.34),
-    inset 0 1px rgba(255, 255, 255, 0.06);
+    0 0 0 3px rgba(139, 154, 207, 0.12),
+    0 10px 28px rgba(2, 6, 23, 0.24),
+    inset 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .assistantWorkspace .assistantForm textarea {
-  min-height: 48px;
+  min-height: 34px;
+  max-height: 144px;
+  padding: 4px 2px 6px;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
   color: #f4f6ff;
+  outline: none !important;
+  box-shadow: none !important;
+  overflow-y: hidden;
+}
+
+.assistantWorkspace .assistantForm textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .assistantWorkspace .assistantForm textarea::placeholder {
@@ -1180,20 +1207,21 @@
 }
 
 .assistantWorkspace .assistantFormFooter {
-  margin-top: 2px;
-  padding-top: 10px;
-  border-top: 1px solid #273252;
-  color: #8c9abb;
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  margin: 0;
+  padding: 0;
 }
 
 .assistantWorkspace .assistantFormFooter button {
   min-width: 42px;
   width: 42px;
-  height: 38px;
+  height: 36px;
   padding: 0;
-  border: 1px solid rgba(196, 181, 253, 0.24);
-  border-radius: 11px;
-  box-shadow: 0 5px 16px rgba(99, 102, 241, 0.26);
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 5px 14px rgba(99, 102, 241, 0.25);
 }
 
 .assistantWorkspace .assistantFormFooter button span {
@@ -1408,29 +1436,30 @@ html:not([data-theme="dark"]) .assistantWorkspace .assistantVisualization h3 {
 }
 
 html:not([data-theme="dark"]) .assistantWorkspace .assistantForm {
-  border-color: #d9ddeb;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(247, 248, 253, 0.98)) padding-box,
-    linear-gradient(110deg, rgba(99, 91, 219, 0.3), rgba(8, 145, 178, 0.18)) border-box;
+  border-color: #d8dce8;
+  border-radius: 18px;
+  background: #ffffff;
   box-shadow:
-    0 14px 34px rgba(67, 56, 142, 0.1),
+    0 8px 24px rgba(67, 56, 142, 0.08),
     inset 0 1px rgba(255, 255, 255, 0.95);
 }
 
 html:not([data-theme="dark"]) .assistantWorkspace .assistantForm:focus-within {
-  border-color: #8178e5;
+  border-color: #a7add0;
   box-shadow:
-    0 0 0 3px rgba(99, 91, 219, 0.1),
-    0 16px 38px rgba(67, 56, 142, 0.13),
+    0 0 0 3px rgba(99, 91, 219, 0.08),
+    0 10px 28px rgba(67, 56, 142, 0.1),
     inset 0 1px rgba(255, 255, 255, 0.95);
 }
 
 html:not([data-theme="dark"]) .assistantWorkspace .assistantFormFooter {
-  border-top-color: #eaecf3;
   color: #7b87a0;
 }
 
 html:not([data-theme="dark"]) .assistantWorkspace .assistantForm textarea {
+  background: transparent;
+  background-color: transparent;
+  background-image: none;
   color: #293653;
 }
 
