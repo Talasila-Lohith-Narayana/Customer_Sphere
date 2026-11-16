@@ -43,19 +43,37 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 24px;
-  max-width: 1080px;
-  margin: 0 auto 24px;
+  gap: 28px;
+  max-width: 1180px;
+  margin: 0 auto 20px;
+}
+
+.assistantHeading {
+  min-width: 0;
+}
+
+.assistantEyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 4px;
+  color: #7c3aed;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
 }
 
 .assistantHeader h1 {
-  margin: 5px 0 7px;
+  margin: 0;
+  background: linear-gradient(105deg, #111827 12%, #5145cd 62%, #0e7490 100%);
+  background-clip: text;
+  color: transparent;
   font-family: "Space Grotesk", sans-serif;
   font-size: clamp(26px, 3vw, 34px);
   letter-spacing: -0.035em;
 }
 
-.assistantHeader p:last-child {
+.assistantHeading > p:last-child {
   margin: 0;
   color: var(--text-muted);
   font-size: 14px;
@@ -69,14 +87,24 @@
 }
 
 .assistantModel {
+  display: inline-flex;
+  align-items: center;
   flex: 0 0 auto;
+  gap: 8px;
+  max-width: min(45%, 280px);
   padding: 9px 13px;
-  border: 1px solid var(--card-border);
+  border: 1px solid rgba(124, 58, 237, 0.18);
   border-radius: 999px;
-  background: var(--surface-subtle);
-  color: var(--text-muted);
+  background: linear-gradient(120deg, rgba(124, 58, 237, 0.08), rgba(8, 145, 178, 0.07));
+  color: #5145cd;
   font-size: 12px;
   font-weight: 600;
+}
+
+.assistantModel span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .assistantCard {
@@ -97,8 +125,8 @@
   display: grid;
   grid-template-columns: minmax(190px, 220px) minmax(0, 1fr);
   max-width: 1180px;
-  height: min(740px, calc(100dvh - 165px));
-  min-height: 300px;
+  height: min(760px, calc(100dvh - 175px));
+  min-height: 360px;
   margin: 0 auto;
   overflow: hidden;
   border: 1px solid var(--card-border);
@@ -151,13 +179,35 @@
   opacity: 0.6;
 }
 
-.assistantSidebar h2 {
-  margin: 22px 10px 8px;
+.assistantSidebarHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 22px 8px 8px;
+  padding: 0 2px;
+}
+
+.assistantSidebarHeading h2 {
+  margin: 0;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.assistantSidebarHeading > span {
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid var(--card-border);
+  border-radius: 7px;
+  background: var(--card-bg);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .assistantSessionList {
@@ -306,7 +356,72 @@
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  padding: 16px clamp(14px, 2.5vw, 30px);
+  padding: 0 clamp(16px, 2.5vw, 30px) 16px;
+}
+
+.assistantConversationHeader {
+  display: flex;
+  min-width: 0;
+  min-height: 68px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.assistantConversationTitle {
+  min-width: 0;
+}
+
+.assistantConversationTitle > span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.assistantConversationTitle h2 {
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-main);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistantConnection {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.assistantConnection > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.assistantConnection.isReady > span {
+  background: #16a34a;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #16a34a 14%, transparent);
+}
+
+.assistantConnection.hasError > span {
+  background: #dc2626;
 }
 
 .assistantActionControls {
@@ -351,39 +466,74 @@
   justify-content: center;
   align-items: center;
   overflow-y: auto;
+  padding: 24px 12px;
   text-align: center;
 }
 
 .assistantEmptyIcon {
   display: grid;
-  width: 48px;
-  height: 48px;
+  width: 54px;
+  height: 54px;
   place-items: center;
-  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--assistant-accent) 18%, var(--card-border));
+  border-radius: 18px;
   background: var(--assistant-accent-soft);
   color: var(--assistant-accent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--assistant-accent) 12%, transparent);
+}
+
+.assistantEmptyEyebrow {
+  margin-top: 20px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
 }
 
 .assistantEmptyState h2 {
-  margin: 16px 0 0;
+  margin: 7px 0 0;
   font-family: "Space Grotesk", sans-serif;
-  font-size: clamp(20px, 2.5vw, 27px);
+  font-size: clamp(22px, 2.5vw, 29px);
+  letter-spacing: -0.035em;
+}
+
+.assistantEmptyDescription {
+  max-width: 460px;
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .assistantEmptyState .assistantSuggestions {
   display: grid;
   width: 100%;
-  max-width: 620px;
+  max-width: 680px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   justify-content: center;
-  gap: 10px;
-  margin: 22px 0 0;
+  gap: 9px;
+  margin: 24px 0 0;
 }
 
 .assistantEmptyState .assistantSuggestion {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   min-height: 54px;
-  padding: 11px 13px;
+  padding: 12px 14px;
   text-align: left;
+}
+
+.assistantEmptyState .assistantSuggestion svg {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  transition: transform 150ms ease, color 150ms ease;
+}
+
+.assistantEmptyState .assistantSuggestion:hover:not(:disabled) svg {
+  transform: translate(2px, -2px);
+  color: var(--assistant-accent);
 }
 
 .assistantIntro {
@@ -636,45 +786,63 @@
 .assistantForm {
   flex: 0 0 auto;
   min-width: 0;
-  margin-top: 12px;
-  padding: 15px 16px 12px;
-  border: 1px solid var(--input-border);
-  border-radius: 16px;
-  background: var(--input-bg);
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  margin-top: 14px;
+  padding: 14px 16px 12px;
+  border: 1px solid rgba(167, 180, 218, 0.2);
+  border-radius: 20px;
+  background:
+    linear-gradient(145deg, rgba(22, 27, 51, 0.98), rgba(11, 16, 34, 0.98)) padding-box,
+    linear-gradient(110deg, rgba(167, 139, 250, 0.42), rgba(103, 232, 249, 0.2)) border-box;
+  box-shadow:
+    0 16px 42px rgba(3, 7, 20, 0.3),
+    inset 0 1px rgba(255, 255, 255, 0.055);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .assistantForm:focus-within {
-  border-color: var(--assistant-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--assistant-accent) 12%, transparent);
+  border-color: rgba(167, 139, 250, 0.66);
+  box-shadow:
+    0 0 0 3px rgba(139, 92, 246, 0.11),
+    0 18px 48px rgba(3, 7, 20, 0.35),
+    inset 0 1px rgba(255, 255, 255, 0.07);
 }
 
 .assistantForm textarea {
   box-sizing: border-box;
   display: block;
   width: 100%;
-  min-height: 54px;
-  max-height: 160px;
-  resize: vertical;
+  min-height: 52px;
+  max-height: 144px;
+  resize: none;
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--text-main);
-  font: 15px/1.6 "DM Sans", sans-serif;
+  color: #f0f3ff;
+  font: 14px/1.65 "DM Sans", sans-serif;
 }
 
 .assistantForm textarea::placeholder {
-  color: var(--text-muted);
-  opacity: 0.85;
+  color: #8995b5;
+  opacity: 1;
 }
 
 .assistantFormFooter {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  color: var(--text-muted);
-  font-size: 12px;
+  gap: 16px;
+  padding-top: 5px;
+  color: #8491b2;
+  font-size: 11px;
+}
+
+.assistantCharacterCount {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: #7885a6;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .assistantFormFooter .btn {
@@ -684,11 +852,630 @@
 }
 
 .assistantFormFooter button {
+  min-width: 88px;
   justify-content: center;
-  width: 38px;
+  width: auto;
+  height: 40px;
+  padding: 0 15px;
+  border-radius: 13px;
+  font-size: 12px;
+}
+
+.assistantWorkspace {
+  --assistant-accent: #a78bfa;
+  --assistant-accent-soft: rgba(139, 92, 246, 0.13);
+  --assistant-grid: rgba(148, 163, 184, 0.17);
+  --assistant-shadow: 0 30px 90px rgba(10, 13, 36, 0.32);
+  --text-main: #edf0ff;
+  --text-muted: #a3acc7;
+  --card-bg: rgba(22, 27, 51, 0.88);
+  --card-border: rgba(167, 180, 218, 0.16);
+  --subtle-bg: rgba(255, 255, 255, 0.035);
+  --surface-subtle: rgba(255, 255, 255, 0.035);
+  --input-bg: rgba(9, 13, 30, 0.8);
+  --input-border: rgba(157, 170, 214, 0.2);
+  --assistant-cyan: #67e8f9;
+  --assistant-lilac: #c4b5fd;
+  border-color: rgba(167, 139, 250, 0.26);
+  background:
+    radial-gradient(ellipse at 82% 7%, rgba(99, 102, 241, 0.15), transparent 34%),
+    radial-gradient(ellipse at 48% 100%, rgba(8, 145, 178, 0.08), transparent 48%),
+    repeating-linear-gradient(0deg, transparent 0 39px, rgba(148, 163, 184, 0.025) 40px),
+    repeating-linear-gradient(90deg, transparent 0 39px, rgba(148, 163, 184, 0.025) 40px),
+    linear-gradient(145deg, #11162d 0%, #0c1123 55%, #10152b 100%);
+}
+
+.assistantWorkspace > .assistantSidebar {
+  border-right-color: rgba(167, 180, 218, 0.13);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+  color: #edf0ff;
+}
+
+.assistantWorkspace .assistantNewChat {
+  border-color: rgba(167, 139, 250, 0.34);
+  background: linear-gradient(110deg, rgba(124, 58, 237, 0.19), rgba(8, 145, 178, 0.12));
+  color: #f2efff;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.assistantWorkspace .assistantNewChat:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--assistant-lilac);
+  box-shadow: 0 8px 26px rgba(124, 58, 237, 0.2);
+  color: #fff;
+}
+
+.assistantWorkspace .assistantNewChat svg,
+.assistantWorkspace .assistantMessageAssistant strong svg {
+  color: var(--assistant-cyan);
+}
+
+.assistantWorkspace .assistantSidebarHeading h2 {
+  color: #929dbd;
+}
+
+.assistantWorkspace .assistantSidebarHeading > span {
+  border-color: rgba(167, 180, 218, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: #a3acc7;
+}
+
+.assistantWorkspace .assistantSession:hover,
+.assistantWorkspace .assistantSession.isActive {
+  background: rgba(167, 139, 250, 0.1);
+}
+
+.assistantWorkspace .assistantSession.isActive {
+  color: var(--assistant-lilac);
+  box-shadow: inset 2px 0 #a78bfa;
+}
+
+.assistantWorkspace .assistantSessionRename:hover,
+.assistantWorkspace .assistantSessionAction:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--assistant-cyan);
+}
+
+.assistantWorkspace .assistantSessionDelete:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+}
+
+.assistantWorkspace .assistantSidebarHint {
+  color: #929dbd;
+}
+
+.assistantWorkspace .assistantConversationHeader {
+  border-bottom-color: rgba(167, 180, 218, 0.15);
+}
+
+.assistantWorkspace .assistantConversationTitle > span {
+  color: #8e9abb;
+}
+
+.assistantWorkspace .assistantConversationTitle h2 {
+  color: #f1f3ff;
+}
+
+.assistantWorkspace .assistantConnection {
+  border-color: rgba(167, 180, 218, 0.16);
+  background: rgba(255, 255, 255, 0.045);
+  color: #aab4d0;
+}
+
+.assistantWorkspace .assistantConnection.isReady > span {
+  background: #5eead4;
+  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.13), 0 0 12px rgba(94, 234, 212, 0.65);
+}
+
+.assistantWorkspace .assistantConnection.hasError > span {
+  background: #fb7185;
+  box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.12);
+}
+
+.assistantWorkspace .assistantActionPreview {
+  border-color: rgba(167, 139, 250, 0.24);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.1), rgba(255, 255, 255, 0.025));
+}
+
+.assistantWorkspace .assistantActionPreview strong {
+  color: #e9ddff;
+}
+
+.assistantWorkspace .assistantActionPreview p {
+  color: #abb4cf;
+}
+
+.assistantWorkspace .assistantActionSuccess {
+  color: #5eead4;
+}
+
+.assistantWorkspace .assistantEmptyIcon {
+  border-color: rgba(196, 181, 253, 0.46);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(103, 232, 249, 0.32), transparent 58%),
+    linear-gradient(145deg, rgba(139, 92, 246, 0.42), rgba(49, 46, 129, 0.34));
+  color: #e0faff;
+  box-shadow:
+    0 0 0 7px rgba(139, 92, 246, 0.055),
+    0 0 44px rgba(124, 58, 237, 0.36),
+    inset 0 1px rgba(255, 255, 255, 0.3);
+}
+
+.assistantWorkspace .assistantEmptyEyebrow {
+  color: #91a0c4;
+}
+
+.assistantWorkspace .assistantEmptyState h2 {
+  background: linear-gradient(100deg, #f8f7ff 20%, #c4b5fd 60%, #a5f3fc 100%);
+  background-clip: text;
+  color: transparent;
+}
+
+.assistantWorkspace .assistantEmptyDescription {
+  color: #a3acc7;
+}
+
+.assistantWorkspace .assistantEmptyState .assistantSuggestion {
+  border-color: rgba(167, 180, 218, 0.16);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025));
+  color: #dfe4f8;
+}
+
+.assistantWorkspace .assistantEmptyState .assistantSuggestion:hover:not(:disabled) {
+  border-color: rgba(103, 232, 249, 0.52);
+  background: linear-gradient(120deg, rgba(124, 58, 237, 0.2), rgba(8, 145, 178, 0.13));
+  color: #f6f4ff;
+  box-shadow: 0 8px 24px rgba(19, 30, 68, 0.28);
+}
+
+.assistantWorkspace .assistantEmptyState .assistantSuggestion svg {
+  color: #8b9abc;
+}
+
+.assistantWorkspace .assistantMessage {
+  border-color: rgba(167, 180, 218, 0.16);
+  border-radius: 16px;
+  color: #e9ecfb;
+  line-height: 1.65;
+}
+
+.assistantWorkspace .assistantMessage strong {
+  color: #b7c1dc;
+  font-size: 10px;
+}
+
+.assistantWorkspace .assistantMessageUser {
+  border-color: rgba(167, 139, 250, 0.38);
+  background: linear-gradient(135deg, rgba(109, 78, 196, 0.48), rgba(79, 70, 160, 0.32));
+  box-shadow: 0 8px 28px rgba(54, 41, 106, 0.16);
+}
+
+.assistantWorkspace .assistantMessageAssistant {
+  border-left: 2px solid rgba(103, 232, 249, 0.72);
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025));
+  box-shadow: 0 10px 32px rgba(4, 8, 24, 0.12);
+}
+
+.assistantWorkspace .assistantThinking {
+  color: #b5c3e3;
+}
+
+.assistantWorkspace .assistantSuggestion:hover:not(:disabled) {
+  border-color: rgba(103, 232, 249, 0.52);
+  background: linear-gradient(120deg, rgba(124, 58, 237, 0.2), rgba(8, 145, 178, 0.13));
+  color: #f6f4ff;
+}
+
+.assistantWorkspace .assistantVisualization {
+  border-top-color: rgba(167, 180, 218, 0.15);
+}
+
+.assistantWorkspace .assistantVisualization h3 {
+  color: #e4e9ff;
+}
+
+.assistantWorkspace .assistantForm {
+  border-color: rgba(167, 180, 218, 0.2);
+}
+
+.assistantWorkspace .assistantForm textarea {
+  color: #f0f3ff;
+}
+
+.assistantWorkspace .assistantForm textarea::placeholder {
+  color: #8995b5;
+}
+
+.assistantWorkspace .assistantFormFooter {
+  color: #8491b2;
+}
+
+.assistantWorkspace .assistantFormFooter button,
+.assistantWorkspace .btn.primary {
+  background: linear-gradient(135deg, #8b5cf6, #6366f1 58%, #0891b2);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.28);
+}
+
+.assistantWorkspace .assistantFormFooter button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 9px 26px rgba(99, 102, 241, 0.48);
+}
+
+.assistantWorkspace .btn.primary {
+  box-shadow: 0 5px 18px rgba(99, 102, 241, 0.24);
+}
+
+.assistantWorkspace .btn.ghost {
+  border: 1px solid rgba(167, 180, 218, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #d5dcf4;
+}
+
+.assistantWorkspace .btn:disabled {
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.assistantWorkspace .assistantSessionRenameForm input {
+  border-color: rgba(167, 180, 218, 0.22);
+  background: rgba(7, 11, 27, 0.9);
+  color: #f0f3ff;
+}
+
+.assistantWorkspace .assistantSessionRenameForm input:focus {
+  border-color: #a78bfa;
+  outline-color: rgba(167, 139, 250, 0.28);
+}
+
+.assistantWorkspace .assistantResponse .assistantAnswerError,
+.assistantWorkspace .assistantActionPreview .assistantAnswerError {
+  color: #fda4af;
+}
+
+.assistantHeader + .assistantNotice,
+.assistantNotice + .assistantNotice {
+  border-color: rgba(124, 58, 237, 0.2);
+  background: linear-gradient(110deg, rgba(124, 58, 237, 0.07), rgba(8, 145, 178, 0.05));
+}
+
+.assistantHeader + .assistantNotice {
+  max-width: 1180px;
+  margin: 0 auto 16px;
+}
+
+.assistantWorkspace .assistantResponse:focus-visible,
+.assistantWorkspace .assistantSuggestion:focus-visible,
+.assistantWorkspace .assistantForm textarea:focus-visible,
+.assistantWorkspace .assistantForm button:focus-visible {
+  outline-color: rgba(103, 232, 249, 0.72);
+}
+
+.assistantWorkspace .assistantForm {
+  border: 1px solid #303b61;
+  background: rgba(31, 39, 73, 0.82);
+  box-shadow:
+    0 12px 30px rgba(2, 6, 23, 0.28),
+    inset 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.assistantWorkspace .assistantForm:focus-within {
+  border-color: #7569d7;
+  background: rgba(35, 43, 82, 0.9);
+  box-shadow:
+    0 0 0 3px rgba(124, 92, 246, 0.12),
+    0 14px 34px rgba(2, 6, 23, 0.34),
+    inset 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.assistantWorkspace .assistantForm textarea {
+  min-height: 48px;
+  color: #f4f6ff;
+}
+
+.assistantWorkspace .assistantForm textarea::placeholder {
+  color: #8492b5;
+}
+
+.assistantWorkspace .assistantFormFooter {
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid #273252;
+  color: #8c9abb;
+}
+
+.assistantWorkspace .assistantFormFooter button {
+  min-width: 42px;
+  width: 42px;
   height: 38px;
   padding: 0;
-  border-radius: 12px;
+  border: 1px solid rgba(196, 181, 253, 0.24);
+  border-radius: 11px;
+  box-shadow: 0 5px 16px rgba(99, 102, 241, 0.26);
+}
+
+.assistantWorkspace .assistantFormFooter button span {
+  display: none;
+}
+
+.assistantWorkspace .assistantFormFooter button:hover:not(:disabled) {
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace {
+  --assistant-accent: #635bdb;
+  --assistant-accent-soft: #f0efff;
+  --assistant-grid: #e3e7f2;
+  --assistant-shadow: 0 24px 70px rgba(67, 56, 142, 0.12);
+  --text-main: #17213d;
+  --text-muted: #68748e;
+  --card-bg: rgba(255, 255, 255, 0.92);
+  --card-border: #e3e7f1;
+  --subtle-bg: #f7f8fc;
+  --surface-subtle: rgba(248, 249, 253, 0.92);
+  --input-bg: #ffffff;
+  --input-border: #dce2ef;
+  --assistant-cyan: #0891b2;
+  --assistant-lilac: #635bdb;
+  border-color: #d9dced;
+  background:
+    radial-gradient(ellipse at 86% 0%, rgba(129, 140, 248, 0.12), transparent 34%),
+    radial-gradient(ellipse at 42% 100%, rgba(34, 211, 238, 0.08), transparent 44%),
+    repeating-linear-gradient(0deg, transparent 0 39px, rgba(99, 91, 219, 0.025) 40px),
+    repeating-linear-gradient(90deg, transparent 0 39px, rgba(99, 91, 219, 0.025) 40px),
+    linear-gradient(145deg, #fbfcff 0%, #f5f7fc 55%, #f8f9ff 100%);
+  box-shadow: var(--assistant-shadow);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace > .assistantSidebar {
+  border-right-color: #e6e9f2;
+  background: linear-gradient(180deg, rgba(248, 249, 253, 0.95), rgba(241, 243, 250, 0.8));
+  color: #17213d;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantNewChat {
+  border-color: rgba(99, 91, 219, 0.24);
+  background: linear-gradient(110deg, #f1efff, #eefbfe);
+  color: #37317d;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantNewChat:hover:not(:disabled) {
+  border-color: #635bdb;
+  box-shadow: 0 8px 24px rgba(99, 91, 219, 0.14);
+  color: #4c43b6;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantNewChat svg {
+  color: #0891b2;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantSidebarHeading h2,
+html:not([data-theme="dark"]) .assistantWorkspace .assistantSidebarHint {
+  color: #78839a;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantSidebarHeading > span {
+  border-color: #e1e5ef;
+  background: #fff;
+  color: #78839a;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantSession:hover,
+html:not([data-theme="dark"]) .assistantWorkspace .assistantSession.isActive {
+  background: #eeefff;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantSession.isActive {
+  color: #5148c7;
+  box-shadow: inset 2px 0 #635bdb;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantSessionRename:hover,
+html:not([data-theme="dark"]) .assistantWorkspace .assistantSessionAction:hover {
+  background: #fff;
+  color: #0891b2;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantSessionDelete:hover {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantConversationHeader {
+  border-bottom-color: #e5e8f1;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantConversationTitle > span,
+html:not([data-theme="dark"]) .assistantWorkspace .assistantConnection {
+  color: #78839a;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantConversationTitle h2 {
+  color: #17213d;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantConnection {
+  border-color: #e1e5ef;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantConnection.isReady > span {
+  background: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantConnection.hasError > span {
+  background: #e11d48;
+  box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantActionPreview {
+  border-color: #dedcf8;
+  background: linear-gradient(135deg, #f5f3ff, #f3fbfd);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantActionPreview strong {
+  color: #37317d;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantActionPreview p {
+  color: #68748e;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantActionSuccess {
+  color: #047857;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantEmptyIcon {
+  border-color: rgba(99, 91, 219, 0.22);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(103, 232, 249, 0.3), transparent 58%),
+    linear-gradient(145deg, #e8e5ff, #e7f9fc);
+  color: #5148c7;
+  box-shadow:
+    0 0 0 7px rgba(99, 91, 219, 0.045),
+    0 14px 34px rgba(99, 91, 219, 0.16),
+    inset 0 1px rgba(255, 255, 255, 0.8);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantEmptyEyebrow,
+html:not([data-theme="dark"]) .assistantWorkspace .assistantEmptyDescription {
+  color: #68748e;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantEmptyState h2 {
+  background: linear-gradient(100deg, #17213d 20%, #5148c7 62%, #087f9b 100%);
+  background-clip: text;
+  color: transparent;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantEmptyState .assistantSuggestion {
+  border-color: #e0e4ef;
+  background: rgba(255, 255, 255, 0.76);
+  color: #303b59;
+  box-shadow: 0 4px 14px rgba(67, 56, 142, 0.035);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantEmptyState .assistantSuggestion:hover:not(:disabled),
+html:not([data-theme="dark"]) .assistantWorkspace .assistantSuggestion:hover:not(:disabled) {
+  border-color: #8b83e8;
+  background: linear-gradient(120deg, #f1efff, #edfafd);
+  color: #5148c7;
+  box-shadow: 0 8px 22px rgba(99, 91, 219, 0.12);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantEmptyState .assistantSuggestion svg {
+  color: #8792aa;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantMessage {
+  border-color: #e1e5ef;
+  color: #293653;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantMessage strong {
+  color: #75819a;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantMessageUser {
+  border-color: #d9d5fb;
+  background: linear-gradient(135deg, #f0eeff, #edf8fc);
+  box-shadow: 0 8px 24px rgba(67, 56, 142, 0.08);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantMessageAssistant {
+  border-left-color: #0891b2;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 8px 24px rgba(67, 56, 142, 0.06);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantMessageAssistant strong svg {
+  color: #0891b2;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantThinking {
+  color: #68748e;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantVisualization {
+  border-top-color: #e5e8f1;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantVisualization h3 {
+  color: #293653;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantForm {
+  border-color: #d9ddeb;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(247, 248, 253, 0.98)) padding-box,
+    linear-gradient(110deg, rgba(99, 91, 219, 0.3), rgba(8, 145, 178, 0.18)) border-box;
+  box-shadow:
+    0 14px 34px rgba(67, 56, 142, 0.1),
+    inset 0 1px rgba(255, 255, 255, 0.95);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantForm:focus-within {
+  border-color: #8178e5;
+  box-shadow:
+    0 0 0 3px rgba(99, 91, 219, 0.1),
+    0 16px 38px rgba(67, 56, 142, 0.13),
+    inset 0 1px rgba(255, 255, 255, 0.95);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantFormFooter {
+  border-top-color: #eaecf3;
+  color: #7b87a0;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantForm textarea {
+  color: #293653;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantForm textarea::placeholder {
+  color: #8792aa;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantFormFooter button,
+html:not([data-theme="dark"]) .assistantWorkspace .btn.primary {
+  background: linear-gradient(135deg, #6d63dc, #5b62d5 58%, #0786a2);
+  box-shadow: 0 6px 18px rgba(91, 98, 213, 0.24);
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantSessionRenameForm input {
+  border-color: #dce2ef;
+  background: #fff;
+  color: #293653;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .btn.ghost {
+  border-color: #dce2ef;
+  background: #f4f5fa;
+  color: #4c5870;
+}
+
+html:not([data-theme="dark"]) .assistantWorkspace .assistantResponse .assistantAnswerError,
+html:not([data-theme="dark"]) .assistantWorkspace .assistantActionPreview .assistantAnswerError {
+  color: #be123c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistantWorkspace .assistantNewChat,
+  .assistantWorkspace .assistantSuggestion,
+  .assistantWorkspace .assistantForm,
+  .assistantWorkspace .assistantFormFooter button,
+  .assistantWorkspace .assistantEmptyState .assistantSuggestion svg {
+    transition: none;
+  }
+
+  .assistantWorkspace .assistantNewChat:hover:not(:disabled),
+  .assistantWorkspace .assistantSuggestion:hover:not(:disabled),
+  .assistantWorkspace .assistantFormFooter button:hover:not(:disabled),
+  .assistantWorkspace .assistantEmptyState .assistantSuggestion:hover:not(:disabled) svg {
+    transform: none;
+  }
 }
 
 [data-theme="dark"] {
@@ -696,6 +1483,15 @@
   --assistant-accent-soft: #20294b;
   --assistant-grid: #334155;
   --assistant-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+}
+
+[data-theme="dark"] .assistantHeader h1 {
+  background-image: linear-gradient(105deg, #f8fafc 12%, #c4b5fd 62%, #a5f3fc 100%);
+}
+
+[data-theme="dark"] .assistantEyebrow,
+[data-theme="dark"] .assistantModel {
+  color: #c4b5fd;
 }
 
 [data-theme="dark"] .assistantNoticeError {
@@ -716,7 +1512,7 @@
   }
 
   .assistantModel {
-    max-width: 100%;
+    max-width: min(100%, 280px);
     overflow-wrap: anywhere;
   }
 
@@ -742,7 +1538,7 @@
     transition: none;
   }
 
-  .assistantSidebar h2 {
+  .assistantSidebarHeading {
     margin: 10px 8px 5px;
   }
 
@@ -756,12 +1552,29 @@
 
   .assistantChatPanel {
     flex: 1;
-    padding: 12px;
+    padding: 0 12px 12px;
+  }
+
+  .assistantConversationHeader {
+    min-height: 60px;
+  }
+
+  .assistantConnection {
+    gap: 6px;
+    padding: 6px 8px;
+    font-size: 10px;
   }
 
   .assistantEmptyState .assistantSuggestions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+    margin-top: 18px;
+  }
+
+  .assistantEmptyState .assistantSuggestion {
+    min-height: 46px;
+    padding: 10px 12px;
   }
 
   .assistantResponse {

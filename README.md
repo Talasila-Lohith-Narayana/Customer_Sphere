@@ -218,7 +218,35 @@ cd frontend
 npm run dev
 ```
 
+Build and run the frontend with Docker from the repository root:
+
+```bash
+docker build --build-arg VITE_API_BASE_URL=http://localhost:8000/api \
+  -f frontend/Dockerfile -t customer-sphere-frontend frontend
+docker run --rm -p 5173:80 customer-sphere-frontend
+```
+
+`VITE_API_BASE_URL` is embedded during the image build. Set it to the URL
+reachable by users' browsers, not the backend container's internal hostname.
+
 Open the frontend at `http://127.0.0.1:5173`.
+
+### Run frontend and backend together with Docker Compose
+
+Create `backend/.env` from `backend/.env.example`, configure the database and
+required authentication secrets, then run from the repository root:
+
+```bash
+docker compose build
+docker compose run --rm backend alembic upgrade head
+docker compose up
+```
+
+The frontend is available at `http://localhost:5173` and the API at
+`http://localhost:8000`. By default, the backend connects to a MySQL server on
+the host machine through `host.docker.internal`. Override `DB_HOST` if the
+database is hosted elsewhere. Set `VITE_API_BASE_URL` before `docker compose
+build` when browsers must use a non-local API URL.
 
 The backend API is available at `http://127.0.0.1:8000`, with interactive
 documentation at:

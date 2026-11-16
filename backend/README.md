@@ -68,6 +68,20 @@ Run the backend from this directory with:
 uvicorn app.main:app --reload --port 8000
 ```
 
+Build and run the backend with Docker from the repository root:
+
+```bash
+docker build -f backend/Dockerfile -t customer-sphere-api backend
+docker run --rm -p 8000:8000 --env-file backend/.env customer-sphere-api
+```
+
+Apply migrations before starting the container, or run them from a temporary
+container that uses the same image:
+
+```bash
+docker run --rm --env-file backend/.env customer-sphere-api alembic upgrade head
+```
+
 Run its tests with:
 
 ```bash

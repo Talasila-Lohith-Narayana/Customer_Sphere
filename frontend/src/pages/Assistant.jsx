@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ArrowUpRight,
   Bot,
   Check,
   MessageSquare,
@@ -331,15 +332,26 @@ export default function Assistant() {
     }
   };
 
+  const activeSession = sessions.find((session) => session.id === sessionId);
+  const connectionLabel = statusError
+    ? "Connection issue"
+    : status === null
+      ? "Checking connection"
+      : status.configured
+        ? "Ready to help"
+        : "Setup required";
+
   return (
     <Page>
       <header className="assistantHeader">
-        <div>
+        <div className="assistantHeading">
+          <p className="assistantEyebrow"><Sparkles size={14} /> CUSTOMER INTELLIGENCE</p>
           <h1>Nova</h1>
+          <p>Ask questions about your customers, sales, and campaigns.</p>
         </div>
         <span className="assistantModel">
           <Sparkles size={15} />
-          {status?.model || "Nova"}
+          <span>{status?.model || "Nova"}</span>
         </span>
       </header>
 
@@ -384,7 +396,10 @@ export default function Assistant() {
             <MessageSquarePlus size={17} />
             New chat
           </button>
-          <h2>Recent</h2>
+          <div className="assistantSidebarHeading">
+            <h2>Recent chats</h2>
+            <span>{sessions.length}</span>
+          </div>
           <div className="assistantSessionList">
             {sessions.map((session) => (
               <div
@@ -468,10 +483,27 @@ export default function Assistant() {
         </aside>
 
         <div className="assistantChatPanel" role="region" aria-label="Current conversation">
+          <div className="assistantConversationHeader">
+            <div className="assistantConversationTitle">
+              <span>Current conversation</span>
+              <h2>{activeSession?.title || "New conversation"}</h2>
+            </div>
+            <span
+              className={`assistantConnection${status?.configured && !statusError ? " isReady" : ""}${statusError ? " hasError" : ""}`}
+              aria-label={`Connection: ${connectionLabel}`}
+            >
+              <span />
+              {connectionLabel}
+            </span>
+          </div>
           {turns.length === 0 && !loading && !historyLoading && !error ? (
             <div className="assistantEmptyState">
-              <span className="assistantEmptyIcon"><Bot size={25} /></span>
+              <span className="assistantEmptyIcon"><Sparkles size={24} /></span>
+              <span className="assistantEmptyEyebrow">YOUR CUSTOMER DATA, IN CONVERSATION</span>
               <h2>What can I help with?</h2>
+              <p className="assistantEmptyDescription">
+                Ask Nova to uncover trends, compare segments, or find answers in your analytics.
+              </p>
               <div className="assistantSuggestions" aria-label="Suggested questions">
                 {suggestedQuestions.map((suggestion) => (
                   <button
@@ -481,7 +513,8 @@ export default function Assistant() {
                     disabled={!status?.configured || sessionAction}
                     onClick={() => setQuestion(suggestion)}
                   >
-                    {suggestion}
+                    <span>{suggestion}</span>
+                    <ArrowUpRight size={15} aria-hidden="true" />
                   </button>
                 ))}
               </div>
@@ -619,7 +652,7 @@ export default function Assistant() {
               disabled={!status?.configured || loading || sessionsLoading || sessionAction}
             />
             <div className="assistantFormFooter">
-              <span>{question.length}/1000</span>
+              <span className="assistantCharacterCount">{question.length} / 1000</span>
               <button
                 type="submit"
                 className="btn primary"
@@ -636,6 +669,7 @@ export default function Assistant() {
                 aria-label="Send message"
               >
                 <Send size={16} />
+                <span>Send</span>
               </button>
             </div>
           </form>
