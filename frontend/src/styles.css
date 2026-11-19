@@ -5287,6 +5287,1212 @@ em {
   animation: spin 0.8s linear infinite;
 }
 
+.publicHome {
+  --public-ink: #17233c;
+  --public-muted: #63718a;
+  --public-purple: #6254dc;
+  --public-teal: #18a99a;
+  min-height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 87% 14%, rgba(216, 229, 255, 0.5), transparent 28%),
+    #fbfcff;
+  color: var(--public-ink);
+}
+
+html.publicSmoothScroll {
+  scroll-behavior: smooth;
+  scroll-padding-top: 20px;
+}
+
+.publicNav {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  width: min(1220px, calc(100% - 64px));
+  height: 88px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 auto;
+  border-bottom: 1px solid rgba(91, 108, 139, 0.12);
+}
+
+.publicBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--public-ink);
+  text-decoration: none;
+}
+
+.publicBrand > span:last-child {
+  display: grid;
+  gap: 1px;
+}
+
+.publicBrand strong {
+  font: 700 15px "Space Grotesk", sans-serif;
+  letter-spacing: -0.035em;
+}
+
+.publicBrand small {
+  color: var(--public-muted);
+  font-size: 10px;
+  letter-spacing: 0.025em;
+}
+
+.publicBrandMark {
+  display: grid;
+  width: 39px;
+  height: 39px;
+  place-items: center;
+  border: 1px solid rgba(98, 84, 220, 0.16);
+  border-radius: 13px;
+  background: linear-gradient(145deg, #f1efff, #e8f8f6);
+  color: var(--public-purple);
+}
+
+.publicNavLinks {
+  display: flex;
+  align-items: center;
+  gap: clamp(24px, 4vw, 48px);
+}
+
+.publicNavLinks a,
+.publicFooter > a:last-child {
+  color: #53617b;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.publicNavLinks a:hover,
+.publicFooter > a:last-child:hover {
+  color: var(--public-purple);
+}
+
+.publicSignIn {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid #dfe3ef;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--public-ink);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.publicSignIn:hover {
+  transform: translateY(-1px);
+  border-color: #bdb6f3;
+  box-shadow: 0 8px 20px rgba(49, 45, 114, 0.08);
+}
+
+.publicHero {
+  position: relative;
+  display: grid;
+  width: min(1220px, calc(100% - 64px));
+  min-height: 590px;
+  grid-template-columns: minmax(0, 0.92fr) minmax(450px, 1.08fr);
+  align-items: center;
+  gap: clamp(36px, 6vw, 86px);
+  margin: 0 auto;
+  padding: 58px 0 66px;
+}
+
+.publicHeroCopy {
+  position: relative;
+  z-index: 1;
+  max-width: 555px;
+  padding: 5px 0 35px;
+}
+
+.publicTrustPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 13px;
+  border: 1px solid #e6e8f2;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #5a6680;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(32, 43, 69, 0.035);
+}
+
+.publicTrustPill > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #20b89d;
+  box-shadow: 0 0 0 4px rgba(32, 184, 157, 0.12);
+}
+
+.publicHero h1 {
+  max-width: 590px;
+  margin: 25px 0 18px;
+  color: #17233c;
+  font: 600 clamp(46px, 5vw, 62px)/1.04 "Space Grotesk", sans-serif;
+  letter-spacing: -0.075em;
+}
+
+.publicHero h1 span {
+  display: block;
+  color: transparent;
+  background: linear-gradient(105deg, #6859df 8%, #8975e9 52%, #20a999 100%);
+  background-clip: text;
+}
+
+.publicHeroLead {
+  max-width: 470px;
+  margin: 0;
+  color: var(--public-muted);
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.publicHeroActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-top: 30px;
+}
+
+.publicPrimaryCta {
+  display: inline-flex;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 19px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: linear-gradient(110deg, #5c51d7, #7363e2);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 10px 24px rgba(89, 77, 208, 0.24);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.publicPrimaryCta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(89, 77, 208, 0.3);
+}
+
+.publicSecondaryCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #596781;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.publicSecondaryCta:hover {
+  color: var(--public-purple);
+}
+
+.publicAssurance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 13px 22px;
+  margin-top: 35px;
+}
+
+.publicAssurance span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #748099;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.publicAssurance svg {
+  color: #19a892;
+}
+
+.publicHeroVisual {
+  position: relative;
+  min-width: 0;
+  height: 460px;
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  border-radius: 30px;
+  background: #c9d6e7;
+  box-shadow: 0 30px 75px rgba(32, 47, 82, 0.17);
+}
+
+.publicHeroPhoto,
+.publicPhotoOverlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.publicHeroPhoto {
+  object-fit: cover;
+  object-position: center;
+}
+
+.publicPhotoOverlay {
+  background:
+    linear-gradient(180deg, rgba(20, 32, 55, 0.03) 20%, rgba(20, 32, 55, 0.56) 100%),
+    linear-gradient(120deg, rgba(60, 53, 142, 0.12), transparent 65%);
+}
+
+.publicPhotoCaption {
+  position: absolute;
+  right: 24px;
+  bottom: 23px;
+  left: 24px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: #fff;
+}
+
+.publicCaptionIcon,
+.publicInsightIcon {
+  display: grid;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.17);
+  color: #fff;
+  backdrop-filter: blur(12px);
+}
+
+.publicPhotoCaption > span:last-child,
+.publicInsightHeading > span:nth-child(2) {
+  display: grid;
+  gap: 3px;
+}
+
+.publicPhotoCaption strong {
+  font: 600 14px "Space Grotesk", sans-serif;
+}
+
+.publicPhotoCaption small {
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 10px;
+}
+
+.publicInsightCard {
+  position: absolute;
+  top: 50%;
+  left: -44px;
+  width: min(280px, 68%);
+  padding: 17px;
+  transform: translateY(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 19px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 20px 50px rgba(24, 34, 58, 0.2);
+  backdrop-filter: blur(16px);
+}
+
+.publicInsightHeading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.publicInsightIcon {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: #efedff;
+  color: #6558d9;
+}
+
+.publicInsightHeading strong {
+  color: #27344e;
+  font-size: 10px;
+}
+
+.publicInsightHeading small {
+  color: #8691a6;
+  font-size: 8px;
+}
+
+.publicLiveDot {
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: #21b799;
+  box-shadow: 0 0 0 4px #e4f7f2;
+}
+
+.publicMetric {
+  display: grid;
+  gap: 4px;
+  margin: 20px 0 12px;
+}
+
+.publicMetric > span {
+  color: #8490a5;
+  font-size: 9px;
+}
+
+.publicMetric strong {
+  color: #27344e;
+  font: 600 17px "Space Grotesk", sans-serif;
+  letter-spacing: -0.035em;
+}
+
+.publicChart {
+  display: flex;
+  height: 72px;
+  align-items: end;
+  gap: 6px;
+  padding: 7px 0 0;
+  border-bottom: 1px solid #e9edf4;
+  background: repeating-linear-gradient(to bottom, transparent 0 22px, #eef1f6 23px);
+}
+
+.publicChart span {
+  flex: 1;
+  min-width: 0;
+  border-radius: 4px 4px 1px 1px;
+  background: linear-gradient(180deg, #8b7ee8, #c0b9f4);
+}
+
+.publicChart span:nth-child(3n) {
+  background: linear-gradient(180deg, #31bba8, #a4e2d7);
+}
+
+.publicChartLabels {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 7px;
+  color: #9aa4b5;
+  font-size: 8px;
+}
+
+.publicInsightFooter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: 9px;
+  background: #f4f3ff;
+  color: #6256ca;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.publicInsightFooter svg:last-child {
+  margin-left: auto;
+}
+
+.publicHeroFootnote {
+  position: absolute;
+  right: 0;
+  bottom: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #8994a8;
+  font-size: 10px;
+}
+
+.publicPlatform {
+  padding: 78px max(32px, calc((100% - 1220px) / 2)) 90px;
+  background: linear-gradient(180deg, #f4f6fb, #f8f9fd);
+}
+
+.publicSectionIntro {
+  max-width: 620px;
+  margin: 0 auto 36px;
+  text-align: center;
+}
+
+.publicEyebrow {
+  margin: 0 0 12px;
+  color: #7164d7;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.17em;
+}
+
+.publicSectionIntro h2,
+.publicClarity h2 {
+  margin: 0;
+  color: #202c45;
+  font: 600 clamp(30px, 4vw, 43px)/1.1 "Space Grotesk", sans-serif;
+  letter-spacing: -0.055em;
+}
+
+.publicSectionIntro > p:last-child {
+  max-width: 520px;
+  margin: 13px auto 0;
+  color: var(--public-muted);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.publicFeatureGrid {
+  display: grid;
+  max-width: 1220px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0 auto;
+}
+
+.publicFeatureCard {
+  position: relative;
+  min-height: 205px;
+  padding: 24px;
+  border: 1px solid #e8ebf3;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 8px 22px rgba(28, 41, 69, 0.035);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.publicFeatureCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 32px rgba(28, 41, 69, 0.08);
+}
+
+.publicFeatureIcon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 13px;
+  background: #efedff;
+  color: #6658d9;
+}
+
+.publicFeatureIcon2 {
+  background: #e8f7f4;
+  color: #178f83;
+}
+
+.publicFeatureIcon3 {
+  background: #fff2e8;
+  color: #ce7b42;
+}
+
+.publicFeatureCard h3 {
+  margin: 19px 0 7px;
+  color: #293650;
+  font: 600 17px "Space Grotesk", sans-serif;
+  letter-spacing: -0.025em;
+}
+
+.publicFeatureCard p {
+  max-width: 310px;
+  margin: 0;
+  color: #738098;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.publicFeatureArrow {
+  position: absolute;
+  top: 25px;
+  right: 24px;
+  color: #a4adc0;
+}
+
+.publicExplore {
+  max-width: 1284px;
+  margin: 0 auto;
+  padding: 92px 32px 98px;
+}
+
+.publicExploreIntro {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 30px;
+  margin-bottom: 32px;
+}
+
+.publicExploreIntro > div {
+  max-width: 600px;
+}
+
+.publicExploreIntro h2 {
+  margin: 0;
+  color: #202c45;
+  font: 600 clamp(31px, 4vw, 43px)/1.08 "Space Grotesk", sans-serif;
+  letter-spacing: -0.055em;
+}
+
+.publicExploreIntro > p {
+  max-width: 360px;
+  margin: 0 0 3px;
+  color: var(--public-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.publicProductGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.publicProductCard {
+  display: flex;
+  min-height: 224px;
+  flex-direction: column;
+  padding: 19px;
+  border: 1px solid #e8ebf3;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(28, 41, 69, 0.035);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.publicProductCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 15px 32px rgba(28, 41, 69, 0.08);
+}
+
+.publicProductTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.publicProductIcon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 12px;
+  background: #efedff;
+  color: #6658d9;
+}
+
+.publicProductLabel {
+  color: #8994a8;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+
+.publicProductCard-teal .publicProductIcon {
+  background: #e8f7f4;
+  color: #178f83;
+}
+
+.publicProductCard-amber .publicProductIcon {
+  background: #fff2e8;
+  color: #ce7b42;
+}
+
+.publicProductCard-blue .publicProductIcon {
+  background: #eaf2ff;
+  color: #4a78c4;
+}
+
+.publicProductCard h3 {
+  margin: 20px 0 7px;
+  color: #293650;
+  font: 600 16px "Space Grotesk", sans-serif;
+  letter-spacing: -0.025em;
+}
+
+.publicProductCard p {
+  margin: 0 0 18px;
+  color: #738098;
+  font-size: 10px;
+  line-height: 1.75;
+}
+
+.publicProductLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  color: #6558d2;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.publicInsightShowcase {
+  display: grid;
+  min-height: 390px;
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
+  align-items: center;
+  gap: 55px;
+  margin-top: 82px;
+  padding: 35px 0 20px;
+}
+
+.publicShowcaseCopy {
+  padding: 12px 0;
+}
+
+.publicShowcaseCopy h3 {
+  max-width: 500px;
+  margin: 0;
+  color: #202c45;
+  font: 600 clamp(28px, 3.2vw, 38px)/1.12 "Space Grotesk", sans-serif;
+  letter-spacing: -0.05em;
+}
+
+.publicShowcaseCopy > p:not(.publicEyebrow) {
+  max-width: 450px;
+  margin: 13px 0 18px;
+  color: var(--public-muted);
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.publicShowcaseCopy ul {
+  display: grid;
+  gap: 11px;
+  margin: 0 0 23px;
+  padding: 0;
+  list-style: none;
+}
+
+.publicShowcaseCopy li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #53617b;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.publicShowcaseCopy li svg {
+  flex: 0 0 auto;
+  color: #1aa48f;
+}
+
+.publicTextLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #6254d4;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.publicTextLink:hover {
+  color: #4337a8;
+}
+
+.publicShowcaseVisual {
+  position: relative;
+  min-height: 350px;
+  overflow: hidden;
+  border: 1px solid #e6eaf1;
+  border-radius: 24px;
+  background: #d3dae7;
+  box-shadow: 0 24px 60px rgba(30, 45, 75, 0.14);
+}
+
+.publicShowcaseVisual > img,
+.publicShowcaseShade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.publicShowcaseVisual > img {
+  object-fit: cover;
+  object-position: center;
+}
+
+.publicShowcaseShade {
+  background: linear-gradient(115deg, rgba(22, 32, 57, 0.18), transparent 58%),
+    linear-gradient(0deg, rgba(22, 32, 57, 0.66), transparent 62%);
+}
+
+.publicShowcaseBadge {
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 28px rgba(24, 34, 58, 0.15);
+  backdrop-filter: blur(12px);
+}
+
+.publicShowcaseBadgeIcon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 10px;
+  background: #e8f7f4;
+  color: #168f83;
+}
+
+.publicShowcaseBadge > span:last-child {
+  display: grid;
+  gap: 3px;
+}
+
+.publicShowcaseBadge strong {
+  color: #293650;
+  font-size: 9px;
+}
+
+.publicShowcaseBadge small {
+  color: #76839a;
+  font-size: 8px;
+}
+
+.publicShowcaseNote {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.publicShowcaseNote svg {
+  color: #a9f0dd;
+}
+
+.publicJourney {
+  padding: 80px 32px 85px;
+  background: linear-gradient(180deg, #f3f5fa, #f8f9fc);
+}
+
+.publicJourney .publicSectionIntro {
+  max-width: 680px;
+}
+
+.publicJourneySteps {
+  display: grid;
+  max-width: 1160px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 0 auto;
+}
+
+.publicJourneyStep {
+  position: relative;
+  min-height: 190px;
+  padding: 23px 24px;
+  border: 1px solid #e5e9f1;
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.publicStepNumber {
+  position: absolute;
+  top: 22px;
+  right: 23px;
+  color: #b0b8c7;
+  font: 600 12px "Space Grotesk", sans-serif;
+  letter-spacing: 0.06em;
+}
+
+.publicStepIcon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 12px;
+  background: #efedff;
+  color: #6658d9;
+}
+
+.publicJourneyStep:nth-child(2) .publicStepIcon {
+  background: #e8f7f4;
+  color: #178f83;
+}
+
+.publicJourneyStep:nth-child(3) .publicStepIcon {
+  background: #fff2e8;
+  color: #ce7b42;
+}
+
+.publicJourneyStep h3 {
+  margin: 19px 0 6px;
+  color: #293650;
+  font: 600 15px "Space Grotesk", sans-serif;
+}
+
+.publicJourneyStep p {
+  max-width: 300px;
+  margin: 0;
+  color: #738098;
+  font-size: 10px;
+  line-height: 1.75;
+}
+
+.publicClarity {
+  display: flex;
+  max-width: 1220px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+  margin: 0 auto;
+  padding: 76px 0;
+}
+
+.publicClarity > div {
+  max-width: 640px;
+}
+
+.publicClarity h2 {
+  max-width: 590px;
+  font-size: clamp(29px, 3.5vw, 38px);
+}
+
+.publicClarity > div > p:last-child {
+  max-width: 540px;
+  margin: 13px 0 0;
+  color: var(--public-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.publicClarity .publicPrimaryCta {
+  flex: 0 0 auto;
+}
+
+.publicFooter {
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px max(32px, calc((100% - 1220px) / 2));
+  border-top: 1px solid #e9ecf2;
+}
+
+.publicFooter .publicBrandMark {
+  width: 31px;
+  height: 31px;
+  border-radius: 10px;
+}
+
+.publicFooter .publicBrand strong {
+  font-size: 12px;
+}
+
+.publicFooter > span {
+  color: #8994a8;
+  font-size: 10px;
+}
+
+.publicFooter > a:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+[data-theme="dark"] .publicHome {
+  --public-ink: #edf2ff;
+  --public-muted: #a2aec3;
+  background: #0c1220;
+  color: #edf2ff;
+}
+
+[data-theme="dark"] .publicNav {
+  border-color: rgba(162, 174, 195, 0.15);
+}
+
+[data-theme="dark"] .publicBrand,
+[data-theme="dark"] .publicHero h1,
+[data-theme="dark"] .publicSectionIntro h2,
+[data-theme="dark"] .publicClarity h2 {
+  color: #edf2ff;
+}
+
+[data-theme="dark"] .publicBrand small,
+[data-theme="dark"] .publicNavLinks a,
+[data-theme="dark"] .publicFooter > a:last-child {
+  color: #a2aec3;
+}
+
+[data-theme="dark"] .publicBrandMark {
+  background: linear-gradient(145deg, #262448, #16363a);
+}
+
+[data-theme="dark"] .publicSignIn,
+[data-theme="dark"] .publicTrustPill {
+  border-color: #303b50;
+  background: #151e30;
+  color: #e5eafa;
+}
+
+[data-theme="dark"] .publicPlatform {
+  background: #101827;
+}
+
+[data-theme="dark"] .publicFeatureCard {
+  border-color: #2a354a;
+  background: #151e30;
+}
+
+[data-theme="dark"] .publicFeatureCard h3 {
+  color: #e5eafa;
+}
+
+[data-theme="dark"] .publicExploreIntro h2,
+[data-theme="dark"] .publicShowcaseCopy h3,
+[data-theme="dark"] .publicProductCard h3,
+[data-theme="dark"] .publicJourneyStep h3 {
+  color: #edf2ff;
+}
+
+[data-theme="dark"] .publicProductCard,
+[data-theme="dark"] .publicJourneyStep {
+  border-color: #2a354a;
+  background: #151e30;
+}
+
+[data-theme="dark"] .publicProductLabel,
+[data-theme="dark"] .publicProductCard p,
+[data-theme="dark"] .publicShowcaseCopy li,
+[data-theme="dark"] .publicJourneyStep p {
+  color: #a2aec3;
+}
+
+[data-theme="dark"] .publicJourney {
+  background: #101827;
+}
+
+[data-theme="dark"] .publicFooter {
+  border-color: #283347;
+}
+
+.publicHome a:focus-visible {
+  outline: 3px solid #21b89f;
+  outline-offset: 4px;
+}
+
+@media (max-width: 900px) {
+  .publicHero {
+    min-height: 520px;
+    grid-template-columns: minmax(0, 0.92fr) minmax(360px, 1.08fr);
+    gap: 32px;
+  }
+
+  .publicHero h1 {
+    font-size: clamp(43px, 5.4vw, 56px);
+  }
+
+  .publicHeroVisual {
+    height: 400px;
+  }
+
+  .publicInsightCard {
+    left: -28px;
+    width: min(260px, 72%);
+  }
+
+  .publicClarity {
+    width: calc(100% - 64px);
+  }
+
+  .publicProductGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .publicInsightShowcase {
+    gap: 30px;
+  }
+}
+
+@media (max-width: 1050px) and (min-width: 681px) {
+  .publicHero {
+    gap: 32px;
+    grid-template-columns: minmax(0, 0.92fr) minmax(360px, 1.08fr);
+  }
+}
+
+@media (max-width: 680px) {
+  .publicNav {
+    width: calc(100% - 36px);
+    height: 72px;
+  }
+
+  .publicNavLinks {
+    display: none;
+  }
+
+  .publicSignIn {
+    min-height: 39px;
+    padding: 0 12px;
+  }
+
+  .publicHero {
+    width: calc(100% - 36px);
+    grid-template-columns: 1fr;
+    gap: 22px;
+    padding: 47px 0 62px;
+  }
+
+  .publicHeroCopy {
+    padding: 0;
+  }
+
+  .publicHero h1 {
+    max-width: 500px;
+    margin-top: 22px;
+    font-size: clamp(48px, 13vw, 70px);
+  }
+
+  .publicHeroLead {
+    font-size: 13px;
+  }
+
+  .publicHeroVisual {
+    height: 360px;
+    margin: 7px 0 0 22px;
+  }
+
+  .publicInsightCard {
+    left: -24px;
+    width: min(250px, 73%);
+    padding: 14px;
+  }
+
+  .publicAssurance {
+    margin-top: 25px;
+  }
+
+  .publicHeroFootnote {
+    right: 0;
+    bottom: 22px;
+    font-size: 9px;
+  }
+
+  .publicPlatform {
+    padding: 60px 18px;
+  }
+
+  .publicSectionIntro {
+    margin-bottom: 27px;
+  }
+
+  .publicSectionIntro h2 {
+    font-size: 32px;
+  }
+
+  .publicFeatureGrid {
+    max-width: 460px;
+    grid-template-columns: 1fr;
+  }
+
+  .publicFeatureCard {
+    min-height: 175px;
+  }
+
+  .publicExplore {
+    padding: 64px 18px 68px;
+  }
+
+  .publicExploreIntro {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 11px;
+    margin-bottom: 24px;
+  }
+
+  .publicExploreIntro h2 {
+    font-size: 32px;
+  }
+
+  .publicProductGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .publicProductCard {
+    min-height: 190px;
+  }
+
+  .publicInsightShowcase {
+    grid-template-columns: 1fr;
+    gap: 25px;
+    margin-top: 45px;
+    padding-top: 10px;
+  }
+
+  .publicShowcaseVisual {
+    min-height: 300px;
+  }
+
+  .publicJourney {
+    padding: 60px 18px;
+  }
+
+  .publicJourneySteps {
+    max-width: 460px;
+    grid-template-columns: 1fr;
+  }
+
+  .publicJourneyStep {
+    min-height: 170px;
+  }
+
+  .publicClarity {
+    width: calc(100% - 36px);
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 58px 0;
+  }
+
+  .publicFooter {
+    flex-wrap: wrap;
+    padding: 16px 18px;
+  }
+
+  .publicFooter > span {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.publicSmoothScroll {
+    scroll-behavior: auto;
+  }
+
+  .publicHome *,
+  .publicHome *::before,
+  .publicHome *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
 .apiError:focus-visible {
   outline: 2px solid #a13f3f;
   outline-offset: 2px;

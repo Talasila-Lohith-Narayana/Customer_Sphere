@@ -231,7 +231,7 @@ export default function Shell() {
         <small>WORKSPACE</small>
         
         {canAccess("dashboard") && (
-          <NavLink to="/" end title="Dashboard">
+          <NavLink to="/dashboard" end title="Dashboard">
             <LayoutDashboard size={17} />
             <span>Dashboard</span>
           </NavLink>

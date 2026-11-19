@@ -195,6 +195,23 @@ def test_deterministic_order_frequency_answer_uses_database_value():
     assert answer == "93,099 customers have exactly 1 order."
 
 
+def test_delivery_time_question_has_intent_and_deterministic_answer():
+    question = "How many orders are delivered in less than 5 days?"
+
+    intent = service.extract_analytics_intent(question)
+    assert intent["metric"] == "orders_by_delivery_time"
+    assert intent["filters"]["delivery_days"] == {"operator": "<", "value": 5}
+    assert service._delivery_time_filter(question) == ("<", 5)
+    assert "delivery" in service.select_analytics_domains(question)
+    assert service.should_generate_sql(question, {"delivery", "sales"}) is False
+
+    answer = service.deterministic_analytics_answer(
+        question,
+        {"orders_by_delivery_time": {"order_count": 1234}},
+    )
+    assert answer == "1,234 delivered orders arrived in less than 5 days."
+
+
 def test_analytics_follow_up_reuses_previous_subject_and_metric():
     history = [
         {

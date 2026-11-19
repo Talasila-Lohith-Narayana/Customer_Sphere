@@ -21,7 +21,7 @@ export default function Login() {
   }, [error]);
 
   // If already logged in, redirect directly to dashboard
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 async function submit(event) {
     event.preventDefault();
     setError("");
@@ -33,7 +33,7 @@ async function submit(event) {
     try {
       const session = await authService.login(form);
       login(session);
-      navigate("/");
+      navigate("/dashboard");
     } catch (requestError) {
       setError(requestError.message || "Unable to sign in. Please try again.");
     } finally {

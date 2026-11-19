@@ -126,6 +126,8 @@ def is_configured() -> bool:
 def should_generate_sql(question: str, domains: set[str]) -> bool:
     if customer_id_candidates(question):
         return False
+    if _delivery_time_filter(question):
+        return False
     if not domains:
         return False
     if (
@@ -483,6 +485,23 @@ def _payment_type_filter(question: str) -> str | None:
     return None
 
 
+def _delivery_time_filter(question: str) -> tuple[str, int] | None:
+    patterns = (
+        (r"\b(?:less than|fewer than|under|below)\s+(\d+(?:\.\d+)?)\s+(?:calendar\s+)?days?\b", "<"),
+        (r"\b(?:at most|up to|no more than)\s+(\d+(?:\.\d+)?)\s+(?:calendar\s+)?days?\b", "<="),
+        (r"\b(?:more than|over|above)\s+(\d+(?:\.\d+)?)\s+(?:calendar\s+)?days?\b", ">"),
+        (r"\b(?:at least|minimum of)\s+(\d+(?:\.\d+)?)\s+(?:calendar\s+)?days?\b", ">="),
+        (r"\b(?:exactly|equal to)\s+(\d+(?:\.\d+)?)\s+(?:calendar\s+)?days?\b", "="),
+    )
+    for pattern, operator in patterns:
+        match = re.search(pattern, question, re.I)
+        if match:
+            value = match.group(1)
+            threshold = int(float(value)) if float(value).is_integer() else float(value)
+            return operator, threshold
+    return None
+
+
 def _date_filter(question: str) -> tuple[datetime, datetime, str] | None:
     query = question.casefold()
     now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -631,6 +650,11 @@ def select_analytics_domains(question: str) -> set[str]:
     query = question.casefold()
     domains = set()
 
+    if _delivery_time_filter(question) or re.search(
+        r"\b(deliver(?:ed|y|ies|ing)?|shipping(?: time)?|time to delivery)\b",
+        query,
+    ):
+        domains.add("delivery")
     if re.search(
         r"\b(revenue|sales?|orders?|aov|average order|monthly|trend|growth|"
         r"purchase|bought|buying|repeat|frequent|spent|spending|payment|"
@@ -788,9 +812,24 @@ def extract_analytics_intent(question: str) -> dict[str, Any] | None:
     installment_filter = _installment_filter(question)
     rating_filter = _rating_filter(question)
     date_filter = _date_filter(question)
+    delivery_filter = _delivery_time_filter(question)
     category = _product_category_filter(question)
     product_id = _product_id_filter(question)
 
+    if delivery_filter and re.search(
+        r"\b(?:delivered?|delivery|ship(?:ped|ping)?|arrived?)\b",
+        query,
+    ):
+        operator, value = delivery_filter
+        return {
+            "subject": "order",
+            "operation": "count",
+            "metric": "orders_by_delivery_time",
+            "filters": {
+                "delivery_days": {"operator": operator, "value": value},
+                **({"period": date_filter[2]} if date_filter else {}),
+            },
+        }
     if order_filter:
         operator, value = order_filter
         return {
@@ -903,6 +942,8 @@ def analytics_metadata(
         definition = "Revenue is the sum of payment_value grouped by purchase month."
     elif intent and intent["metric"] == "product_category_revenue":
         definition = "Categories are ranked by cached total revenue."
+    elif intent and intent["metric"] == "orders_by_delivery_time":
+        definition = context.get("orders_by_delivery_time_definition")
     elif intent and intent["filters"].get("period"):
         definition = context.get("sales_summary_definition") or definition
 
@@ -926,6 +967,22 @@ def deterministic_analytics_answer(
     context: dict[str, Any],
 ) -> str | None:
     intent = extract_analytics_intent(question)
+    delivery = context.get("orders_by_delivery_time")
+    if intent and intent["metric"] == "orders_by_delivery_time" and delivery:
+        count = delivery.get("order_count")
+        if count is not None:
+            delivery_filter = intent["filters"]["delivery_days"]
+            operator = delivery_filter["operator"]
+            threshold = delivery_filter["value"]
+            descriptions = {
+                "<": f"in less than {threshold:g} days",
+                "<=": f"in at most {threshold:g} days",
+                ">": f"in more than {threshold:g} days",
+                ">=": f"in at least {threshold:g} days",
+                "=": f"in exactly {threshold:g} days",
+            }
+            return f"{int(count):,} delivered orders arrived {descriptions[operator]}."
+
     frequency = context.get("customer_order_frequency")
     if not intent or intent["metric"] != "customers_by_order_count" or not frequency:
         return None
@@ -1068,8 +1125,41 @@ def load_analytics_context(
     context: dict[str, Any] = {}
     date_filter = _date_filter(question)
     date_label = date_filter[2] if date_filter else None
+    delivery_filter = _delivery_time_filter(question)
 
     started_at = datetime.now(timezone.utc)
+    if "delivery" in domains and delivery_filter:
+        date_clause, date_parameters = _order_date_clause("o", date_filter)
+        operator, threshold = delivery_filter
+        comparison = {
+            "<": "<",
+            "<=": "<=",
+            ">": ">",
+            ">=": ">=",
+            "=": "=",
+        }[operator]
+        parameters = {
+            **date_parameters,
+            "delivery_threshold": threshold,
+        }
+        context["orders_by_delivery_time"] = _records(
+            db,
+            f"""
+            SELECT COUNT(DISTINCT o.order_id) AS order_count
+            FROM orders o
+            WHERE o.order_status = 'delivered'
+              AND o.order_purchase_timestamp IS NOT NULL
+              AND o.order_delivered_customer_date IS NOT NULL
+              AND DATEDIFF(o.order_delivered_customer_date,
+                            o.order_purchase_timestamp) {comparison} :delivery_threshold
+              {date_clause}
+            """,
+            parameters=parameters,
+        )[0]
+        context["orders_by_delivery_time_definition"] = (
+            "Distinct delivered orders whose delivery date minus purchase timestamp "
+            "is within the requested day range."
+        )
     if "customers" in domains:
         context["customer_summary"] = _records(
             db,

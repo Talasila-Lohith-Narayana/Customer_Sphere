@@ -23,6 +23,12 @@ const Campaigns = lazy(() => import("./pages/Campaigns"));
 const Model = lazy(() => import("./pages/Model"));
 const Users = lazy(() => import("./pages/Users"));
 const Login = lazy(() => import("./pages/Login"));
+const Landing = lazy(() => import("./pages/Landing"));
+
+function HomeRoute() {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Landing />;
+}
 
 function AdminRoute() {
   const { isAdmin } = useAuth();
@@ -44,14 +50,14 @@ function App() {
             <ErrorBoundary>
               <Suspense fallback={<LoadingState text="Loading workspace..." />}>
                 <Routes>
-                  {/* Public authentication route */}
+                  <Route index element={<HomeRoute />} />
                   <Route path="/login" element={<Login />} />
 
                   {/* Authenticated routes guarded by ProtectedRoute & wrapped in Shell layout */}
                   <Route element={<ProtectedRoute />}>
                     <Route element={<Shell />}>
                       <Route element={<AccessRoute page="dashboard" />}>
-                        <Route index element={<Dashboard />} />
+                        <Route path="dashboard" element={<Dashboard />} />
                       </Route>
                       <Route element={<AccessRoute page="customers" />}>
                         <Route path="customers" element={<Customers />} />

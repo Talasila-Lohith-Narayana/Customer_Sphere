@@ -107,7 +107,7 @@ describe("Login Page Component", () => {
         username: "admin",
         role: "admin",
       });
-      expect(mockNavigate).toHaveBeenCalledWith("/");
+      expect(mockNavigate).toHaveBeenCalledWith("/dashboard");
     });
   });
 

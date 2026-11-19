@@ -17,7 +17,7 @@ export const DEFAULT_VIEWER_ACCESS = [
 ];
 
 export const ACCESS_PAGE_PATHS = [
-  { key: "dashboard", path: "/" },
+  { key: "dashboard", path: "/dashboard" },
   { key: "customers", path: "/customers" },
   { key: "products", path: "/products" },
   { key: "analytics", path: "/analytics" },
