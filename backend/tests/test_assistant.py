@@ -58,6 +58,8 @@ def test_assistant_trims_chat_session_title():
         ("How many buyers have at least 5 orders?", (">=", 5)),
         ("Customers with fewer than 3 orders", ("<", 3)),
         ("Customers with exactly 2 orders", ("=", 2)),
+        ("How many have exactly one order?", ("=", 1)),
+        ("How many have exactly 2?", ("=", 2)),
     ],
 )
 def test_order_frequency_filter_parses_thresholds(question, expected):
@@ -98,6 +100,24 @@ def test_payment_type_filter_parses_supported_methods(question, expected):
 def test_payment_count_question_selects_customer_domain():
     assert "customers" in service.select_analytics_domains(
         "How many used a credit card?"
+    )
+
+
+def test_implied_customer_order_question_selects_customer_domain():
+    question = "How many have exactly one order?"
+
+    assert "customers" in service.select_analytics_domains(question)
+    assert service.extract_analytics_intent(question)["filters"]["order_count"] == {
+        "operator": "=",
+        "value": 1,
+    }
+
+
+def test_implied_exact_order_question_is_not_parsed_as_review_rating():
+    question = "How many have exactly 2?"
+
+    assert service.extract_analytics_intent(question)["metric"] == (
+        "customers_by_order_count"
     )
 
 
@@ -164,6 +184,15 @@ def test_analytics_metadata_includes_metric_definition_and_freshness():
     assert metadata["metric_definition"] == "Distinct customers with more than 10 orders."
     assert metadata["data_as_of"].tzinfo is not None
     assert metadata["warnings"] == []
+
+
+def test_deterministic_order_frequency_answer_uses_database_value():
+    answer = service.deterministic_analytics_answer(
+        "How many have exactly one order?",
+        {"customer_order_frequency": {"customer_count": 93099}},
+    )
+
+    assert answer == "93,099 customers have exactly 1 order."
 
 
 def test_analytics_follow_up_reuses_previous_subject_and_metric():
@@ -257,6 +286,23 @@ def test_generated_sql_is_read_only_bounded_and_parameterized():
     assert parameters == {"state": "SP"}
 
 
+@pytest.mark.parametrize(
+    "content",
+    [
+        '{"sql":"SELECT customer_city FROM customers","parameters":{}}',
+        '```json\n{"sql":"SELECT customer_city FROM customers","parameters":{}}\n```',
+        'Here is the query:\n{"sql":"SELECT customer_city FROM customers","parameters":{}}',
+        '{"sql":"SELECT customer_city FROM customers","parameters":{}}\n```',
+        [{"type": "output_text", "text": '{"sql":"SELECT customer_city FROM customers","parameters":{}}'}],
+    ],
+)
+def test_generated_sql_parser_accepts_provider_json_formats(content):
+    query, parameters = service._parse_generated_sql_payload(content)
+
+    assert query == "SELECT customer_city FROM customers"
+    assert parameters == {}
+
+
 def test_generated_sql_executes_only_validated_query():
     calls = []
 
@@ -276,6 +322,208 @@ def test_generated_sql_executes_only_validated_query():
         monkeypatch.undo()
     assert rows == [{"customer_state": "SP", "total": 2}]
     assert calls[0][1] == service.GENERATED_SQL_MAX_ROWS
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "What is the customer's city?",
+        "Show order delivery dates",
+        "Which sellers are associated with the orders?",
+    ],
+)
+def test_unmapped_business_details_use_read_only_sql_planner(question):
+    domains = service.select_analytics_domains(question)
+
+    assert service.should_generate_sql(question, domains)
+
+
+def test_ambiguous_product_buyer_question_uses_relationship_context():
+    question = "How many customers bought cool stuff?"
+    domains = service.select_analytics_domains(question)
+
+    assert "relationships" in domains
+    assert not service.should_generate_sql(question, domains)
+
+
+def test_broad_product_buyer_answer_uses_all_products_aggregate():
+    answer = service._broad_product_buyer_answer(
+        "How many customers bought cool stuff?",
+        {"customers_who_bought_products": {"customer_count": 12345}},
+    )
+
+    assert answer == (
+        "12,345 customers purchased products. "
+        "I interpreted the request as all products because no exact category "
+        "or product name was specified."
+    )
+
+
+def test_review_detail_answer_lists_matching_reviewers():
+    answer = service._review_detail_answer(
+        "Who gave 1 star?",
+        {
+            "review_details": [
+                {"customer_unique_id": "customer-a", "review_score": 1},
+                {"customer_unique_id": "customer-b", "review_score": 1},
+            ]
+        },
+    )
+
+    assert answer == "The matching reviewers are: customer-a, customer-b."
+
+
+def test_who_gave_star_question_parses_rating_filter():
+    assert service._rating_filter("Who gave 1 star?") == ("=", 1)
+
+
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("How many 1 star reviews contain the word bad?", ("=", 1)),
+        ("How many 5-star reviews contain the word bad?", ("=", 5)),
+    ],
+)
+def test_star_review_questions_parse_rating_filter(question, expected):
+    assert service._rating_filter(question) == expected
+
+
+def test_review_detail_answer_checks_review_word():
+    answer = service._review_detail_answer(
+        "Did their review include the word broken?",
+        {
+            "review_details": [
+                {
+                    "customer_unique_id": "customer-a",
+                    "review_comment_message": "The item is broken.",
+                }
+            ]
+        },
+    )
+
+    assert answer == "Yes. 1 available review contains the word 'broken'."
+
+
+def test_review_follow_up_preserves_previous_filters_for_customer_ids():
+    history = [
+        {
+            "question": "How many 5 star reviews contain the word bad?",
+            "answer": "Yes. 46 reviews contain the word 'bad'.",
+        }
+    ]
+
+    resolved = service.resolve_analytics_question(
+        "Can you give me their customer IDs?",
+        history,
+    )
+
+    assert "5 star reviews" in resolved
+    assert "word bad" in resolved
+    assert service._rating_filter(resolved) == ("=", 5)
+    assert service._review_text_term(resolved) == "bad"
+
+
+def test_possessive_customer_ids_are_not_parsed_as_customer_id_s():
+    question = "Can you give me their customer ID's?"
+
+    assert service.customer_id_candidates(question) == []
+
+
+def test_customer_id_prefix_is_parsed_and_formatted():
+    question = "Customer IDs starting with L"
+
+    assert service.customer_id_prefix(question) == "L"
+    assert service.customer_id_prefix("Customer ID's starting with i") == "i"
+    assert service.customer_id_prefix("Customer ID starting with Q") == "Q"
+    assert service.customer_id_prefix_answer(
+        question,
+        2,
+        ["L-001", "L-002"],
+    ) == "2 customer IDs start with 'L': L-001, L-002."
+
+
+def test_customer_prefix_short_follow_up_reuses_previous_topic():
+    history = [
+        {
+            "question": "Customer IDs starting with Z",
+            "answer": "No customer IDs start with 'Z'.",
+        }
+    ]
+
+    assert service.resolve_customer_prefix_follow_up("what about i", history) == (
+        "Customer IDs starting with i"
+    )
+
+
+def test_review_detail_answer_lists_ids_for_id_follow_up():
+    answer = service._review_detail_answer(
+        "How many 5 star reviews contain the word bad? Can you give me their customer IDs?",
+        {
+            "review_details": [
+                {"customer_unique_id": "customer-a"},
+                {"customer_unique_id": "customer-b"},
+            ]
+        },
+    )
+
+    assert answer == "The matching reviewers are: customer-a, customer-b."
+
+
+def test_review_word_answer_uses_exact_count_not_detail_row_limit():
+    answer = service._review_detail_answer(
+        "Did their review include the word bad?",
+        {
+            "review_text_match_count": {"review_count": 2387},
+            "review_details": [],
+        },
+    )
+
+    assert answer == "Yes. 2,387 available reviews contain the word 'bad'."
+
+
+def test_supported_metric_keeps_using_specialized_context():
+    question = "How many customers are in the state SP?"
+
+    assert not service.should_generate_sql(
+        question,
+        service.select_analytics_domains(question),
+    )
+
+
+def test_generated_sql_catalog_includes_business_detail_fields():
+    assert "customer_zip_code_prefix" in service.GENERATED_SQL_CATALOG["customers"]
+    assert "order_delivered_customer_date" in service.GENERATED_SQL_CATALOG["orders"]
+    assert "review_comment_message" in service.GENERATED_SQL_CATALOG["order_reviews"]
+
+
+def test_readable_sql_catalog_excludes_auth_tables_and_columns(monkeypatch):
+    class FakeInspector:
+        def get_table_names(self):
+            return ["orders", "ci_users", "customer_notes"]
+
+        def get_columns(self, table_name):
+            return {
+                "orders": [
+                    {"name": "order_id"},
+                    {"name": "customer_id"},
+                ],
+                "ci_users": [
+                    {"name": "username"},
+                    {"name": "password_hash"},
+                ],
+                "customer_notes": [
+                    {"name": "note"},
+                    {"name": "email"},
+                ],
+            }[table_name]
+
+    monkeypatch.setattr(service, "inspect", lambda bind: FakeInspector())
+    catalog = service.readable_sql_catalog(type("Database", (), {"get_bind": lambda self: object()})())
+
+    assert catalog == {
+        "orders": ["order_id", "customer_id"],
+        "customer_notes": ["note"],
+    }
 
 
 def test_order_threshold_customer_question_loads_cohort_context(monkeypatch):

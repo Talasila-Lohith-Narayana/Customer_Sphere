@@ -720,7 +720,14 @@ async def ask_assistant(
                 confirmed_action_id=action_id,
             )
 
-    analytics_question = service.resolve_analytics_question(payload.question, history)
+    customer_context_question = service.resolve_customer_prefix_follow_up(
+        payload.question,
+        history,
+    )
+    analytics_question = service.resolve_analytics_question(
+        customer_context_question,
+        history,
+    )
     domains = service.select_analytics_domains(analytics_question)
     use_generated_sql = service.should_generate_sql(analytics_question, domains)
     action_intent = None
@@ -757,8 +764,8 @@ async def ask_assistant(
         not product_relationship_question
         and
         service.customer_id_candidates(customer_lookup_question)
-        and current_user["role"] != "admin"
-        and "customers" not in current_user["access_pages"]
+        and current_user.get("role") != "admin"
+        and "customers" not in current_user.get("access_pages", [])
     ):
         raise HTTPException(
             status_code=403,
@@ -778,12 +785,22 @@ async def ask_assistant(
             detail="Customer information is temporarily unavailable.",
         ) from exc
 
+    payload_candidates = service.customer_id_candidates(payload.question)
+    bare_payload_identifier = bool(
+        re.fullmatch(
+            r"\s*['\"]?[A-Za-z][A-Za-z0-9_-]{1,63}['\"]?\s*[?.!]?\s*",
+            payload.question,
+        )
+    )
     if (
         not product_relationship_question
         and
         not customer_id
-        and service.customer_id_candidates(payload.question)
-        and service.refers_to_customer(payload.question)
+        and payload_candidates
+        and (
+            service.refers_to_customer(payload.question)
+            or bare_payload_identifier
+        )
     ):
         answer = "I couldn't find a customer with the ID you provided. Please check the ID and try again."
         await run_in_threadpool(
@@ -858,17 +875,53 @@ async def ask_assistant(
             ),
         )
 
+    customer_prefix = service.customer_id_prefix(analytics_question)
+    if customer_prefix:
+        try:
+            prefix_total, prefix_ids = await run_in_threadpool(
+                service.load_customer_ids_by_prefix,
+                db,
+                customer_prefix,
+            )
+        except SQLAlchemyError as exc:
+            logger.exception("Could not load customer IDs by prefix.")
+            raise HTTPException(
+                status_code=503,
+                detail="Customer information is temporarily unavailable.",
+            ) from exc
+        answer = service.customer_id_prefix_answer(
+            analytics_question,
+            prefix_total,
+            prefix_ids,
+        )
+        await run_in_threadpool(
+            service.save_chat_turn,
+            db,
+            current_user["user_id"],
+            payload.session_id,
+            payload.question,
+            answer,
+            [],
+        )
+        return AssistantAnswer(answer=answer)
+
     if use_generated_sql:
         try:
+            sql_catalog = await run_in_threadpool(
+                service.readable_sql_catalog,
+                db,
+            )
             generated_query, generated_parameters = await service.generate_sql_query(
                 analytics_question,
                 history,
+                sql_catalog,
             )
             generated_rows = await run_in_threadpool(
                 service.execute_generated_sql,
                 db,
                 generated_query,
                 generated_parameters,
+                set(sql_catalog),
             )
             analytics_context = {
                 "generated_query_result": generated_rows,
@@ -921,16 +974,31 @@ async def ask_assistant(
         analytics_context["customer"] = customer_context
         analytics_context.pop("privacy_note", None)
 
-    try:
-        answer = await service.generate_answer(
-            payload.question,
+    answer = service.deterministic_analytics_answer(
+        analytics_question,
+        analytics_context,
+    )
+    if answer is None:
+        answer = service._broad_product_buyer_answer(
+            analytics_question,
             analytics_context,
-            [{"question": turn["question"], "answer": turn["answer"]} for turn in history],
         )
-    except TimeoutError as exc:
-        raise HTTPException(status_code=504, detail=str(exc)) from exc
-    except ConnectionError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if answer is None:
+        answer = service._review_detail_answer(
+            analytics_question,
+            analytics_context,
+        )
+    if answer is None:
+        try:
+            answer = await service.generate_answer(
+                payload.question,
+                analytics_context,
+                [{"question": turn["question"], "answer": turn["answer"]} for turn in history],
+            )
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail=str(exc)) from exc
+        except ConnectionError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     visualizations = service.build_visualizations(analytics_question, analytics_context)
     metadata = service.analytics_metadata(analytics_question, analytics_context)
