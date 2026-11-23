@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Activity, BarChart3, ChevronLeft, ChevronRight, History, KeyRound, LayoutDashboard, LogOut, Megaphone, Moon, Package, RefreshCw, Sparkles, Sun, UserPlus, Users, X } from "lucide-react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { authService } from "../services/api";
@@ -221,13 +221,13 @@ export default function Shell() {
           {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
-        <div className="brand" title="Customer Sphere">
+        <Link className="brand" to="/" title="Customer Sphere" aria-label="Customer Sphere home">
           <div className="brandIcon">
             <Sparkles size={18} />
           </div>
           <b>Customer</b>
           <b>Sphere</b>
-        </div>
+        </Link>
         <small>WORKSPACE</small>
         
         {canAccess("dashboard") && (

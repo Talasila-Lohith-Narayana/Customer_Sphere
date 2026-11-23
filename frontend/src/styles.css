@@ -3193,6 +3193,24 @@ button {
   font-size: 13px;
 }
 
+.shell aside a.brand {
+  display: grid;
+  grid-template-columns: 38px auto;
+  column-gap: 10px;
+  row-gap: 0;
+  align-items: center;
+  color: inherit;
+  padding: 0 9px 34px;
+  margin-bottom: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+.shell aside a.brand:hover {
+  background: transparent;
+  color: inherit;
+}
+
 .shell aside .sideNavBtn {
   margin-bottom: 4px;
 }
@@ -5300,16 +5318,11 @@ em {
   color: var(--public-ink);
 }
 
-html.publicSmoothScroll {
-  scroll-behavior: smooth;
-  scroll-padding-top: 20px;
-}
-
 .publicNav {
   position: relative;
   z-index: 2;
   display: flex;
-  width: min(1220px, calc(100% - 64px));
+  width: min(1440px, calc(100% - 48px));
   height: 88px;
   align-items: center;
   justify-content: space-between;
@@ -5397,7 +5410,7 @@ html.publicSmoothScroll {
 .publicHero {
   position: relative;
   display: grid;
-  width: min(1220px, calc(100% - 64px));
+  width: min(1440px, calc(100% - 48px));
   min-height: 590px;
   grid-template-columns: minmax(0, 0.92fr) minmax(450px, 1.08fr);
   align-items: center;
@@ -5545,12 +5558,14 @@ html.publicSmoothScroll {
 .publicHeroPhoto {
   object-fit: cover;
   object-position: center;
+  pointer-events: none;
 }
 
 .publicPhotoOverlay {
   background:
     linear-gradient(180deg, rgba(20, 32, 55, 0.03) 20%, rgba(20, 32, 55, 0.56) 100%),
     linear-gradient(120deg, rgba(60, 53, 142, 0.12), transparent 65%);
+  pointer-events: none;
 }
 
 .publicPhotoCaption {
@@ -5562,6 +5577,7 @@ html.publicSmoothScroll {
   align-items: center;
   gap: 11px;
   color: #fff;
+  pointer-events: none;
 }
 
 .publicCaptionIcon,
@@ -5605,6 +5621,7 @@ html.publicSmoothScroll {
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 20px 50px rgba(24, 34, 58, 0.2);
   backdrop-filter: blur(16px);
+  pointer-events: none;
 }
 
 .publicInsightHeading {
@@ -5715,7 +5732,7 @@ html.publicSmoothScroll {
 }
 
 .publicPlatform {
-  padding: 78px max(32px, calc((100% - 1220px) / 2)) 90px;
+  padding: 78px max(24px, calc((100% - 1440px) / 2)) 90px;
   background: linear-gradient(180deg, #f4f6fb, #f8f9fd);
 }
 
@@ -5751,7 +5768,7 @@ html.publicSmoothScroll {
 
 .publicFeatureGrid {
   display: grid;
-  max-width: 1220px;
+  max-width: 1440px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin: 0 auto;
@@ -5766,6 +5783,18 @@ html.publicSmoothScroll {
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 8px 22px rgba(28, 41, 69, 0.035);
   transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.publicFeatureCardLink {
+  display: block;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.publicFeatureCardLink .publicFeatureCard {
+  height: 100%;
+  cursor: pointer;
 }
 
 .publicFeatureCard:hover {
@@ -5816,9 +5845,9 @@ html.publicSmoothScroll {
 }
 
 .publicExplore {
-  max-width: 1284px;
+  max-width: 1488px;
   margin: 0 auto;
-  padding: 92px 32px 98px;
+  padding: 92px 24px 98px;
 }
 
 .publicExploreIntro {
@@ -6021,11 +6050,13 @@ html.publicSmoothScroll {
 .publicShowcaseVisual > img {
   object-fit: cover;
   object-position: center;
+  pointer-events: none;
 }
 
 .publicShowcaseShade {
   background: linear-gradient(115deg, rgba(22, 32, 57, 0.18), transparent 58%),
     linear-gradient(0deg, rgba(22, 32, 57, 0.66), transparent 62%);
+  pointer-events: none;
 }
 
 .publicShowcaseBadge {
@@ -6041,6 +6072,7 @@ html.publicSmoothScroll {
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 12px 28px rgba(24, 34, 58, 0.15);
   backdrop-filter: blur(12px);
+  pointer-events: none;
 }
 
 .publicShowcaseBadgeIcon {
@@ -6079,6 +6111,7 @@ html.publicSmoothScroll {
   color: #fff;
   font-size: 10px;
   font-weight: 600;
+  pointer-events: none;
 }
 
 .publicShowcaseNote svg {
@@ -6086,7 +6119,7 @@ html.publicSmoothScroll {
 }
 
 .publicJourney {
-  padding: 80px 32px 85px;
+  padding: 80px 24px 85px;
   background: linear-gradient(180deg, #f3f5fa, #f8f9fc);
 }
 
@@ -6096,7 +6129,7 @@ html.publicSmoothScroll {
 
 .publicJourneySteps {
   display: grid;
-  max-width: 1160px;
+  max-width: 1440px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
   margin: 0 auto;
@@ -6156,7 +6189,8 @@ html.publicSmoothScroll {
 
 .publicClarity {
   display: flex;
-  max-width: 1220px;
+  width: min(1440px, calc(100% - 48px));
+  max-width: 1440px;
   align-items: center;
   justify-content: space-between;
   gap: 30px;
@@ -6191,7 +6225,7 @@ html.publicSmoothScroll {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 14px max(32px, calc((100% - 1220px) / 2));
+  padding: 14px max(24px, calc((100% - 1440px) / 2));
   border-top: 1px solid #e9ecf2;
 }
 
@@ -6480,10 +6514,6 @@ html.publicSmoothScroll {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html.publicSmoothScroll {
-    scroll-behavior: auto;
-  }
-
   .publicHome *,
   .publicHome *::before,
   .publicHome *::after {
@@ -6496,6 +6526,355 @@ html.publicSmoothScroll {
 .apiError:focus-visible {
   outline: 2px solid #a13f3f;
   outline-offset: 2px;
+}
+
+.publicHome {
+  isolation: isolate;
+  overflow: clip;
+  background-color: #080c18;
+  background-image:
+    radial-gradient(ellipse at 82% 9%, rgba(35, 177, 190, 0.14), transparent 31%),
+    radial-gradient(ellipse at 14% 21%, rgba(103, 79, 227, 0.17), transparent 29%),
+    linear-gradient(rgba(141, 160, 202, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(141, 160, 202, 0.035) 1px, transparent 1px);
+  background-size: auto, auto, 48px 48px, 48px 48px;
+  color: #eaf0ff;
+}
+
+.publicNav {
+  border-color: rgba(149, 169, 210, 0.14);
+}
+
+.publicBrand,
+.publicHero h1,
+.publicSectionIntro h2,
+.publicClarity h2,
+.publicExploreIntro h2,
+.publicShowcaseCopy h3,
+.publicProductCard h3,
+.publicJourneyStep h3 {
+  color: #eaf0ff;
+}
+
+.publicBrand small,
+.publicNavLinks a,
+.publicFooter > a:last-child {
+  color: #9aa8c3;
+}
+
+.publicBrandMark {
+  border-color: rgba(128, 113, 255, 0.34);
+  background: linear-gradient(145deg, rgba(104, 85, 229, 0.24), rgba(31, 187, 172, 0.13));
+  color: #a69aff;
+  box-shadow: inset 0 0 18px rgba(106, 92, 238, 0.12), 0 0 24px rgba(91, 77, 211, 0.12);
+}
+
+.publicNavLinks a:hover,
+.publicFooter > a:last-child:hover {
+  color: #a99eff;
+}
+
+.publicSignIn,
+.publicTrustPill {
+  border-color: rgba(145, 164, 205, 0.2);
+  background: rgba(17, 25, 44, 0.78);
+  color: #e7edff;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(14px);
+}
+
+.publicHero {
+  background-image:
+    linear-gradient(rgba(141, 160, 202, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(141, 160, 202, 0.025) 1px, transparent 1px);
+  background-position: center top;
+  background-size: 48px 48px;
+}
+
+.publicHero::before {
+  position: absolute;
+  z-index: 0;
+  inset: -70px 0 0;
+  background:
+    radial-gradient(ellipse at 72% 45%, rgba(28, 186, 183, 0.12), transparent 35%),
+    radial-gradient(ellipse at 34% 50%, rgba(111, 81, 233, 0.11), transparent 36%);
+  content: "";
+  pointer-events: none;
+}
+
+.publicTrustPill {
+  border-color: rgba(70, 211, 186, 0.22);
+  color: #b7c8df;
+}
+
+.publicHero h1 span {
+  background-image: linear-gradient(100deg, #a18bff 5%, #77aaff 48%, #54dfc2 100%);
+}
+
+.publicHeroLead,
+.publicSectionIntro > p:last-child,
+.publicExploreIntro > p,
+.publicShowcaseCopy > p:not(.publicEyebrow),
+.publicClarity > div > p:last-child {
+  color: #9aa8c3;
+}
+
+.publicPrimaryCta {
+  background: linear-gradient(110deg, #6d5be8, #7166ef 48%, #258f9e);
+  box-shadow: 0 10px 30px rgba(93, 79, 219, 0.32), inset 0 1px rgba(255, 255, 255, 0.24);
+}
+
+.publicPrimaryCta:hover {
+  box-shadow: 0 14px 36px rgba(93, 79, 219, 0.43), 0 0 28px rgba(44, 186, 185, 0.16);
+}
+
+.publicSecondaryCta,
+.publicAssurance span,
+.publicShowcaseCopy li,
+.publicJourneyStep p {
+  color: #aab6cd;
+}
+
+.publicHeroVisual,
+.publicShowcaseVisual {
+  border-color: rgba(161, 179, 220, 0.32);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.42), 0 0 50px rgba(91, 78, 208, 0.12);
+}
+
+.publicHeroVisual {
+  animation: publicHeroGlow 7s ease-in-out infinite alternate;
+}
+
+.publicPhotoOverlay {
+  background:
+    linear-gradient(180deg, rgba(8, 13, 30, 0.02) 10%, rgba(8, 13, 30, 0.75) 100%),
+    linear-gradient(120deg, rgba(67, 55, 166, 0.28), rgba(13, 153, 163, 0.1) 65%);
+}
+
+.publicInsightCard,
+.publicShowcaseBadge {
+  border-color: rgba(187, 199, 236, 0.22);
+  background: rgba(15, 22, 40, 0.92);
+  box-shadow: 0 22px 58px rgba(0, 0, 0, 0.4), inset 0 1px rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+}
+
+.publicInsightCard {
+  animation: publicCardFloat 5s ease-in-out infinite;
+}
+
+.publicInsightHeading strong,
+.publicMetric strong,
+.publicShowcaseBadge strong {
+  color: #edf2ff;
+}
+
+.publicInsightHeading small,
+.publicMetric > span,
+.publicChartLabels,
+.publicShowcaseBadge small,
+.publicProductLabel {
+  color: #99a7c0;
+}
+
+.publicInsightIcon {
+  background: rgba(123, 103, 239, 0.2);
+  color: #b0a4ff;
+}
+
+.publicChart {
+  border-color: rgba(155, 173, 211, 0.17);
+  background: repeating-linear-gradient(to bottom, transparent 0 22px, rgba(155, 173, 211, 0.1) 23px);
+}
+
+.publicChart span {
+  background: linear-gradient(180deg, #a79aff, rgba(111, 96, 219, 0.34));
+  box-shadow: 0 0 15px rgba(135, 117, 244, 0.2);
+}
+
+.publicChart span:nth-child(3n) {
+  background: linear-gradient(180deg, #65e0cb, rgba(40, 155, 150, 0.36));
+}
+
+.publicInsightFooter {
+  background: rgba(111, 94, 227, 0.16);
+  color: #c1b8ff;
+}
+
+.publicHeroFootnote {
+  color: #8290ac;
+}
+
+.publicPlatform,
+.publicJourney {
+  background: linear-gradient(180deg, rgba(15, 22, 39, 0.96), rgba(10, 15, 29, 0.96));
+}
+
+.publicEyebrow {
+  color: #9a8cff;
+}
+
+.publicFeatureCard,
+.publicProductCard,
+.publicJourneyStep {
+  border-color: rgba(145, 164, 205, 0.16);
+  background: linear-gradient(145deg, rgba(23, 32, 54, 0.92), rgba(15, 23, 40, 0.92));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035), 0 14px 36px rgba(0, 0, 0, 0.14);
+}
+
+.publicFeatureCard h3 {
+  color: #eaf0ff;
+}
+
+.publicFeatureCard p,
+.publicProductCard p {
+  color: #9aa8c3;
+}
+
+.publicFeatureCard:hover,
+.publicProductCard:hover {
+  border-color: rgba(143, 128, 255, 0.4);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.06), 0 18px 42px rgba(0, 0, 0, 0.3), 0 0 24px rgba(103, 86, 223, 0.1);
+}
+
+.publicFeatureIcon,
+.publicProductIcon,
+.publicStepIcon {
+  background: rgba(118, 100, 235, 0.18);
+  color: #b4a9ff;
+}
+
+.publicFeatureIcon2,
+.publicProductCard-teal .publicProductIcon,
+.publicJourneyStep:nth-child(2) .publicStepIcon {
+  background: rgba(39, 183, 160, 0.15);
+  color: #6de0ca;
+}
+
+.publicFeatureIcon3,
+.publicProductCard-amber .publicProductIcon,
+.publicJourneyStep:nth-child(3) .publicStepIcon {
+  background: rgba(235, 156, 100, 0.15);
+  color: #ffc08e;
+}
+
+.publicProductCard-blue .publicProductIcon {
+  background: rgba(86, 153, 234, 0.16);
+  color: #92c1ff;
+}
+
+.publicFeatureArrow,
+.publicStepNumber {
+  color: #8593b0;
+}
+
+.publicProductLink,
+.publicTextLink {
+  color: #aaa0ff;
+}
+
+.publicProductLink:hover,
+.publicTextLink:hover {
+  color: #d3ceff;
+}
+
+.publicShowcaseCopy li svg {
+  color: #61ddc4;
+}
+
+.publicShowcaseShade {
+  background:
+    linear-gradient(115deg, rgba(31, 31, 74, 0.28), transparent 58%),
+    linear-gradient(0deg, rgba(8, 13, 30, 0.78), transparent 62%);
+}
+
+.publicShowcaseBadgeIcon {
+  background: rgba(39, 183, 160, 0.16);
+  color: #6de0ca;
+}
+
+.publicShowcaseNote svg {
+  color: #72e8d2;
+}
+
+.publicClarity {
+  position: relative;
+}
+
+.publicClarity::before {
+  position: absolute;
+  z-index: -1;
+  inset: 12% 0;
+  background: radial-gradient(ellipse, rgba(89, 72, 198, 0.14), transparent 68%);
+  content: "";
+  pointer-events: none;
+}
+
+.publicFooter {
+  border-color: rgba(149, 169, 210, 0.14);
+  background: rgba(8, 12, 24, 0.64);
+}
+
+[data-theme="dark"] .publicHome {
+  background-color: #080c18;
+}
+
+[data-theme="dark"] .publicSignIn,
+[data-theme="dark"] .publicTrustPill,
+[data-theme="dark"] .publicFeatureCard,
+[data-theme="dark"] .publicProductCard,
+[data-theme="dark"] .publicJourneyStep {
+  border-color: rgba(145, 164, 205, 0.16);
+  background: linear-gradient(145deg, rgba(23, 32, 54, 0.92), rgba(15, 23, 40, 0.92));
+}
+
+@keyframes publicCardFloat {
+  0%, 100% {
+    transform: translateY(-50%);
+  }
+  50% {
+    transform: translateY(calc(-50% - 7px));
+  }
+}
+
+@keyframes publicHeroGlow {
+  from {
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4), 0 0 40px rgba(91, 78, 208, 0.1);
+  }
+  to {
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4), 0 0 64px rgba(40, 187, 184, 0.16);
+  }
+}
+
+html:has(.publicHome) {
+  scrollbar-color: transparent #080c18;
+  scrollbar-width: thin;
+}
+
+html:has(.publicHome)::-webkit-scrollbar {
+  width: 10px;
+}
+
+html:has(.publicHome)::-webkit-scrollbar-track {
+  background: #080c18;
+}
+
+html:has(.publicHome)::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  background-clip: padding-box;
+}
+
+html:has(.publicHome).publicScrollbarHover {
+  scrollbar-color: #a194ff #080c18;
+}
+
+html:has(.publicHome).publicScrollbarHover::-webkit-scrollbar-thumb {
+  border-color: #0b1120;
+  background: linear-gradient(180deg, #a194ff, #71f1dc);
+  background-clip: padding-box;
+  box-shadow: 0 0 10px rgba(105, 226, 205, 0.45);
 }
 
 @media (max-width: 1150px) {
@@ -6844,7 +7223,7 @@ html.publicSmoothScroll {
 .modelPage .analyticsPageSection > h2::before,
 .analyticsDashboardPage .analyticsPageSection > h2::before {
   width: 4px;
-  height: 20px;
+  height: 22px;
   content: "";
   background: linear-gradient(180deg, #6366f1, #8b5cf6);
   border-radius: 999px;
@@ -10454,5 +10833,145 @@ html.publicSmoothScroll {
     min-width: 0;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.publicHeroOrbits {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.publicHeroOrb {
+  position: absolute;
+  display: block;
+  aspect-ratio: 1;
+  border: 1px solid rgba(110, 224, 214, 0.22);
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 38%, rgba(80, 201, 202, 0.14), transparent 68%);
+  box-shadow: 0 0 46px rgba(49, 194, 193, 0.12), inset 0 0 35px rgba(106, 122, 245, 0.08);
+  transition: transform 120ms linear;
+}
+
+.publicHeroOrbOne {
+  top: 5%;
+  right: 4%;
+  width: 230px;
+  transform: translate3d(0, var(--public-parallax-slow, 0px), 0);
+}
+
+.publicHeroOrbTwo {
+  top: 48%;
+  left: 47%;
+  width: 112px;
+  border-color: rgba(165, 143, 255, 0.27);
+  background: radial-gradient(circle at 38% 38%, rgba(129, 106, 255, 0.2), transparent 70%);
+  box-shadow: 0 0 36px rgba(112, 93, 243, 0.18), inset 0 0 25px rgba(112, 93, 243, 0.1);
+  transform: translate3d(0, var(--public-parallax-fast, 0px), 0);
+}
+
+.publicHeroCopy,
+.publicHeroVisual,
+.publicHeroFootnote {
+  z-index: 1;
+}
+
+.publicMotionReady [data-scroll-reveal] {
+  opacity: 0;
+  transform: translate3d(0, 24px, 0) scale(0.99);
+  transition: opacity 650ms cubic-bezier(0.2, 0.75, 0.25, 1),
+    transform 650ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.publicMotionReady [data-scroll-reveal].publicIsVisible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.publicFeatureGrid > .publicFeatureCardLink:nth-child(2),
+.publicProductGrid > [data-scroll-reveal]:nth-child(2),
+.publicJourneySteps > [data-scroll-reveal]:nth-child(2) {
+  transition-delay: 90ms;
+}
+
+.publicFeatureGrid > .publicFeatureCardLink:nth-child(3),
+.publicProductGrid > [data-scroll-reveal]:nth-child(3),
+.publicJourneySteps > [data-scroll-reveal]:nth-child(3) {
+  transition-delay: 180ms;
+}
+
+.publicProductGrid > [data-scroll-reveal]:nth-child(4) {
+  transition-delay: 270ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .publicHeroOrb {
+    transition: none;
+    transform: none;
+  }
+}
+
+.publicScrollJourney {
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 24px;
+  border-bottom: 1px solid rgba(133, 151, 194, 0.18);
+  background: #080c18;
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+.publicScrollTrack {
+  position: absolute;
+  top: calc(100% - 2px);
+  right: clamp(64px, 8vw, 112px);
+  left: clamp(64px, 8vw, 112px);
+  height: 2px;
+  width: auto;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    #8272ff 0,
+    #45d9c2 var(--public-scroll-progress, 0%),
+    rgba(128, 148, 185, 0.22) var(--public-scroll-progress, 0%),
+    rgba(128, 148, 185, 0.22) 100%
+  );
+  box-shadow: 0 0 12px rgba(106, 113, 255, 0.2);
+}
+
+.publicScrollVehicle {
+  position: absolute;
+  top: calc(50% + 0.5px);
+  left: var(--public-scroll-car-left, clamp(64px, 8vw, 112px));
+  display: grid;
+  width: 52px;
+  height: 24px;
+  place-items: center;
+  transform: translate(-50%, -50%);
+  transition: left 100ms linear;
+}
+
+.publicCarIllustration {
+  position: relative;
+  z-index: 1;
+  width: 48px;
+  height: 24px;
+  overflow: visible;
+  filter: drop-shadow(0 0 5px rgba(91, 231, 205, 0.55));
+}
+
+.publicHome section[id] {
+  scroll-margin-top: 28px;
+}
+
+@media (max-width: 680px), (prefers-reduced-motion: reduce) {
+  .publicScrollJourney {
+    display: none;
   }
 }

@@ -26,8 +26,7 @@ const Login = lazy(() => import("./pages/Login"));
 const Landing = lazy(() => import("./pages/Landing"));
 
 function HomeRoute() {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Landing />;
+  return <Landing />;
 }
 
 function AdminRoute() {

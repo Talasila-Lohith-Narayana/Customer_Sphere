@@ -51,7 +51,8 @@ describe("Shell Navigation & Layout Component", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByTitle("Customer Sphere")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Customer Sphere home" }))
+      .toHaveAttribute("href", "/");
     expect(screen.getByText("Customer")).toBeInTheDocument();
     expect(screen.getByText("Sphere")).toBeInTheDocument();
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
