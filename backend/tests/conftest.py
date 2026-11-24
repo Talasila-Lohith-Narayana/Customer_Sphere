@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import pytest
-from jose import jwt
+import jwt
 from sqlalchemy.orm import Session
 
 from app.core.config import SECRET, ALGO, ADMIN_USERNAME, VIEWER_USERNAME
@@ -29,16 +29,22 @@ def client(db_session):
     """Create a request client that uses the test's rollback-scoped database session."""
     from fastapi.testclient import TestClient
     from app.main import app
+    from app.core import auth_cookies
 
     def override_get_db():
         yield db_session
 
     previous_override = app.dependency_overrides.get(get_db)
+    previous_cookie_secure = auth_cookies.AUTH_COOKIE_SECURE
+    auth_cookies.AUTH_COOKIE_SECURE = False
     app.dependency_overrides[get_db] = override_get_db
     try:
         with TestClient(app) as test_client:
+            csrf_token = test_client.get("/api/auth/csrf").json()["csrf_token"]
+            test_client.headers.update({"X-CSRF-Token": csrf_token})
             yield test_client
     finally:
+        auth_cookies.AUTH_COOKIE_SECURE = previous_cookie_secure
         if previous_override is None:
             app.dependency_overrides.pop(get_db, None)
         else:

@@ -8,12 +8,13 @@ import AuditLogModal from "./AuditLogModal";
 import ConfirmModal from "./ConfirmModal";
 
 export default function Shell() {
-  const { user, role, accounts, isAdmin, hasAccess, logout, logoutAll, switchToAccount, loginAndSwitch } = useAuth();
+  const { user, role, isAdmin, hasAccess, logoutAll, loginAndSwitch } = useAuth();
   const { theme, isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [switching, setSwitching] = useState(false);
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
   const [profiles, setProfiles] = useState([]);
   const [profilesLoading, setProfilesLoading] = useState(true);
   const [profilesError, setProfilesError] = useState("");
@@ -95,10 +96,16 @@ export default function Shell() {
   }, [loadProfiles]);
 
   // Handles user sign out and redirection to the login view
-  const signOut = () => {
+  const signOut = async () => {
     setShowSignOutConfirm(false);
-    logoutAll();
-    navigate("/login");
+    setSignOutError("");
+    try {
+      await logoutAll();
+      navigate("/login");
+    } catch (error) {
+      setSignOutError(error.message || "Could not safely end the session.");
+      setShowSignOutConfirm(true);
+    }
   };
 
   // Handles clicking a profile switch button
@@ -107,22 +114,9 @@ export default function Shell() {
     if (target === user) return;
     setLoginError("");
 
-    // Check if the target account already has an active authenticated session
-    if (accounts && accounts[target]?.access_token) {
-      try {
-        switchToAccount(target);
-      } catch {
-        // Session expired or missing, prompt login
-        setTargetUsername(target);
-        setPassword("");
-        setShowLoginModal(true);
-      }
-    } else {
-      // Must authenticate with password first
-      setTargetUsername(target);
-      setPassword("");
-      setShowLoginModal(true);
-    }
+    setTargetUsername(target);
+    setPassword("");
+    setShowLoginModal(true);
   };
 
   // Handles submitting credentials in the Switch Profile login dialog
@@ -409,7 +403,7 @@ export default function Shell() {
       {showSignOutConfirm && (
         <ConfirmModal
           title="Sign out?"
-          message="This will sign out all active profiles on this device."
+          message={signOutError || "This will sign out the current profile on this device."}
           confirmLabel="Sign out"
           onConfirm={signOut}
           onCancel={() => setShowSignOutConfirm(false)}

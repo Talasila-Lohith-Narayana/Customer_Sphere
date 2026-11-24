@@ -2,6 +2,7 @@ import json
 import logging
 import re
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -29,7 +30,11 @@ from app.api.assistant.schemas import (
     LogInteractionAction,
     UpdateCustomerAction,
 )
-from app.core.database import get_db
+from app.core.database import (
+    get_db,
+    get_nova_readonly_db,
+    is_nova_readonly_db_configured,
+)
 from app.core.permissions import require_page
 from app.models import AssistantPendingAction
 from app.schemas import CustomerIn
@@ -37,6 +42,25 @@ from app.schemas import CustomerIn
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Analytics assistant"])
 ACTION_CONFIRMATION_TTL = timedelta(minutes=10)
+
+
+def _readable_sql_catalog() -> dict[str, list[str]]:
+    with get_nova_readonly_db() as db:
+        return service.readable_sql_catalog(db)
+
+
+def _execute_generated_sql(
+    query: str,
+    parameters: dict,
+    allowed_tables: set[str],
+) -> list[dict]:
+    with get_nova_readonly_db() as db:
+        return service.execute_generated_sql(
+            db,
+            query,
+            parameters,
+            allowed_tables,
+        )
 
 
 def _is_explicit_action_confirmation(question: str) -> bool:
@@ -655,6 +679,7 @@ async def ask_assistant(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_page("assistant")),
 ):
+    request_started_at = time.perf_counter()
     session = service.get_chat_session(
         db,
         current_user["user_id"],
@@ -905,11 +930,56 @@ async def ask_assistant(
         )
         return AssistantAnswer(answer=answer)
 
-    if use_generated_sql:
+    metric_plan = None
+    if (
+        domains
+        and not customer_id
+        and action_intent is None
+        and not continuing_action
+    ):
+        try:
+            metric_plan = await service.plan_analytics_tool_call(analytics_question)
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail=str(exc)) from exc
+        except ConnectionError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        if metric_plan is not None:
+            analytics_question = metric_plan.question
+            domains = set(metric_plan.domains)
+            use_generated_sql = False
+
+    if metric_plan is not None:
+        try:
+            analytics_context = await run_in_threadpool(
+                service.execute_analytics_tool,
+                db,
+                metric_plan,
+            )
+        except SQLAlchemyError as exc:
+            logger.exception("Could not load data for Nova's analytics tool.")
+            raise HTTPException(
+                status_code=503,
+                detail="Analytics data is temporarily unavailable.",
+            ) from exc
+        except ValueError as exc:
+            logger.exception("Nova's analytics tool plan was not executable.")
+            raise HTTPException(
+                status_code=502,
+                detail="Nova could not safely execute the selected analytics metric.",
+            ) from exc
+    elif use_generated_sql:
+        if not is_nova_readonly_db_configured():
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Generated analytics queries require a read-only database "
+                    "account. Configure NOVA_READONLY_DB_USER and "
+                    "NOVA_READONLY_DB_PASSWORD."
+                ),
+            )
         try:
             sql_catalog = await run_in_threadpool(
-                service.readable_sql_catalog,
-                db,
+                _readable_sql_catalog,
             )
             generated_query, generated_parameters = await service.generate_sql_query(
                 analytics_question,
@@ -917,8 +987,7 @@ async def ask_assistant(
                 sql_catalog,
             )
             generated_rows = await run_in_threadpool(
-                service.execute_generated_sql,
-                db,
+                _execute_generated_sql,
                 generated_query,
                 generated_parameters,
                 set(sql_catalog),
@@ -1008,7 +1077,7 @@ async def ask_assistant(
     logger.info(
         "Nova analytics request completed: intent=%s duration_ms=%s visualization_count=%s",
         intent,
-        0,
+        round((time.perf_counter() - request_started_at) * 1000, 1),
         len(visualizations),
     )
     try:

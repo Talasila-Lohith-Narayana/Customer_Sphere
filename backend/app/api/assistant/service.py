@@ -2,8 +2,12 @@ import json
 import logging
 import os
 import re
+import threading
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from time import monotonic
 from typing import Any
 
 import httpx
@@ -11,6 +15,11 @@ from sqlalchemy import inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.database import ANALYTICS_DB_NAME
+from app.api.assistant.analytics_tools import (
+    AnalyticsToolPlan,
+    analytics_tool_schemas,
+    parse_analytics_tool_call,
+)
 from app.api.assistant.schemas import CustomerActionIntent
 from app.models import AssistantChatSession, AssistantChatTurn
 
@@ -23,6 +32,10 @@ OPENROUTER_MODEL = (
 )
 OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
 GENERATED_SQL_MAX_ROWS = 100
+SQL_CATALOG_CACHE_TTL_SECONDS = 300
+_shared_http_client: httpx.AsyncClient | None = None
+_sql_catalog_cache: dict[str, tuple[float, dict[str, list[str]]]] = {}
+_sql_catalog_cache_lock = threading.Lock()
 GENERATED_SQL_TABLES = {
     "customers",
     "orders",
@@ -102,6 +115,20 @@ GENERATED_SQL_PROTECTED_COLUMNS = re.compile(
 )
 
 
+def configure_shared_http_client(client: httpx.AsyncClient | None) -> None:
+    global _shared_http_client
+    _shared_http_client = client
+
+
+@asynccontextmanager
+async def _http_client() -> AsyncIterator[httpx.AsyncClient]:
+    if _shared_http_client is not None:
+        yield _shared_http_client
+        return
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        yield client
+
+
 def _visible_answer(content: Any) -> str:
     if isinstance(content, str):
         return content.strip()
@@ -166,7 +193,20 @@ def should_generate_sql(question: str, domains: set[str]) -> bool:
 
 def readable_sql_catalog(db) -> dict[str, list[str]]:
     """Return the business tables and safe columns available to Nova."""
-    database_inspector = inspect(db.get_bind())
+    bind = db.get_bind()
+    url = getattr(bind, "url", None)
+    cache_key = url.render_as_string(hide_password=True) if url else None
+    now = monotonic()
+    if cache_key:
+        with _sql_catalog_cache_lock:
+            cached = _sql_catalog_cache.get(cache_key)
+            if cached and cached[0] > now:
+                return {
+                    table: columns.copy()
+                    for table, columns in cached[1].items()
+                }
+
+    database_inspector = inspect(bind)
     catalog = {}
     for table_name in database_inspector.get_table_names():
         if GENERATED_SQL_PROTECTED_TABLES.fullmatch(table_name):
@@ -180,7 +220,18 @@ def readable_sql_catalog(db) -> dict[str, list[str]]:
             catalog[table_name] = columns
     if not catalog:
         raise SQLAlchemyError("No readable business tables were found.")
+    if cache_key:
+        with _sql_catalog_cache_lock:
+            _sql_catalog_cache[cache_key] = (
+                monotonic() + SQL_CATALOG_CACHE_TTL_SECONDS,
+                {table: columns.copy() for table, columns in catalog.items()},
+            )
     return catalog
+
+
+def clear_readable_sql_catalog_cache() -> None:
+    with _sql_catalog_cache_lock:
+        _sql_catalog_cache.clear()
 
 
 def _parse_generated_sql_payload(content: Any) -> tuple[str, dict[str, Any]]:
@@ -349,7 +400,7 @@ async def generate_sql_query(
         )
     messages.append({"role": "user", "content": question})
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with _http_client() as client:
             response = await client.post(
                 OPENROUTER_CHAT_COMPLETIONS_URL,
                 headers=_openrouter_headers(),
@@ -408,6 +459,95 @@ async def generate_sql_query(
         raise ConnectionError(
             "Nova could not create a valid read-only analytics query."
         ) from exc
+
+
+async def plan_analytics_tool_call(question: str) -> AnalyticsToolPlan | None:
+    if not OPENROUTER_API_KEY:
+        raise RuntimeError("The LLM provider is not configured.")
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are Nova's analytics router. For aggregate business questions, "
+                "select one matching function and provide only its arguments. Never "
+                "answer with invented values or write SQL. If no function applies, "
+                "do not call a tool. Never route individual customer lookups or "
+                "requests to change data through these aggregate functions."
+            ),
+        },
+        {"role": "user", "content": question},
+    ]
+    try:
+        async with _http_client() as client:
+            response = await client.post(
+                OPENROUTER_CHAT_COMPLETIONS_URL,
+                headers=_openrouter_headers(),
+                json={
+                    "model": OPENROUTER_MODEL,
+                    "messages": messages,
+                    "temperature": 0,
+                    "max_tokens": 300,
+                    "tools": analytics_tool_schemas(),
+                    "tool_choice": "auto",
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+            message = payload["choices"][0]["message"]
+            calls = message.get("tool_calls")
+            if not calls:
+                return None
+            if not isinstance(calls, list) or len(calls) != 1:
+                raise ValueError("Nova must select exactly one analytics tool.")
+            function = calls[0]["function"]
+            plan = parse_analytics_tool_call(
+                function["name"],
+                function["arguments"],
+            )
+            asks_for_individuals = re.search(
+                r"\b(?:who|which|list|names?)\b.*\bcustomers?\b"
+                r"|\bcustomers?\b.*\b(?:who|which)\b",
+                question,
+                re.I,
+            )
+            if (
+                plan.name.startswith("count_")
+                and re.search(r"\b(?:who|which|list|names?)\b", question, re.I)
+            ) or (
+                plan.metric == "churn_risk" and asks_for_individuals
+            ):
+                return None
+            return plan
+    except httpx.TimeoutException as exc:
+        raise TimeoutError(
+            "Nova's analytics router took too long to respond. Please try again."
+        ) from exc
+    except httpx.HTTPStatusError as exc:
+        logger.error(
+            "Analytics tool routing failed (HTTP %s, model=%s).",
+            exc.response.status_code,
+            OPENROUTER_MODEL,
+        )
+        raise ConnectionError(
+            "Nova could not route the analytics question. Please try again."
+        ) from exc
+    except httpx.RequestError as exc:
+        raise ConnectionError(
+            "Nova could not connect to its analytics router."
+        ) from exc
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
+        logger.warning("Nova returned an invalid analytics tool call: %s.", exc)
+        raise ConnectionError(
+            "Nova returned an invalid analytics plan. Please rephrase the question."
+        ) from exc
+
+
+def execute_analytics_tool(db, plan: AnalyticsToolPlan) -> dict[str, Any]:
+    intent = extract_analytics_intent(plan.question)
+    if intent is None or intent["metric"] != plan.metric:
+        raise ValueError("The analytics tool plan does not match a supported metric.")
+    return load_analytics_context(db, set(plan.domains), plan.question)
 
 
 def _openrouter_headers() -> dict[str, str]:
@@ -486,6 +626,13 @@ def _payment_type_filter(question: str) -> str | None:
 
 
 def _delivery_time_filter(question: str) -> tuple[str, int] | None:
+    if not re.search(
+        r"\b(?:deliver(?:ed|y|ies|ing)?|ship(?:ped|ping)?|arriv(?:e|ed|ing|al)?)\b",
+        question,
+        re.I,
+    ):
+        return None
+
     patterns = (
         (r"\b(?:less than|fewer than|under|below)\s+(\d+(?:\.\d+)?)\s+(?:calendar\s+)?days?\b", "<"),
         (r"\b(?:at most|up to|no more than)\s+(\d+(?:\.\d+)?)\s+(?:calendar\s+)?days?\b", "<="),
@@ -621,7 +768,7 @@ def _product_category_filter(question: str) -> str | None:
 
 def _product_id_filter(question: str) -> str | None:
     match = re.search(
-        r"\bproduct(?:\s+id)?\s*[:#]?\s*([A-Za-z0-9_-]{8,64})\b",
+        r"\bproduct\s+id\s*[:#]?\s*([A-Za-z0-9_-]{8,64})\b",
         question,
         re.I,
     )
@@ -714,7 +861,9 @@ def select_analytics_domains(question: str) -> set[str]:
     ) and not customer_id_candidates(question):
         domains.add("customers")
     if "relationships" in domains and re.search(
-        r"\b(customer|customers|buyer|buyers|client|clients)\b", query
+        r"\b(customer|customers|buyer|buyers|client|clients)\b|"
+        r"\bwho\s+(?:bought|purchased)\b",
+        query,
     ) and not customer_id_candidates(question):
         domains.add("customers")
 
@@ -967,11 +1116,38 @@ def deterministic_analytics_answer(
     context: dict[str, Any],
 ) -> str | None:
     intent = extract_analytics_intent(question)
+    if intent is None:
+        return None
+
+    filters = intent["filters"]
+    if intent["metric"] in {
+        "customers_by_order_count",
+        "customers_by_spend",
+        "customers_by_payment_method",
+        "customers_by_installments",
+        "reviews_by_rating",
+    } and re.search(r"\b(?:who|which|list|names?)\b", question, re.I):
+        return None
+    if intent["metric"] == "churn_risk" and re.search(
+        r"\b(?:who|which|list|names?)\b.*\bcustomers?\b"
+        r"|\bcustomers?\b.*\b(?:who|which)\b",
+        question,
+        re.I,
+    ):
+        return None
+    comparison_phrases = {
+        ">": "more than",
+        ">=": "at least",
+        "<": "less than",
+        "<=": "at most",
+        "=": "exactly",
+    }
+
     delivery = context.get("orders_by_delivery_time")
-    if intent and intent["metric"] == "orders_by_delivery_time" and delivery:
+    if intent["metric"] == "orders_by_delivery_time" and delivery:
         count = delivery.get("order_count")
         if count is not None:
-            delivery_filter = intent["filters"]["delivery_days"]
+            delivery_filter = filters["delivery_days"]
             operator = delivery_filter["operator"]
             threshold = delivery_filter["value"]
             descriptions = {
@@ -984,24 +1160,114 @@ def deterministic_analytics_answer(
             return f"{int(count):,} delivered orders arrived {descriptions[operator]}."
 
     frequency = context.get("customer_order_frequency")
-    if not intent or intent["metric"] != "customers_by_order_count" or not frequency:
-        return None
+    if intent["metric"] == "customers_by_order_count" and frequency:
+        count = frequency.get("customer_count")
+        if count is None:
+            return None
+        order_count_filter = filters["order_count"]
+        operator = order_count_filter["operator"]
+        threshold = order_count_filter["value"]
+        if operator == "=":
+            description = (
+                f"exactly {threshold} order"
+                if threshold == 1
+                else f"exactly {threshold} orders"
+            )
+        elif operator == "<":
+            description = f"fewer than {threshold} orders"
+        else:
+            description = f"{comparison_phrases[operator]} {threshold} orders"
+        return f"{int(count):,} customers have {description}."
 
-    count = frequency.get("customer_count")
-    if count is None:
-        return None
-    order_count_filter = intent["filters"]["order_count"]
-    operator = order_count_filter["operator"]
-    threshold = order_count_filter["value"]
-    descriptions = {
-        ">": f"more than {threshold} orders",
-        ">=": f"at least {threshold} orders",
-        "<": f"fewer than {threshold} orders",
-        "<=": f"at most {threshold} orders",
-        "=": f"exactly {threshold} order" if threshold == 1 else f"exactly {threshold} orders",
+    count_contexts = {
+        "customers_by_spend": "customer_spending_threshold",
+        "customers_by_payment_method": "customer_payment_method",
+        "customers_by_installments": "customer_installment_threshold",
     }
-    description = descriptions[operator]
-    return f"{int(count):,} customers have {description}."
+    if intent["metric"] in count_contexts:
+        result = context.get(count_contexts[intent["metric"]])
+        count = result.get("customer_count") if isinstance(result, dict) else None
+        if count is None:
+            return None
+        if intent["metric"] == "customers_by_spend":
+            spend_filter = filters["spend"]
+            description = (
+                f"{comparison_phrases[spend_filter['operator']]} "
+                f"R${spend_filter['value']:,.2f}"
+            )
+            return f"{int(count):,} customers spent {description}."
+        if intent["metric"] == "customers_by_payment_method":
+            method = filters["payment_method"].replace("_", " ")
+            return f"{int(count):,} customers used {method}."
+        installment_filter = filters["installments"]
+        description = (
+            f"{comparison_phrases[installment_filter['operator']]} "
+            f"{installment_filter['value']} installments"
+        )
+        return f"{int(count):,} customers paid in {description}."
+
+    if intent["metric"] == "reviews_by_rating":
+        review_summary = context.get("review_summary")
+        count = (
+            review_summary.get("review_count")
+            if isinstance(review_summary, dict)
+            else None
+        )
+        if count is None:
+            return None
+        rating_filter = filters["rating"]
+        description = (
+            f"{comparison_phrases[rating_filter['operator']]} "
+            f"{rating_filter['value']} stars"
+        )
+        return f"{int(count):,} reviews were rated {description}."
+
+    if intent["metric"] == "customers_by_state":
+        rows = context.get("customers_by_state")
+        if not isinstance(rows, list) or not rows:
+            return None
+        state = filters.get("state")
+        if state:
+            row = next((item for item in rows if item.get("state") == state), None)
+            count = row.get("customer_count") if row else 0
+            return f"{int(count):,} customers are in {state}."
+        highlights = ", ".join(
+            f"{row['state']} ({int(row['customer_count']):,})"
+            for row in rows[:3]
+        )
+        return f"The states with the most customers are {highlights}."
+
+    if intent["metric"] == "product_category_revenue":
+        rows = context.get("product_categories")
+        if not isinstance(rows, list) or not rows:
+            return None
+        leaders = ", ".join(
+            f"{row['category']} (R${float(row['revenue']):,.2f})"
+            for row in rows[:3]
+        )
+        return f"The top product categories by revenue are {leaders}."
+
+    if intent["metric"] == "churn_risk":
+        rows = context.get("churn_distribution")
+        if not isinstance(rows, list) or not rows:
+            return None
+        distribution = ", ".join(
+            f"{row['risk_level'].lower()}: {int(row['customer_count']):,}"
+            for row in rows
+        )
+        return f"Customers by churn risk are {distribution}."
+
+    if intent["metric"] == "monthly_sales":
+        rows = context.get("monthly_sales")
+        if not isinstance(rows, list) or not rows:
+            return None
+        monthly_revenue = ", ".join(
+            f"{row['month']}: R${float(row['revenue']):,.2f}"
+            for row in rows[-3:]
+        )
+        return f"Monthly revenue is {monthly_revenue}."
+
+    return None
 
 
 def _broad_product_buyer_answer(
@@ -1672,6 +1938,14 @@ def load_analytics_context(
 
 
 def customer_id_candidates(question: str) -> list[str]:
+    product_ids = {
+        match.group(1).casefold()
+        for match in re.finditer(
+            r"\bproduct\s+id\s*[:#]?\s*([A-Za-z0-9_-]{8,64})\b",
+            question,
+            re.I,
+        )
+    }
     candidates = re.findall(
         r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{8,64}(?![A-Za-z0-9_-])",
         question,
@@ -1679,8 +1953,8 @@ def customer_id_candidates(question: str) -> list[str]:
     candidates = [
         candidate
         for candidate in candidates
-        if len(candidate) >= 24
-        or any(character.isdigit() for character in candidate)
+        if candidate.casefold() not in product_ids
+        and (len(candidate) >= 24 or any(character.isdigit() for character in candidate))
     ]
     labeled_candidates = re.findall(
         r"\b(?:customer\s+)?(?:unique\s+)?id(?:'s)?(?![A-Za-z'])\b"
@@ -1689,7 +1963,10 @@ def customer_id_candidates(question: str) -> list[str]:
         re.I,
     )
     for candidate in labeled_candidates:
-        if candidate.casefold() not in {"is", "the", "a", "an"}:
+        if (
+            candidate.casefold() not in {"is", "the", "a", "an"}
+            and candidate.casefold() not in product_ids
+        ):
             candidates.append(candidate)
     bare_identifier = re.fullmatch(
         r"\s*['\"]?([A-Za-z][A-Za-z0-9_-]{1,63})['\"]?\s*[?.!]?\s*",
@@ -2186,7 +2463,7 @@ async def extract_customer_action(
         )
     messages.append({"role": "user", "content": question})
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with _http_client() as client:
             response = await client.post(
                 OPENROUTER_CHAT_COMPLETIONS_URL,
                 headers=_openrouter_headers(),
@@ -2621,7 +2898,7 @@ async def generate_answer(
     )
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with _http_client() as client:
             response = await client.post(
                 OPENROUTER_CHAT_COMPLETIONS_URL,
                 headers=_openrouter_headers(),
@@ -2629,7 +2906,7 @@ async def generate_answer(
                     "model": OPENROUTER_MODEL,
                     "messages": messages,
                     "temperature": 0.2,
-                    "max_tokens": 2000,
+                    "max_tokens": 400,
                 },
             )
             response.raise_for_status()

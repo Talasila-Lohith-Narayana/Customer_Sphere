@@ -81,7 +81,6 @@ describe("Login Page Component", () => {
 
   it("authenticates and navigates to dashboard on valid credentials", async () => {
     vi.spyOn(ApiModule.authService, "login").mockResolvedValue({
-      access_token: "test_token",
       username: "admin",
       role: "admin",
     });
@@ -103,7 +102,6 @@ describe("Login Page Component", () => {
 
     await waitFor(() => {
       expect(mockLogin).toHaveBeenCalledWith({
-        access_token: "test_token",
         username: "admin",
         role: "admin",
       });

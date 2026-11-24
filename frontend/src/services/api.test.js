@@ -14,7 +14,9 @@ vi.mock("axios", async () => {
   globalThis.__api_handlers = {};
   const actual = await vi.importActual("axios");
   const mockAxiosInstance = {
-    get: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    get: vi.fn((url) => Promise.resolve({
+      data: url === "/auth/csrf" ? { csrf_token: "test-csrf-token" } : { success: true },
+    })),
     post: vi.fn(() => Promise.resolve({ data: { success: true } })),
     patch: vi.fn(() => Promise.resolve({ data: { success: true } })),
     delete: vi.fn(() => Promise.resolve({ data: { success: true } })),
@@ -69,12 +71,11 @@ describe("API Service Layer", () => {
     }
   });
 
-  it("notifies auth context when the active bearer token is rejected", async () => {
-    const token = "test-token";
-    localStorage.setItem("ci_token", token);
+  it("notifies auth context when the active cookie session is rejected", async () => {
+    localStorage.setItem("ci_user", "active-user");
     const dispatchSpy = vi.spyOn(window, "dispatchEvent");
     const error = {
-      config: { headers: { Authorization: `Bearer ${token}` } },
+      config: { url: "/customers", headers: {} },
       response: {
         status: 401,
         data: { detail: "Invalid or expired token. Please log in again." },
@@ -88,11 +89,39 @@ describe("API Service Layer", () => {
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "auth-session-invalid",
-        detail: { token },
+        detail: { username: "active-user" },
       }),
     );
     dispatchSpy.mockRestore();
     localStorage.clear();
+  });
+
+  it("sends credentials and attaches the CSRF token to state-changing requests", async () => {
+    const config = await globalThis.__api_handlers.request({
+      method: "post",
+      headers: {},
+      url: "/auth/logout",
+    });
+
+    expect(config.withCredentials).toBe(true);
+    expect(config.headers["X-CSRF-Token"]).toBe("test-csrf-token");
+    expect(axios.create().get).toHaveBeenCalledWith("/auth/csrf");
+  });
+
+  it("refreshes the in-memory CSRF token after logout clears its cookie", async () => {
+    globalThis.__api_handlers.responseSuccess({
+      config: { url: "/auth/logout" },
+      data: { logged_out: true },
+    });
+
+    const config = await globalThis.__api_handlers.request({
+      method: "post",
+      headers: {},
+      url: "/auth/login",
+    });
+
+    expect(config.headers["X-CSRF-Token"]).toBe("test-csrf-token");
+    expect(axios.create().get).toHaveBeenCalledWith("/auth/csrf");
   });
 
   describe("authService", () => {
@@ -378,11 +407,14 @@ describe("API Service Layer", () => {
   });
 
   describe("Axios Interceptors", () => {
-    it("attaches Authorization header if session exists in localStorage", () => {
+    it("does not read or attach authentication tokens from localStorage", async () => {
       localStorage.setItem("ci_token", "xyz_token");
-      const config = { headers: {} };
-      const result = globalThis.__api_handlers.request(config);
-      expect(result.headers.Authorization).toBe("Bearer xyz_token");
+      const result = await globalThis.__api_handlers.request({
+        method: "get",
+        headers: {},
+      });
+      expect(result.headers.Authorization).toBeUndefined();
+      expect(result.withCredentials).toBe(true);
       localStorage.removeItem("ci_token");
     });
 

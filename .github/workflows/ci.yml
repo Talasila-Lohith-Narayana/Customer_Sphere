@@ -70,7 +70,7 @@ jobs:
         with:
           python-version-file: .python-version
       - uses: astral-sh/setup-uv@v6
-      - run: uv pip sync --system requirements-lock.txt
+      - run: uv pip sync --system requirements-dev-lock.txt
         working-directory: backend
       - run: pytest -m "not integration"
         env:

@@ -3,18 +3,46 @@ import axios from "axios";
 // Create Axios client pointing to the backend API base URL
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api",
+  withCredentials: true,
 });
 
-// Request Interceptor: Attach JWT Bearer token from localStorage to every outgoing request
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("ci_token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+let csrfToken = null;
+let csrfTokenRequest = null;
+
+// Use a double-submit token for cookie-authenticated state-changing requests.
+api.interceptors.request.use(async (config) => {
+  config.withCredentials = true;
+  const method = (config.method || "get").toLowerCase();
+  if (!["get", "head", "options"].includes(method)) {
+    if (!csrfToken) {
+      if (!csrfTokenRequest) {
+        csrfTokenRequest = api.get("/auth/csrf")
+          .then((response) => {
+            csrfToken = response.data.csrf_token;
+            return csrfToken;
+          })
+          .finally(() => {
+            csrfTokenRequest = null;
+          });
+      }
+      await csrfTokenRequest;
+    }
+    if (!csrfToken) {
+      throw new Error("Unable to initialize request security. Please try again.");
+    }
+    config.headers = config.headers || {};
+    config.headers["X-CSRF-Token"] = csrfToken;
+  }
   return config;
 });
 
 // Response Interceptor: Standardize backend error responses into clear, readable Error exceptions
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.data?.csrf_token) csrfToken = response.data.csrf_token;
+    if (response.config?.url?.endsWith("/auth/logout")) csrfToken = null;
+    return response;
+  },
   (error) => {
     // 1. Connection / Network errors
     if (!error.response) {
@@ -26,15 +54,19 @@ api.interceptors.response.use(
     const { status, data } = error.response;
     const detail = data?.detail;
 
-    if (status === 401) {
-      const authorization =
-        error.config?.headers?.get?.("Authorization") ??
-        error.config?.headers?.Authorization ??
-        error.config?.headers?.authorization;
-      const token = localStorage.getItem("ci_token");
-      if (token && authorization === `Bearer ${token}`) {
+    if (status === 403 && detail === "CSRF validation failed.") {
+      csrfToken = null;
+    }
+
+    if (
+      status === 401
+      && localStorage.getItem("ci_user")
+      && !error.config?.url?.endsWith("/auth/login")
+    ) {
+      const username = localStorage.getItem("ci_user");
+      if (username) {
         window.dispatchEvent(
-          new CustomEvent("auth-session-invalid", { detail: { token } }),
+          new CustomEvent("auth-session-invalid", { detail: { username } }),
         );
       }
     }
@@ -102,11 +134,15 @@ let churnOverviewRequest = null;
 
 /** Authentication service endpoints */
 export const authService = {
-  /** Login with username and password, returns JWT access_token */
+  /** Login with username and password and establish the HttpOnly cookie session */
   login: (credentials) => data(api.post("/auth/login", credentials)),
+  /** Create or retrieve the CSRF token paired with the auth cookie */
+  csrf: () => data(api.get("/auth/csrf")),
+  /** Clear the current cookie session */
+  logout: () => data(api.post("/auth/logout")),
   /** Fetch account names and roles available in the profile switcher */
   profiles: () => data(api.get("/auth/profiles")),
-  /** Validate that the current token has not been revoked */
+  /** Validate that the current cookie session has not been revoked */
   validateSession: () => data(api.get("/auth/session")),
 };
 

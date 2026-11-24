@@ -2,7 +2,7 @@ import os
 from uuid import uuid4
 
 import pytest
-from jose import jwt
+import jwt
 from redis import Redis
 from sqlalchemy import text
 

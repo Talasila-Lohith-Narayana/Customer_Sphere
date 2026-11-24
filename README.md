@@ -6,7 +6,7 @@ campaign, and machine-learning insights in one authenticated workspace.
 
 ## Highlights
 
-- JWT authentication with administrator and read-only viewer roles
+- HttpOnly cookie-based JWT authentication with administrator and read-only viewer roles
 - Administrator-managed per-page access, including independent Nova access
 - Responsive dashboard with live KPI cards and charts
 - Customer search, filtering, pagination, and detailed customer profiles
@@ -126,6 +126,8 @@ VIEWER_PASSWORD=change-this-password
 ALLOW_BOOTSTRAP_USERS=false
 RATE_LIMIT_REDIS_URL=
 TRUSTED_PROXY_HOSTS=
+AUTH_COOKIE_SECURE=false
+AUTH_COOKIE_SAMESITE=lax
 ```
 
 Analytics/model configuration is optional for the core dashboard, but required
@@ -155,6 +157,13 @@ a comma-separated list of proxy IPs/CIDRs; forwarded client IP headers are
 used only when the connecting peer is on that trusted list. Without Redis,
 login rate limiting is process-local and is intended for single-process local
 development.
+
+Authentication uses an HttpOnly cookie and a CSRF double-submit token. Keep
+`AUTH_COOKIE_SECURE=true` in production behind HTTPS; the `false` value above is
+for local HTTP development only. Use `AUTH_COOKIE_SAMESITE=none` only when the
+frontend and API are on separate sites, and only with Secure enabled. The
+profile switcher asks for the selected account's password instead of retaining
+multiple credentials in browser storage.
 
 ### Database migrations
 

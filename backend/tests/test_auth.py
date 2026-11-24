@@ -4,42 +4,75 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 from fastapi import HTTPException
 import pytest
-from jose import jwt
+import jwt
 from app.core.config import ADMIN_USERNAME, ADMIN_PASSWORD, VIEWER_USERNAME, VIEWER_PASSWORD, SECRET, ALGO
 from app.models import AppUser
 from app.api.auth.router import delete_user
 from app.main import app
 
 
+def headers_for_login(response):
+    token = response.cookies.get("ci_access_token")
+    assert token
+    return {"Authorization": f"Bearer {token}"}
+
+
 def test_login_admin_success(client):
-    """Verifies that the admin user can authenticate and receives a valid token."""
+    """Verifies login creates an HttpOnly cookie without returning the JWT."""
     response = client.post(
         "/api/auth/login",
         json={"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD},
     )
     assert response.status_code == 200
     data = response.json()
-    assert "access_token" in data
+    assert "access_token" not in data
+    assert "httponly" in response.headers["set-cookie"].lower()
     assert data["role"] == "admin"
     assert data["username"] == ADMIN_USERNAME
 
-    # Verify the JWT token can be decoded with our secret
-    payload = jwt.decode(data["access_token"], SECRET, algorithms=[ALGO])
+    payload = jwt.decode(
+        response.cookies["ci_access_token"],
+        SECRET,
+        algorithms=[ALGO],
+    )
     assert payload["sub"] == ADMIN_USERNAME
     assert payload["role"] == "admin"
+    assert client.get("/api/auth/session").status_code == 200
 
 
 def test_login_viewer_success(client):
-    """Verifies that the analyst/viewer user can authenticate and receives a viewer token."""
+    """Verifies the viewer profile is returned without exposing a JWT."""
     response = client.post(
         "/api/auth/login",
         json={"username": VIEWER_USERNAME, "password": VIEWER_PASSWORD},
     )
     assert response.status_code == 200
     data = response.json()
-    assert "access_token" in data
+    assert "access_token" not in data
+    assert response.cookies.get("ci_access_token")
     assert data["role"] == "viewer"
     assert data["username"] == VIEWER_USERNAME
+
+
+def test_logout_requires_csrf_and_clears_auth_cookies(client):
+    login_response = client.post(
+        "/api/auth/login",
+        json={"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD},
+    )
+    assert login_response.status_code == 200
+
+    assert client.post(
+        "/api/auth/logout",
+        headers={"X-CSRF-Token": ""},
+    ).status_code == 403
+    csrf_token = login_response.cookies.get("ci_csrf_token")
+    logout_response = client.post(
+        "/api/auth/logout",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert logout_response.status_code == 200
+    assert logout_response.json() == {"logged_out": True}
+    assert client.get("/api/auth/session").status_code == 401
 
 
 def test_session_validation_endpoint(client, admin_headers):
@@ -152,9 +185,7 @@ def test_admin_can_grant_nova_access_to_a_viewer(client, admin_headers, db_sessi
             json={"username": username, "password": password},
         )
         assert login_response.status_code == 200
-        nova_headers = {
-            "Authorization": f"Bearer {login_response.json()['access_token']}"
-        }
+        nova_headers = headers_for_login(login_response)
         assert client.get(
             "/api/assistant/status",
             headers=nova_headers,
@@ -242,9 +273,7 @@ def test_user_page_access_is_returned_on_login_and_enforced(
         )
         assert login_response.status_code == 200
         assert login_response.json()["access_pages"] == ["products"]
-        scoped_headers = {
-            "Authorization": f"Bearer {login_response.json()['access_token']}"
-        }
+        scoped_headers = headers_for_login(login_response)
         assert client.get(
             "/api/dashboard/summary?sections=core",
             headers=scoped_headers,
@@ -264,9 +293,7 @@ def test_user_page_access_is_returned_on_login_and_enforced(
             "/api/auth/login",
             json={"username": username, "password": password},
         )
-        scoped_headers = {
-            "Authorization": f"Bearer {login_response.json()['access_token']}"
-        }
+        scoped_headers = headers_for_login(login_response)
         assert client.get("/api/products", headers=scoped_headers).status_code == 403
         for path in (
             "/api/analytics/clv/summary",
@@ -304,9 +331,7 @@ def test_user_page_access_is_returned_on_login_and_enforced(
                 "/api/auth/login",
                 json={"username": username, "password": password},
             )
-            scoped_headers = {
-                "Authorization": f"Bearer {login_response.json()['access_token']}"
-            }
+            scoped_headers = headers_for_login(login_response)
             assert client.get(allowed_path, headers=scoped_headers).status_code != 403
             assert client.get(denied_path, headers=scoped_headers).status_code == 403
 
@@ -322,9 +347,7 @@ def test_user_page_access_is_returned_on_login_and_enforced(
             "/api/auth/login",
             json={"username": username, "password": password},
         )
-        scoped_headers = {
-            "Authorization": f"Bearer {login_response.json()['access_token']}"
-        }
+        scoped_headers = headers_for_login(login_response)
         for path in (
             "/api/analytics/customers/test-customer/clv",
             "/api/analytics/customers/test-customer/delivery",
@@ -351,9 +374,7 @@ def test_user_page_access_is_returned_on_login_and_enforced(
             "/api/auth/login",
             json={"username": username, "password": password},
         )
-        scoped_headers = {
-            "Authorization": f"Bearer {login_response.json()['access_token']}"
-        }
+        scoped_headers = headers_for_login(login_response)
         for path in (
             "/api/analytics/churn/summary",
             "/api/analytics/churn/top-features",
@@ -447,7 +468,7 @@ def test_ungranted_viewer_cannot_view_analytics_and_model_details(
             json={"username": username, "password": password},
         )
         assert login.status_code == 200
-        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        headers = headers_for_login(login)
         assert client.get(path, headers=headers).status_code == 403
     finally:
         db_session.query(AppUser).filter_by(username=username).delete()
@@ -503,9 +524,7 @@ def test_admin_can_update_username_and_password(client, admin_headers, db_sessio
             json={"username": original_username, "password": initial_password},
         )
         assert old_login.status_code == 200
-        old_headers = {
-            "Authorization": f"Bearer {old_login.json()['access_token']}"
-        }
+        old_headers = headers_for_login(old_login)
 
         update_response = client.patch(
             f"/api/auth/users/{original_username}",
@@ -606,9 +625,7 @@ def test_admin_can_delete_user_and_deleted_sessions_are_revoked(
             json={"username": username, "password": password},
         )
         assert login_response.status_code == 200
-        user_headers = {
-            "Authorization": f"Bearer {login_response.json()['access_token']}"
-        }
+        user_headers = headers_for_login(login_response)
 
         delete_response = client.delete(
             f"/api/auth/users/{username}",
@@ -746,11 +763,11 @@ def _api_operations():
 
 
 def test_api_operation_inventory_is_complete():
-    """The application exposes the documented 75-operation API surface."""
+    """The application exposes the documented 77-operation API surface."""
     from app.main import app
 
     operations = _api_operations()
-    assert len(operations) == 75
+    assert len(operations) == 77
     removed_paths = {
         "/api/health",
         "/api/analytics/clv/by-segment",
@@ -773,10 +790,21 @@ def test_api_operation_inventory_is_complete():
     ids=lambda value: value if isinstance(value, str) else None,
 )
 def test_api_operations_require_authentication(client, method, path, operation):
-    """Every protected operation rejects requests without a bearer token."""
-    login = ("post", "/api/auth/login")
-    if (method, path) == login:
+    """Protected operations reject anonymous requests; CSRF setup stays public."""
+    if (method, path) == ("get", "/api/auth/csrf"):
         assert not operation.get("security")
+        return
+
+    if (method, path) == ("post", "/api/auth/login"):
+        assert not operation.get("security")
+        response = client.post(path, headers={"X-CSRF-Token": ""})
+        assert response.status_code == 403
+        return
+
+    if (method, path) == ("post", "/api/auth/logout"):
+        assert not operation.get("security")
+        response = client.post(path, headers={"X-CSRF-Token": ""})
+        assert response.status_code == 403
         return
 
     assert operation.get("security")

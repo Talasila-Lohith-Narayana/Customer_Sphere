@@ -1,5 +1,6 @@
 import asyncio
 import json
+from contextlib import contextmanager
 from datetime import datetime
 
 import pytest
@@ -9,6 +10,10 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import Session
 
+from app.api.assistant.analytics_tools import (
+    analytics_tool_schemas,
+    parse_analytics_tool_call,
+)
 from app.api.assistant import router, service
 from app.api.assistant.schemas import (
     AssistantActionProposal,
@@ -161,6 +166,90 @@ def test_specialized_intents_include_filters():
     )["filters"]["category"] == "books"
 
 
+def test_analytics_tool_arguments_are_allowlisted_and_typed():
+    plan = parse_analytics_tool_call(
+        "count_customers_by_order_count",
+        {"operator": ">", "threshold": 3},
+    )
+
+    assert plan.metric == "customers_by_order_count"
+    assert plan.domains == frozenset({"customers", "sales"})
+    assert plan.question == "How many customers have more than 3 orders?"
+
+    with pytest.raises(ValueError, match="Invalid arguments"):
+        parse_analytics_tool_call(
+            "count_customers_by_order_count",
+            {"operator": "DROP", "threshold": 3},
+        )
+    with pytest.raises(ValueError, match="Unsupported analytics tool"):
+        parse_analytics_tool_call("execute_sql", {})
+
+
+def test_analytics_tool_schemas_have_no_arbitrary_sql_tool():
+    names = {
+        tool["function"]["name"]
+        for tool in analytics_tool_schemas()
+    }
+
+    assert "count_customers_by_order_count" in names
+    assert "count_orders_by_delivery_time" in names
+    assert "execute_sql" not in names
+
+
+def test_analytics_tool_planner_parses_provider_function_call(monkeypatch):
+    captured_request = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "choices": [{
+                    "message": {
+                        "tool_calls": [{
+                            "function": {
+                                "name": "count_customers_by_order_count",
+                                "arguments": '{"operator":">","threshold":3}',
+                            }
+                        }]
+                    }
+                }]
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, timeout):
+            assert timeout == 30.0
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        async def post(self, url, headers, json):
+            captured_request.update(json)
+            assert url == service.OPENROUTER_CHAT_COMPLETIONS_URL
+            assert headers["Authorization"] == "Bearer test-key"
+            return FakeResponse()
+
+    monkeypatch.setattr(service, "OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(service, "_shared_http_client", None)
+    monkeypatch.setattr(service.httpx, "AsyncClient", FakeAsyncClient)
+
+    plan = asyncio.run(
+        service.plan_analytics_tool_call(
+            "How many customers have more than 3 orders?"
+        )
+    )
+
+    assert plan is not None
+    assert plan.metric == "customers_by_order_count"
+    assert plan.question == "How many customers have more than 3 orders?"
+    assert captured_request["tool_choice"] == "auto"
+    assert "tools" in captured_request
+
+
 def test_extract_analytics_intent_normalizes_order_threshold():
     assert service.extract_analytics_intent(
         "How many customers have more than 10 orders?"
@@ -210,6 +299,53 @@ def test_delivery_time_question_has_intent_and_deterministic_answer():
         {"orders_by_delivery_time": {"order_count": 1234}},
     )
     assert answer == "1,234 delivered orders arrived in less than 5 days."
+
+
+@pytest.mark.parametrize(
+    ("question", "context", "expected"),
+    [
+        (
+            "Which product category sells best?",
+            {
+                "product_categories": [
+                    {"category": "bed_bath", "revenue": 1234.5},
+                    {"category": "health_beauty", "revenue": 987.25},
+                ]
+            },
+            (
+                "The top product categories by revenue are "
+                "bed_bath (R$1,234.50), health_beauty (R$987.25)."
+            ),
+        ),
+        (
+            "Show churn levels",
+            {
+                "churn_distribution": [
+                    {"risk_level": "Low", "customer_count": 120},
+                    {"risk_level": "Medium", "customer_count": 35},
+                    {"risk_level": "High", "customer_count": 8},
+                ]
+            },
+            "Customers by churn risk are low: 120, medium: 35, high: 8.",
+        ),
+    ],
+)
+def test_deterministic_product_and_churn_answers(question, context, expected):
+    assert service.deterministic_analytics_answer(question, context) == expected
+
+
+def test_individual_churn_question_does_not_get_distribution_as_answer():
+    assert service.deterministic_analytics_answer(
+        "Which customers are at risk of churn?",
+        {"churn_distribution": [{"risk_level": "High", "customer_count": 8}]},
+    ) is None
+
+
+def test_generic_day_threshold_does_not_select_delivery_domain():
+    question = "Show sales for more than 5 days"
+
+    assert service._delivery_time_filter(question) is None
+    assert "delivery" not in service.select_analytics_domains(question)
 
 
 def test_analytics_follow_up_reuses_previous_subject_and_metric():
@@ -541,6 +677,89 @@ def test_readable_sql_catalog_excludes_auth_tables_and_columns(monkeypatch):
         "orders": ["order_id", "customer_id"],
         "customer_notes": ["note"],
     }
+
+
+def test_readable_sql_catalog_is_cached_and_returns_copies(monkeypatch):
+    class FakeUrl:
+        def render_as_string(self, hide_password):
+            return "mysql://catalog-cache-test"
+
+    class FakeBind:
+        url = FakeUrl()
+
+    class FakeDatabase:
+        def get_bind(self):
+            return FakeBind()
+
+    class FakeInspector:
+        table_reads = 0
+        column_reads = 0
+
+        def get_table_names(self):
+            self.table_reads += 1
+            return ["orders"]
+
+        def get_columns(self, table_name):
+            self.column_reads += 1
+            return [{"name": "order_id"}]
+
+    inspector = FakeInspector()
+    monkeypatch.setattr(service, "inspect", lambda bind: inspector)
+    service.clear_readable_sql_catalog_cache()
+    try:
+        first = service.readable_sql_catalog(FakeDatabase())
+        first["orders"].append("mutated")
+        second = service.readable_sql_catalog(FakeDatabase())
+
+        assert second == {"orders": ["order_id"]}
+        assert inspector.table_reads == 1
+        assert inspector.column_reads == 1
+    finally:
+        service.clear_readable_sql_catalog_cache()
+
+
+def test_generated_sql_router_uses_readonly_database_session(monkeypatch):
+    readonly_db = object()
+    received = []
+
+    @contextmanager
+    def fake_readonly_db():
+        yield readonly_db
+
+    monkeypatch.setattr(router, "get_nova_readonly_db", fake_readonly_db)
+    monkeypatch.setattr(
+        service,
+        "readable_sql_catalog",
+        lambda db: received.append(db) or {"orders": ["order_id"]},
+    )
+    assert router._readable_sql_catalog() == {"orders": ["order_id"]}
+    assert received == [readonly_db]
+
+    monkeypatch.setattr(
+        service,
+        "execute_generated_sql",
+        lambda db, query, parameters, allowed: (
+            received.append((db, query, parameters, allowed)) or [{"count": 1}]
+        ),
+    )
+    rows = router._execute_generated_sql("SELECT 1", {}, {"orders"})
+
+    assert rows == [{"count": 1}]
+    assert received[-1] == (readonly_db, "SELECT 1", {}, {"orders"})
+
+
+def test_http_client_uses_configured_shared_instance():
+    shared_client = object()
+
+    async def get_configured_client():
+        async with service._http_client() as client:
+            return client
+
+    service.configure_shared_http_client(shared_client)
+    try:
+        assert asyncio.run(get_configured_client()) is shared_client
+    finally:
+        service.configure_shared_http_client(None)
 
 
 def test_order_threshold_customer_question_loads_cohort_context(monkeypatch):
@@ -1141,6 +1360,55 @@ def test_unmatched_question_uses_model_without_loading_analytics(monkeypatch, qu
     assert answer.answer == "Model-generated response."
     assert answer.visualizations == []
     assert history_limits == [20]
+
+
+def test_ask_assistant_executes_selected_safe_analytics_tool(monkeypatch):
+    question = "How many customers have more than 3 orders?"
+    plan = parse_analytics_tool_call(
+        "count_customers_by_order_count",
+        {"operator": ">", "threshold": 3},
+    )
+    executed_plans = []
+    saved_turns = []
+    monkeypatch.setattr(service, "is_configured", lambda: True)
+    monkeypatch.setattr(service, "get_chat_session", lambda *args: object())
+    monkeypatch.setattr(service, "load_chat_turns", lambda *args: [])
+    monkeypatch.setattr(service, "find_customer_id", lambda *args: None)
+    monkeypatch.setattr(
+        service,
+        "plan_analytics_tool_call",
+        lambda received_question: asyncio.sleep(0, result=plan),
+    )
+    monkeypatch.setattr(
+        service,
+        "execute_analytics_tool",
+        lambda db, received_plan: (
+            executed_plans.append(received_plan)
+            or {"customer_order_frequency": {"customer_count": 7}}
+        ),
+    )
+    monkeypatch.setattr(
+        service,
+        "save_chat_turn",
+        lambda *args: saved_turns.append(args),
+    )
+
+    answer = asyncio.run(
+        router.ask_assistant(
+            AssistantQuestion(question=question, session_id=1),
+            db=object(),
+            current_user={
+                "user_id": 1,
+                "role": "viewer",
+                "access_pages": ["assistant", "customers"],
+            },
+        )
+    )
+
+    assert answer.answer == "7 customers have more than 3 orders."
+    assert answer.intent.metric == "customers_by_order_count"
+    assert executed_plans == [plan]
+    assert saved_turns[0][4] == answer.answer
 
 
 def test_customer_question_requires_customer_page_access(monkeypatch):
@@ -1988,7 +2256,7 @@ def test_generate_answer_sends_only_given_aggregate_context(monkeypatch):
         "Authorization": f"Bearer {service.OPENROUTER_API_KEY}"
     }
     assert captured["body"]["model"] == "test-model"
-    assert captured["body"]["max_tokens"] == 2000
+    assert captured["body"]["max_tokens"] == 400
     assert "reasoning" not in captured["body"]
     system_prompt = captured["body"]["messages"][0]["content"]
     assert "You are Nova" in system_prompt

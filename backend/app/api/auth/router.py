@@ -1,11 +1,17 @@
 from datetime import datetime, timedelta, timezone
 import json
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from jose import jwt
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+import jwt
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.core.config import SECRET, ALGO, TRUSTED_PROXY_HOSTS, pwd
 from app.core.auth import admin_auth, auth
+from app.core.auth_cookies import (
+    clear_auth_cookies,
+    ensure_csrf_cookie,
+    set_auth_cookies,
+    validate_csrf_request,
+)
 from app.core.database import get_db
 from app.models import AppUser
 from app.schemas import (
@@ -22,10 +28,16 @@ from app.api.auth.login_rate_limit import get_client_ip, login_attempt_limiter
 router = APIRouter(tags=["auth"])
 
 @router.post("/api/auth/login")
-def login(x: Login, request: Request, db: Session = Depends(get_db)):
+def login(
+    x: Login,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    _: None = Depends(validate_csrf_request),
+):
     """
     Authenticates username and password.
-    Returns: JWT token, username, and role (admin or viewer/analyst).
+    Sets an HttpOnly authentication cookie and returns the signed-in profile.
     UI Component: Login page (`Login.jsx`).
     """
     client_host = get_client_ip(request, TRUSTED_PROXY_HOSTS)
@@ -52,13 +64,28 @@ def login(x: Login, request: Request, db: Session = Depends(get_db)):
         SECRET,
         algorithm=ALGO,
     )
+    csrf_token = ensure_csrf_cookie(request, response)
+    set_auth_cookies(response, token, csrf_token)
     return {
-        "access_token": token,
-        "token_type": "bearer",
         "username": u.username,
         "role": u.role,
         "access_pages": get_user_access_pages(u),
+        "csrf_token": csrf_token,
     }
+
+
+@router.get("/api/auth/csrf")
+def csrf_token(request: Request, response: Response):
+    return {"csrf_token": ensure_csrf_cookie(request, response)}
+
+
+@router.post("/api/auth/logout")
+def logout(
+    response: Response,
+    _: None = Depends(validate_csrf_request),
+):
+    clear_auth_cookies(response)
+    return {"logged_out": True}
 
 
 @router.get("/api/auth/users", response_model=list[UserSummary])
@@ -135,6 +162,8 @@ def create_user(
 def update_user(
     username: str,
     data: UserUpdate,
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     requester: dict = Depends(admin_auth),
 ):
@@ -177,7 +206,7 @@ def update_user(
         ) from exc
     db.refresh(user)
 
-    access_token = None
+    session_refreshed = False
     if renamed_username and requester.get("sub") == username:
         access_token = jwt.encode(
             {
@@ -189,11 +218,14 @@ def update_user(
             SECRET,
             algorithm=ALGO,
         )
+        csrf_token = ensure_csrf_cookie(request, response)
+        set_auth_cookies(response, access_token, csrf_token)
+        session_refreshed = True
     return {
         "username": user.username,
         "role": user.role,
         "access_pages": get_user_access_pages(user),
-        "access_token": access_token,
+        "session_refreshed": session_refreshed,
         "sessions_revoked": sessions_revoked,
     }
 

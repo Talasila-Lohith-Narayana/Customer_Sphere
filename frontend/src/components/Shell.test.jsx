@@ -15,7 +15,6 @@ describe("Shell Navigation & Layout Component", () => {
   const mockLogout = vi.fn();
   const mockLogoutAll = vi.fn();
   const mockToggleTheme = vi.fn();
-  const mockSwitchToAccount = vi.fn();
   const mockLoginAndSwitch = vi.fn();
 
   beforeEach(() => {
@@ -29,11 +28,9 @@ describe("Shell Navigation & Layout Component", () => {
     vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
       user: "admin",
       role: "admin",
-      accounts: { admin: { username: "admin", role: "admin", access_token: "tok_admin" } },
       isAdmin: true,
       logout: mockLogout,
       logoutAll: mockLogoutAll,
-      switchToAccount: mockSwitchToAccount,
       loginAndSwitch: mockLoginAndSwitch,
     });
 
@@ -68,11 +65,9 @@ describe("Shell Navigation & Layout Component", () => {
     vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
       user: "analyst",
       role: "viewer",
-      accounts: {},
       isAdmin: false,
       logout: mockLogout,
       logoutAll: mockLogoutAll,
-      switchToAccount: mockSwitchToAccount,
       loginAndSwitch: mockLoginAndSwitch,
     });
 
@@ -89,11 +84,9 @@ describe("Shell Navigation & Layout Component", () => {
     vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
       user: "analyst",
       role: "viewer",
-      accounts: {},
       isAdmin: false,
       logout: mockLogout,
       logoutAll: mockLogoutAll,
-      switchToAccount: mockSwitchToAccount,
       loginAndSwitch: mockLoginAndSwitch,
     });
 
@@ -112,12 +105,10 @@ describe("Shell Navigation & Layout Component", () => {
     vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
       user: "scoped_viewer",
       role: "viewer",
-      accounts: {},
       isAdmin: false,
       hasAccess: (page) => ["dashboard", "analytics"].includes(page),
       logout: mockLogout,
       logoutAll: mockLogoutAll,
-      switchToAccount: mockSwitchToAccount,
       loginAndSwitch: mockLoginAndSwitch,
     });
 
@@ -138,12 +129,10 @@ describe("Shell Navigation & Layout Component", () => {
     vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
       user: "nova_viewer",
       role: "viewer",
-      accounts: {},
       isAdmin: false,
       hasAccess: (page) => page === "assistant",
       logout: mockLogout,
       logoutAll: mockLogoutAll,
-      switchToAccount: mockSwitchToAccount,
       loginAndSwitch: mockLoginAndSwitch,
     });
 
@@ -215,7 +204,7 @@ describe("Shell Navigation & Layout Component", () => {
     expect(screen.queryByText(/Admin Data Activity Log/i)).not.toBeInTheDocument();
   });
 
-  it("asks for confirmation before signing out all profiles", () => {
+  it("asks for confirmation before signing out the current profile", async () => {
     render(
       <MemoryRouter>
         <Shell />
@@ -226,7 +215,7 @@ describe("Shell Navigation & Layout Component", () => {
     fireEvent.click(logoutBtn);
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("This will sign out all active profiles on this device.")).toBeInTheDocument();
+    expect(screen.getByText("This will sign out the current profile on this device.")).toBeInTheDocument();
     expect(mockLogoutAll).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -236,7 +225,7 @@ describe("Shell Navigation & Layout Component", () => {
     fireEvent.click(logoutBtn);
     const signOutDialog = screen.getByRole("dialog");
     fireEvent.click(within(signOutDialog).getByRole("button", { name: "Sign out" }));
-    expect(mockLogoutAll).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockLogoutAll).toHaveBeenCalledTimes(1));
   });
 
   it("toggles sidebar minimize and expand state", () => {
@@ -253,18 +242,13 @@ describe("Shell Navigation & Layout Component", () => {
     expect(document.querySelector("main")).toHaveClass("expanded");
   });
 
-  it("switches directly to an already authenticated session", async () => {
+  it("requires reauthentication when switching profiles", async () => {
     vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
       user: "admin",
       role: "admin",
-      accounts: {
-        admin: { username: "admin", role: "admin", access_token: "tok_admin" },
-        analyst: { username: "analyst", role: "analyst", access_token: "tok_analyst" },
-      },
       isAdmin: true,
       logout: mockLogout,
       logoutAll: mockLogoutAll,
-      switchToAccount: mockSwitchToAccount,
       loginAndSwitch: mockLoginAndSwitch,
     });
 
@@ -279,7 +263,7 @@ describe("Shell Navigation & Layout Component", () => {
       target: { value: "analyst" },
     });
 
-    expect(mockSwitchToAccount).toHaveBeenCalledWith("analyst");
+    expect(screen.getByRole("heading", { name: /sign in as viewer/i })).toBeInTheDocument();
   });
 
   it("hides the placeholder option when the sidebar is minimized", async () => {

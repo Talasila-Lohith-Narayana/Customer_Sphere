@@ -5,7 +5,11 @@ import { AuthProvider, useAuth } from "./AuthContext";
 import { authService } from "../services/api";
 
 vi.mock("../services/api", () => ({
-  authService: { validateSession: vi.fn().mockResolvedValue({ valid: true }) },
+  authService: {
+    login: vi.fn(),
+    logout: vi.fn().mockResolvedValue({ logged_out: true }),
+    validateSession: vi.fn().mockResolvedValue({ valid: true }),
+  },
 }));
 
 let latestAuth = null;
@@ -23,7 +27,6 @@ function TestConsumer() {
         onClick={() =>
           auth.login({
             username: "admin_user",
-            access_token: "jwt_123",
             role: "admin",
           })
         }
@@ -34,7 +37,6 @@ function TestConsumer() {
         onClick={() =>
           auth.login({
             username: "analyst_user",
-            access_token: "jwt_456",
             role: "viewer",
           })
         }
@@ -43,9 +45,6 @@ function TestConsumer() {
       </button>
       <button onClick={() => auth.logout()}>Logout Current</button>
       <button onClick={() => auth.logoutAll()}>Logout All</button>
-      <button onClick={() => auth.switchToAccount("admin_user")}>
-        Switch To Admin
-      </button>
       <button
         onClick={() =>
           auth.updateAccountAccess("analyst_user", ["dashboard", "analytics"])
@@ -58,7 +57,6 @@ function TestConsumer() {
           auth.updateCurrentSession({
             username: "renamed_admin",
             role: "admin",
-            access_token: "jwt_renamed",
           })
         }
       >
@@ -88,7 +86,8 @@ describe("AuthContext and AuthProvider", () => {
     expect(screen.getByTestId("isAuth").textContent).toBe("no");
   });
 
-  it("handles corrupted ci_accounts JSON gracefully in initial state", () => {
+  it("removes legacy cached credentials and profile data on startup", () => {
+    localStorage.setItem("ci_token", "legacy-token");
     localStorage.setItem("ci_accounts", "not-valid-json{{{");
     render(
       <AuthProvider>
@@ -97,6 +96,8 @@ describe("AuthContext and AuthProvider", () => {
     );
 
     expect(screen.getByTestId("user").textContent).toBe("guest");
+    expect(localStorage.getItem("ci_token")).toBeNull();
+    expect(localStorage.getItem("ci_accounts")).toBeNull();
   });
 
   it("stores user session on login and calculates isAdmin correctly", () => {
@@ -115,12 +116,12 @@ describe("AuthContext and AuthProvider", () => {
     expect(screen.getByTestId("isAdmin").textContent).toBe("yes");
     expect(screen.getByTestId("isAuth").textContent).toBe("yes");
 
-    expect(localStorage.getItem("ci_token")).toBe("jwt_123");
+    expect(localStorage.getItem("ci_token")).toBeNull();
     expect(localStorage.getItem("ci_user")).toBe("admin_user");
     expect(localStorage.getItem("ci_role")).toBe("admin");
   });
 
-  it("updates the active username and refreshed access token", () => {
+  it("updates the active username without persisting credentials", () => {
     render(
       <AuthProvider>
         <TestConsumer />
@@ -136,48 +137,13 @@ describe("AuthContext and AuthProvider", () => {
 
     expect(screen.getByTestId("user").textContent).toBe("renamed_admin");
     expect(localStorage.getItem("ci_user")).toBe("renamed_admin");
-    expect(localStorage.getItem("ci_token")).toBe("jwt_renamed");
-    expect(JSON.parse(localStorage.getItem("ci_accounts"))).toEqual({
-      renamed_admin: {
-        username: "renamed_admin",
-        role: "admin",
-        access_token: "jwt_renamed",
-        access_pages: ["dashboard", "customers", "products", "analytics", "assistant", "campaigns", "model", "audit_logs"],
-      },
-    });
+    expect(localStorage.getItem("ci_token")).toBeNull();
+    expect(localStorage.getItem("ci_accounts")).toBeNull();
     expect(screen.getByTestId("isAdmin").textContent).toBe("yes");
     expect(screen.getByTestId("isAuth").textContent).toBe("yes");
   });
 
-  it("switches to another active account successfully", () => {
-    render(
-      <AuthProvider>
-        <TestConsumer />
-      </AuthProvider>
-    );
-
-    // Login admin first
-    act(() => {
-      screen.getByText("Login Admin").click();
-    });
-    // Then login analyst
-    act(() => {
-      screen.getByText("Login Analyst").click();
-    });
-
-    expect(screen.getByTestId("user").textContent).toBe("analyst_user");
-    expect(screen.getByTestId("isAdmin").textContent).toBe("no");
-
-    // Switch back to admin
-    act(() => {
-      screen.getByText("Switch To Admin").click();
-    });
-
-    expect(screen.getByTestId("user").textContent).toBe("admin_user");
-    expect(screen.getByTestId("isAdmin").textContent).toBe("yes");
-  });
-
-  it("uses updated page permissions when switching to a cached account", () => {
+  it("updates the active account permissions without caching credentials", () => {
     render(
       <AuthProvider>
         <TestConsumer />
@@ -191,30 +157,9 @@ describe("AuthContext and AuthProvider", () => {
       screen.getByText("Update Analyst Access").click();
     });
 
-    expect(JSON.parse(localStorage.getItem("ci_accounts")).analyst_user.access_pages)
+    expect(JSON.parse(localStorage.getItem("ci_access_pages")))
       .toEqual(["dashboard", "analytics"]);
     expect(latestAuth.hasAccess("analytics")).toBe(true);
-
-    act(() => {
-      screen.getByText("Login Admin").click();
-    });
-    act(() => {
-      latestAuth.switchToAccount("analyst_user");
-    });
-
-    expect(latestAuth.hasAccess("analytics")).toBe(true);
-  });
-
-  it("throws an error when switching to an account that is not logged in", () => {
-    render(
-      <AuthProvider>
-        <TestConsumer />
-      </AuthProvider>
-    );
-
-    expect(() => {
-      latestAuth.switchToAccount("nonexistent_user");
-    }).toThrow("Account nonexistent_user is not logged in.");
   });
 
   it("does not logout when usernameToLogout does not match current user", () => {
@@ -237,31 +182,7 @@ describe("AuthContext and AuthProvider", () => {
     expect(screen.getByTestId("isAuth").textContent).toBe("yes");
   });
 
-  it("removes a specific cached account without disturbing the active session", () => {
-    render(
-      <AuthProvider>
-        <TestConsumer />
-      </AuthProvider>
-    );
-
-    act(() => {
-      screen.getByText("Login Admin").click();
-    });
-    act(() => {
-      screen.getByText("Login Analyst").click();
-    });
-
-    act(() => {
-      latestAuth.logout("admin_user");
-    });
-
-    expect(screen.getByTestId("user").textContent).toBe("analyst_user");
-    expect(screen.getByTestId("isAuth").textContent).toBe("yes");
-    expect(JSON.parse(localStorage.getItem("ci_accounts")).analyst_user).toBeTruthy();
-    expect(JSON.parse(localStorage.getItem("ci_accounts")).admin_user).toBeUndefined();
-  });
-
-  it("clears current session on logout", () => {
+  it("clears current session on logout", async () => {
     render(
       <AuthProvider>
         <TestConsumer />
@@ -273,8 +194,8 @@ describe("AuthContext and AuthProvider", () => {
     });
     expect(screen.getByTestId("isAuth").textContent).toBe("yes");
 
-    act(() => {
-      screen.getByText("Logout Current").click();
+    await act(async () => {
+      await latestAuth.logout();
     });
 
     expect(screen.getByTestId("user").textContent).toBe("guest");
@@ -282,7 +203,7 @@ describe("AuthContext and AuthProvider", () => {
     expect(localStorage.getItem("ci_token")).toBeNull();
   });
 
-  it("clears a session when the API reports that its token was revoked", () => {
+  it("clears a session when the API reports that its cookie was rejected", () => {
     render(
       <AuthProvider>
         <TestConsumer />
@@ -292,12 +213,10 @@ describe("AuthContext and AuthProvider", () => {
     act(() => {
       screen.getByText("Login Admin").click();
     });
-    const revokedToken = localStorage.getItem("ci_token");
-
     act(() => {
       window.dispatchEvent(
         new CustomEvent("auth-session-invalid", {
-          detail: { token: revokedToken },
+          detail: { username: "admin_user" },
         }),
       );
     });
@@ -358,7 +277,7 @@ describe("AuthContext and AuthProvider", () => {
     vi.useRealTimers();
   });
 
-  it("clears all accounts on logoutAll", () => {
+  it("clears the browser session on logoutAll", async () => {
     render(
       <AuthProvider>
         <TestConsumer />
@@ -368,8 +287,8 @@ describe("AuthContext and AuthProvider", () => {
     act(() => {
       screen.getByText("Login Admin").click();
     });
-    act(() => {
-      screen.getByText("Logout All").click();
+    await act(async () => {
+      await latestAuth.logoutAll();
     });
 
     expect(screen.getByTestId("isAuth").textContent).toBe("no");
@@ -380,14 +299,10 @@ describe("AuthContext and AuthProvider", () => {
     it("successfully logs in via API and switches account", async () => {
       const mockSession = {
         username: "api_admin",
-        access_token: "api_token_789",
         role: "admin",
       };
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => mockSession,
-      });
+      authService.login.mockResolvedValue(mockSession);
 
       render(
         <AuthProvider>
@@ -409,10 +324,7 @@ describe("AuthContext and AuthProvider", () => {
     });
 
     it("throws detailed error when login fails with error response detail", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        json: async () => ({ detail: "Invalid password provided" }),
-      });
+      authService.login.mockRejectedValue(new Error("Invalid password provided"));
 
       render(
         <AuthProvider>
@@ -429,10 +341,7 @@ describe("AuthContext and AuthProvider", () => {
     });
 
     it("throws default error message when login fails without error detail", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        json: async () => ({}),
-      });
+      authService.login.mockRejectedValue(new Error("Authentication failed. Invalid username or password."));
 
       render(
         <AuthProvider>

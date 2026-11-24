@@ -8,7 +8,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from jose import jwt, JWTError
+import httpx
+import jwt
 
 from .core.api_responses import error_payload, http_error_code, json_safe
 
@@ -25,6 +26,7 @@ from .core.config import (
     pwd,
 )
 from .core.database import SessionLocal, engine
+from .core.auth_cookies import ACCESS_TOKEN_COOKIE
 from .api.auth.login_rate_limit import (
     RedisLoginAttemptLimiter,
     login_attempt_limiter,
@@ -40,6 +42,7 @@ from .core.permissions import (
 )
 # Import all domain API routers
 from .api.auth.router import router as auth_router
+from .api.assistant import service as assistant_service
 from .api.assistant.router import router as assistant_router
 from .api.health import router as health_router
 from .api.dashboard.router import router as dashboard_router
@@ -81,7 +84,12 @@ async def lifespan(app: FastAPI):
             viewer_password=VIEWER_PASSWORD,
             password_hasher=pwd,
         )
-    yield
+    async with httpx.AsyncClient(timeout=30.0) as llm_client:
+        assistant_service.configure_shared_http_client(llm_client)
+        try:
+            yield
+        finally:
+            assistant_service.configure_shared_http_client(None)
 
 
 app = FastAPI(title="Customer Sphere API", lifespan=lifespan)
@@ -152,11 +160,16 @@ async def request_logging_middleware(request: Request, call_next):
     # Extract username from JWT if present (best-effort, no auth enforcement)
     user = "anonymous"
     auth_header = request.headers.get("authorization", "")
-    if auth_header.startswith("Bearer "):
+    token = (
+        auth_header[7:]
+        if auth_header.startswith("Bearer ")
+        else request.cookies.get(ACCESS_TOKEN_COOKIE)
+    )
+    if token:
         try:
-            payload = jwt.decode(auth_header[7:], SECRET, algorithms=[ALGO])
+            payload = jwt.decode(token, SECRET, algorithms=[ALGO])
             user = payload.get("sub", "unknown")
-        except (JWTError, Exception):
+        except jwt.PyJWTError:
             user = "invalid-token"
 
     logger.info(

@@ -110,10 +110,7 @@ export default function Users() {
       } else {
         updateAccountAccess?.(updated.username, updated.access_pages);
         if (editingUser.username === currentUser) {
-          updateCurrentSession?.({
-            ...updated,
-            access_token: updated.access_token,
-          });
+          updateCurrentSession?.(updated);
         }
       }
       setUsers((current) =>

@@ -21,7 +21,11 @@ Authenticated users can also fetch the non-sensitive account directory from
 `GET /api/auth/profiles` for the profile switcher. Administrators can change a
 user's username or password with `PATCH /api/auth/users/{username}`. Password
 changes revoke that user's existing sessions. Renaming the currently signed-in
-administrator refreshes their own token without extending its existing expiry.
+administrator refreshes their HttpOnly session cookie without extending its
+existing expiry. Browser sign-in uses an HttpOnly cookie; JWTs are not stored in
+browser local storage or returned in the login response. State-changing cookie
+requests require a matching CSRF cookie and `X-CSRF-Token` header. Switching
+profiles requires signing in again with that profile's password.
 Administrators can remove other accounts with
 `DELETE /api/auth/users/{username}`. The active administrator and the last
 administrator cannot be deleted, and tokens for deleted users are rejected.
@@ -50,17 +54,66 @@ starting the backend.
 Without an API key, the application runs normally and the assistant reports
 that setup is required.
 
-Install the reproducible backend dependency set from the repository root with:
+For supported aggregate metrics, Nova first uses OpenRouter function calling to
+select from a small allowlist of typed analytics functions. The backend
+validates every tool argument and executes only the corresponding fixed,
+parameterized metric query; the model cannot provide SQL through this path.
+Questions outside the allowlist can still use the read-only exploratory SQL
+planner described below. Configure an OpenRouter model that supports function
+calling. A deterministic 55-question routing/tool-plan corpus runs in the
+backend test suite without calling OpenRouter.
+
+### Restricting Nova-generated SQL
+
+Open-ended Nova analytics queries use a separate database connection. Configure
+`NOVA_READONLY_DB_USER` and `NOVA_READONLY_DB_PASSWORD` with a dedicated MySQL
+account that has only `SELECT` privileges on the business tables Nova should
+query. The read-only account defaults to `DB_HOST`, `DB_PORT`, and `DB_NAME`;
+override these with the optional `NOVA_READONLY_DB_*` host, port, and database
+settings when needed. The account must be distinct from `DB_USER`. If it is not
+configured, open-ended generated-SQL questions return HTTP 503 rather than
+falling back to the application's general-purpose database credentials.
+
+For example, provision a dedicated account from a privileged MySQL session,
+replacing the database name, host, and password with deployment-specific values:
+
+```sql
+CREATE USER 'nova_readonly'@'<backend-host>' IDENTIFIED BY '<strong-password>';
+GRANT SELECT ON `YOUR_EXISTING_DATABASE_NAME`.`customers` TO 'nova_readonly'@'<backend-host>';
+GRANT SELECT ON `YOUR_EXISTING_DATABASE_NAME`.`orders` TO 'nova_readonly'@'<backend-host>';
+GRANT SELECT ON `YOUR_EXISTING_DATABASE_NAME`.`order_items` TO 'nova_readonly'@'<backend-host>';
+GRANT SELECT ON `YOUR_EXISTING_DATABASE_NAME`.`order_payments` TO 'nova_readonly'@'<backend-host>';
+GRANT SELECT ON `YOUR_EXISTING_DATABASE_NAME`.`order_reviews` TO 'nova_readonly'@'<backend-host>';
+GRANT SELECT ON `YOUR_EXISTING_DATABASE_NAME`.`products` TO 'nova_readonly'@'<backend-host>';
+```
+
+Do not grant this account global or schema-wide privileges, and confirm it has
+no privileges inherited through other roles. Apply grants only for tables that
+are present and approved in the deployment. Nova's fixed analytics queries
+continue to use the normal application connection; this restricted account
+specifically constrains the generated exploratory SQL path.
+
+Install the reproducible backend development dependency set from the repository
+root with:
 
 ```bash
 python -m pip install uv
-uv pip sync backend/requirements-lock.txt
+uv pip sync backend/requirements-dev-lock.txt
 ```
 
-The lock file is generated from `backend/requirements.txt` for Python 3.11+
-across supported platforms. When updating dependencies, edit the requirements
-file, regenerate the lock with `uv pip compile backend/requirements.txt --universal --python-version 3.11 --generate-hashes -o backend/requirements-lock.txt`,
-review the resolved versions, then run backend tests before committing both files.
+`backend/requirements.txt` contains production dependencies and is installed by
+the Docker image. `backend/requirements-dev.txt` includes those dependencies
+plus test tooling. Both lock files are generated for Python 3.11+ across
+supported platforms. When updating dependencies, edit the appropriate
+requirements file and regenerate the locks:
+
+```bash
+uv pip compile backend/requirements.txt --universal --python-version 3.11 --generate-hashes -o backend/requirements-lock.txt
+uv pip compile backend/requirements-dev.txt --universal --python-version 3.11 --generate-hashes -o backend/requirements-dev-lock.txt
+```
+
+Review the resolved versions, then run backend tests before committing the
+requirements and lock files.
 
 Run the backend from this directory with:
 
@@ -106,3 +159,15 @@ Default account creation is disabled unless `ALLOW_BOOTSTRAP_USERS=true` is
 explicitly set. When enabled, the backend creates accounts only for missing
 usernames and never overwrites existing roles. Disable it after initial setup,
 especially in shared or production environments.
+
+### Browser authentication cookies
+
+The browser receives an HttpOnly JWT cookie; login responses never include the
+JWT, and the frontend does not persist credentials in local storage. All
+state-changing browser requests, including login and logout, use the CSRF token
+returned by `GET /api/auth/csrf` in the `X-CSRF-Token` header. Set
+`AUTH_COOKIE_SECURE=true` in production and serve the frontend/API over HTTPS.
+The local `.env.example` sets it to `false` for plain HTTP development. The
+default `AUTH_COOKIE_SAMESITE=lax` supports same-site deployments; separate-site
+frontend/API deployments must use `none` with Secure enabled and explicitly
+allow the frontend origin in `CORS_ORIGINS`.
