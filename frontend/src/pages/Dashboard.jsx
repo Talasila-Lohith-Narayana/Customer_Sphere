@@ -17,7 +17,7 @@ import { useAuth } from "../context/AuthContext";
 const DashboardRevenueTrend = lazy(() => import("../components/dashboard/DashboardRevenueTrend"));
 const DashboardCustomerSegments = lazy(() => import("../components/dashboard/DashboardCustomerSegments"));
 const DashboardGeoHeatmap = lazy(() => import("../components/dashboard/DashboardGeoHeatmap"));
-const DASHBOARD_POLL_INTERVAL_MS = 1 * 60 * 1000;
+const DASHBOARD_POLL_INTERVAL_MS = 10 * 1000;
 
 function getDashboardParams(selectedTime, range, compare, compPeriod) {
   const params =
@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [data, setData] = useState(() =>
     readDashboardCache(user, "summary", { timeframe: "all", sections: "core" })
   );
+  const hasDashboardData = data !== null;
   const requestId = useRef(0);
   const [refreshToken, setRefreshToken] = useState(0);
   const [refreshError, setRefreshError] = useState("");
@@ -111,19 +112,27 @@ export default function Dashboard() {
   }, [timeframe, compareMode, compareTo]);
 
   useEffect(() => {
-    if (!data) return undefined;
+    if (!hasDashboardData) return undefined;
 
     const intervalId = window.setInterval(() => {
       refreshDashboard();
     }, DASHBOARD_POLL_INTERVAL_MS);
 
     return () => window.clearInterval(intervalId);
-  }, [data !== null, refreshDashboard]);
+  }, [hasDashboardData, refreshDashboard]);
 
   useEffect(() => {
-    if (!data) return undefined;
+    if (!hasDashboardData) return undefined;
+
+    const refreshOnFocus = () => refreshDashboard(true);
+    window.addEventListener("focus", refreshOnFocus);
+    return () => window.removeEventListener("focus", refreshOnFocus);
+  }, [hasDashboardData, refreshDashboard]);
+
+  useEffect(() => {
+    if (!hasDashboardData) return undefined;
     return subscribeToDashboardDataChanges(() => refreshDashboard(true));
-  }, [data !== null, refreshDashboard]);
+  }, [hasDashboardData, refreshDashboard]);
 
   const handleApplyCustom = (e) => {
     e?.preventDefault();

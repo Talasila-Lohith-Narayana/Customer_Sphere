@@ -218,7 +218,7 @@ describe("Dashboard Page Orchestrator", () => {
     await waitFor(() => expect(sectionSpy).toHaveBeenCalledTimes(1));
   });
 
-  it("refreshes dashboard data every minute", async () => {
+  it("refreshes dashboard data every 10 seconds", async () => {
     const intervalSpy = vi.spyOn(window, "setInterval");
     const summarySpy = vi.spyOn(ApiModule.dashboardService, "summary").mockResolvedValue(
       mockDashboardData
@@ -233,14 +233,40 @@ describe("Dashboard Page Orchestrator", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Total Customers")).toBeInTheDocument();
+      expect(
+        intervalSpy.mock.calls.some(([, delay]) => delay === 10_000)
+      ).toBe(true);
     });
-    const pollInterval = intervalSpy.mock.calls.find(([, delay]) => delay === 60_000);
+    const pollInterval = intervalSpy.mock.calls.find(([, delay]) => delay === 10_000);
     expect(pollInterval).toBeDefined();
     intervalSpy.mockRestore();
 
     summarySpy.mockClear();
     act(() => pollInterval[0]());
-    await waitFor(() => expect(summarySpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(summarySpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Total Customers")).toBeInTheDocument();
+    });
+  });
+
+  it("refreshes dashboard data when the browser tab regains focus", async () => {
+    const summarySpy = vi.spyOn(ApiModule.dashboardService, "summary").mockResolvedValue(
+      mockDashboardData
+    );
+    vi.spyOn(ApiModule.dashboardService, "section").mockResolvedValue({});
+
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(summarySpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Total Customers")).toBeInTheDocument();
+    });
+    fireEvent.focus(window);
+    await waitFor(() => expect(summarySpy).toHaveBeenCalledTimes(2));
   });
 
   it("refreshes dashboard data when another tab reports a data change", async () => {

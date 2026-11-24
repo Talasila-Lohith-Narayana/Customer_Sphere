@@ -206,7 +206,7 @@ Run the frontend linter with `npm run lint`. Run the browser smoke tests with
 The frontend API URL is configured with:
 
 ```env
-VITE_API_BASE_URL=http://127.0.0.1:8000/api
+VITE_API_BASE_URL=http://localhost:8000/api
 ```
 
 ## Running locally
@@ -238,7 +238,7 @@ docker run --rm -p 5173:80 customer-sphere-frontend
 `VITE_API_BASE_URL` is embedded during the image build. Set it to the URL
 reachable by users' browsers, not the backend container's internal hostname.
 
-Open the frontend at `http://127.0.0.1:5173`.
+Open the frontend at `http://localhost:5173`.
 
 ### Run frontend and backend together with Docker Compose
 
