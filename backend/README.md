@@ -93,6 +93,35 @@ are present and approved in the deployment. Nova's fixed analytics queries
 continue to use the normal application connection; this restricted account
 specifically constrains the generated exploratory SQL path.
 
+### Local semantic retrieval
+
+Nova can optionally search project knowledge, product catalog attributes, and
+customer interaction notes through a local vector index. Docker Compose starts
+Qdrant with persistent storage; its port is bound to the local machine only.
+FastEmbed generates embeddings locally, so interaction text is not sent to an
+embedding API. Retrieved interaction notes are formatted locally and are not
+included in OpenRouter prompts. The embedding model is downloaded on first use
+and cached by FastEmbed.
+
+Set `VECTOR_SEARCH_ENABLED=true`. With Docker Compose, the backend is already
+configured to use the `qdrant` service. When running the backend directly,
+start Qdrant separately and set `QDRANT_URL=http://localhost:6333`. After
+database migrations and Qdrant are available, build the initial index from the
+backend directory:
+
+```bash
+python -m app.api.assistant.retrieval_cli
+```
+
+The command indexes Markdown files in `backend/knowledge`, available product
+catalog attributes, and interaction notes linked to existing customers. It
+rebuilds the collection, so run it again after changing the product catalog or
+knowledge documents. New or edited interaction notes are indexed automatically;
+deleted customers' indexed notes are removed. Nova only searches interaction
+notes for users who can access the Customers area, and product records for
+users who can access Products. Keep Qdrant on a trusted local network and
+protect its persistent volume and database backups.
+
 Install the reproducible backend development dependency set from the repository
 root with:
 

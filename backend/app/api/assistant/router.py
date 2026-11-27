@@ -13,6 +13,7 @@ from starlette.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.api.assistant import service
+from app.api.assistant import retrieval
 from app.api.assistant.schemas import (
     AssistantActionPending,
     AssistantActionProposal,
@@ -702,6 +703,7 @@ async def ask_assistant(
             status_code=503,
             detail="Assistant chat history is temporarily unavailable.",
         ) from exc
+    external_history = retrieval.external_history(history)
 
     if _is_explicit_action_confirmation(payload.question):
         try:
@@ -766,7 +768,7 @@ async def ask_assistant(
         try:
             action_intent = await service.extract_customer_action(
                 payload.question,
-                history,
+                external_history,
             )
         except TimeoutError as exc:
             raise HTTPException(status_code=504, detail=str(exc)) from exc
@@ -939,10 +941,17 @@ async def ask_assistant(
     ):
         try:
             metric_plan = await service.plan_analytics_tool_call(analytics_question)
-        except TimeoutError as exc:
-            raise HTTPException(status_code=504, detail=str(exc)) from exc
+        except TimeoutError:
+            logger.warning(
+                "Nova's analytics router timed out; using the built-in fallback."
+            )
+            metric_plan = None
         except ConnectionError as exc:
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
+            logger.warning(
+                "Nova's analytics router failed; using the built-in fallback (%s).",
+                type(exc).__name__,
+            )
+            metric_plan = None
         if metric_plan is not None:
             analytics_question = metric_plan.question
             domains = set(metric_plan.domains)
@@ -981,17 +990,53 @@ async def ask_assistant(
             sql_catalog = await run_in_threadpool(
                 _readable_sql_catalog,
             )
+        except SQLAlchemyError as exc:
+            logger.exception("Could not load Nova's read-only SQL catalog.")
+            raise HTTPException(
+                status_code=503,
+                detail="Analytics data is temporarily unavailable.",
+            ) from exc
+        try:
             generated_query, generated_parameters = await service.generate_sql_query(
                 analytics_question,
-                history,
+                external_history,
                 sql_catalog,
             )
-            generated_rows = await run_in_threadpool(
-                _execute_generated_sql,
-                generated_query,
-                generated_parameters,
-                set(sql_catalog),
+        except (ConnectionError, TimeoutError) as exc:
+            logger.warning(
+                "Nova's SQL planner failed; falling back to built-in analytics (%s).",
+                type(exc).__name__,
             )
+            use_generated_sql = False
+            try:
+                analytics_context = await run_in_threadpool(
+                    service.load_analytics_context,
+                    db,
+                    domains,
+                    analytics_question,
+                )
+            except SQLAlchemyError as db_exc:
+                logger.exception(
+                    "Could not load built-in analytics after SQL planner failure."
+                )
+                raise HTTPException(
+                    status_code=503,
+                    detail="Analytics data is temporarily unavailable.",
+                ) from db_exc
+        else:
+            try:
+                generated_rows = await run_in_threadpool(
+                    _execute_generated_sql,
+                    generated_query,
+                    generated_parameters,
+                    set(sql_catalog),
+                )
+            except SQLAlchemyError as exc:
+                logger.exception("Generated Nova analytics SQL failed during execution.")
+                raise HTTPException(
+                    status_code=503,
+                    detail="Nova could not execute the analytics query safely.",
+                ) from exc
             analytics_context = {
                 "generated_query_result": generated_rows,
                 "generated_query_definition": (
@@ -999,14 +1044,6 @@ async def ask_assistant(
                     f"Results are limited to {service.GENERATED_SQL_MAX_ROWS} rows."
                 ),
             }
-        except SQLAlchemyError as exc:
-            logger.exception("Generated Nova analytics SQL failed during execution.")
-            raise HTTPException(
-                status_code=503,
-                detail="Nova could not execute the analytics query safely.",
-            ) from exc
-        except (ConnectionError, TimeoutError) as exc:
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
     elif domains:
         try:
             analytics_context = await run_in_threadpool(
@@ -1041,33 +1078,68 @@ async def ask_assistant(
                 detail="Customer information is temporarily unavailable.",
             ) from exc
         analytics_context["customer"] = customer_context
+        analytics_context["customer"].pop("interactions", None)
         analytics_context.pop("privacy_note", None)
 
-    answer = service.deterministic_analytics_answer(
-        analytics_question,
-        analytics_context,
+    knowledge_results = []
+    retrieval_sources = retrieval.allowed_sources_for_question(
+        payload.question,
+        current_user,
     )
-    if answer is None:
-        answer = service._broad_product_buyer_answer(
+    retrieval_customer_id = None
+    if customer_id and "interaction" in retrieval_sources:
+        retrieval_sources = ["interaction"]
+        retrieval_customer_id = customer_id
+    if retrieval_sources:
+        try:
+            knowledge_results = await run_in_threadpool(
+                retrieval.search_knowledge,
+                payload.question,
+                retrieval_sources,
+                customer_id=retrieval_customer_id,
+            )
+        except Exception as exc:
+            logger.exception("Nova's local semantic retrieval failed.")
+            raise HTTPException(
+                status_code=503,
+                detail="Nova's local knowledge search is temporarily unavailable.",
+            ) from exc
+        if knowledge_results and "interaction" not in retrieval_sources:
+            analytics_context["retrieved_knowledge"] = knowledge_results
+
+    if "interaction" in retrieval_sources:
+        answer = retrieval.format_interaction_results(knowledge_results)
+    else:
+        answer = service.deterministic_analytics_answer(
             analytics_question,
             analytics_context,
         )
-    if answer is None:
-        answer = service._review_detail_answer(
-            analytics_question,
-            analytics_context,
-        )
+        if answer is None:
+            answer = service._broad_product_buyer_answer(
+                analytics_question,
+                analytics_context,
+            )
+        if answer is None:
+            answer = service._review_detail_answer(
+                analytics_question,
+                analytics_context,
+            )
     if answer is None:
         try:
             answer = await service.generate_answer(
                 payload.question,
                 analytics_context,
-                [{"question": turn["question"], "answer": turn["answer"]} for turn in history],
+                external_history,
             )
-        except TimeoutError as exc:
-            raise HTTPException(status_code=504, detail=str(exc)) from exc
-        except ConnectionError as exc:
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        except (ConnectionError, TimeoutError) as exc:
+            logger.warning(
+                "Nova's AI answer failed; returning a local context fallback (%s).",
+                type(exc).__name__,
+            )
+            answer = service.local_answer_fallback(
+                payload.question,
+                analytics_context,
+            )
 
     visualizations = service.build_visualizations(analytics_question, analytics_context)
     metadata = service.analytics_metadata(analytics_question, analytics_context)

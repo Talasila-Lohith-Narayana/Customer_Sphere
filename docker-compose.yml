@@ -1,4 +1,12 @@
 services:
+  qdrant:
+    image: qdrant/qdrant:v1.13.6
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -7,6 +15,10 @@ services:
       - ./backend/.env
     environment:
       DB_HOST: ${DB_HOST:-host.docker.internal}
+      VECTOR_SEARCH_ENABLED: "true"
+      QDRANT_URL: http://qdrant:6333
+    depends_on:
+      - qdrant
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -24,3 +36,6 @@ services:
     ports:
       - "5173:80"
     restart: unless-stopped
+
+volumes:
+  qdrant_storage:

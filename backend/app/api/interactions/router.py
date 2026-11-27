@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -6,8 +7,27 @@ from app.core.auth import auth, admin_auth
 from app.core.database import get_db
 from app.models import ConsumerInteraction, AuditLog
 from app.schemas import InteractionIn
+from app.api.assistant import retrieval
 
 router = APIRouter(tags=["interactions"])
+logger = logging.getLogger(__name__)
+
+
+def _index_interaction(obj: ConsumerInteraction) -> None:
+    try:
+        retrieval.index_interaction(
+            obj.id,
+            obj.customer_id,
+            obj.interaction_type,
+            obj.title,
+            obj.description,
+            obj.created_at,
+        )
+    except Exception:
+        logger.exception(
+            "Could not update the local semantic index for interaction %s.",
+            obj.id,
+        )
 
 # ------------------------------------------------------------------------------
 # 1. Fetch Customer Interaction History
@@ -77,6 +97,7 @@ def add_interaction(
     )
     db.commit()
     db.refresh(obj)
+    _index_interaction(obj)
     return obj
 
 
@@ -122,4 +143,5 @@ def update_interaction(
     )
     db.commit()
     db.refresh(obj)
+    _index_interaction(obj)
     return obj

@@ -13,6 +13,7 @@ RUN python -m pip install --no-cache-dir uv \
     && useradd --create-home --shell /usr/sbin/nologin appuser
 
 COPY app ./app
+COPY knowledge ./knowledge
 COPY alembic.ini .
 COPY migrations ./migrations
 

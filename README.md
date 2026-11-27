@@ -256,6 +256,10 @@ The frontend is available at `http://localhost:5173` and the API at
 the host machine through `host.docker.internal`. Override `DB_HOST` if the
 database is hosted elsewhere. Set `VITE_API_BASE_URL` before `docker compose
 build` when browsers must use a non-local API URL.
+Compose also starts Qdrant with persistent local storage for Nova's optional
+semantic retrieval. Run `python -m app.api.assistant.retrieval_cli` from the
+backend directory after startup to index documentation, product attributes,
+and existing customer interaction notes.
 
 The backend API is available at `http://127.0.0.1:8000`, with interactive
 documentation at:

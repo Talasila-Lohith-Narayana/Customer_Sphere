@@ -1,3 +1,4 @@
+import logging
 import os
 import io
 import csv
@@ -10,10 +11,23 @@ from sqlalchemy import text
 from app.core.auth import auth, admin_auth
 from app.core.database import ANALYTICS_DB_NAME, get_db
 from app.core.serialization import rows, ser
+from app.api.assistant import retrieval
 from app.models import AuditLog
 from app.schemas import CustomerIn
 
 router = APIRouter(tags=["customers"])
+logger = logging.getLogger(__name__)
+
+
+def _remove_customer_vectors(customer_ids: list[str]) -> None:
+    for customer_id in set(customer_ids):
+        try:
+            retrieval.delete_customer_interactions(customer_id)
+        except Exception:
+            logger.exception(
+                "Could not remove local semantic records for customer %s.",
+                customer_id,
+            )
 
 # Blueprints for Bulk Action Payloads
 class BulkSegmentUpdateIn(BaseModel):
@@ -696,6 +710,7 @@ def bulk_delete_customers(
 
     deleted_count = 0
     skipped_count = 0
+    deleted_customer_ids = []
 
     for uid in payload.customer_unique_ids:
         has_orders = db.execute(
@@ -732,6 +747,7 @@ def bulk_delete_customers(
             text("DELETE FROM customers WHERE customer_unique_id = :uid"),
             {"uid": uid},
         )
+        deleted_customer_ids.append(uid)
         db.add(
             AuditLog(
                 customer_id=uid,
@@ -744,6 +760,7 @@ def bulk_delete_customers(
         deleted_count += 1
 
     db.commit()
+    _remove_customer_vectors(deleted_customer_ids)
     return {"deleted_count": deleted_count, "skipped_count": skipped_count}
 
 
@@ -1020,6 +1037,14 @@ def update_customer(
         )
     )
     db.commit()
+    _remove_customer_vectors([actual_unique_id])
+    try:
+        retrieval.sync_customer_interactions(db, x.customer_unique_id)
+    except Exception:
+        logger.exception(
+            "Could not refresh local semantic records for customer %s.",
+            x.customer_unique_id,
+        )
     return {
         "customer_id": actual_cid,
         "customer_unique_id": x.customer_unique_id,
@@ -1071,4 +1096,5 @@ def delete_customer(
     db.execute(text("DELETE FROM customer_features WHERE customer_id=:id OR customer_id=:uid"), {"id": actual_cid, "uid": actual_unique_id})
     db.execute(text("DELETE FROM customers WHERE customer_id=:id"), {"id": actual_cid})
     db.commit()
+    _remove_customer_vectors([actual_unique_id])
     return {"deleted": True, "customer_id": actual_cid}

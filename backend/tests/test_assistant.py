@@ -1362,6 +1362,107 @@ def test_unmatched_question_uses_model_without_loading_analytics(monkeypatch, qu
     assert history_limits == [20]
 
 
+def test_customer_sphere_definition_uses_document_retrieval_without_sql(monkeypatch):
+    question = "What is Customer Sphere?"
+    knowledge = {
+        "source_type": "document",
+        "source": "Customer Sphere FAQ",
+        "text": "Customer Sphere is a customer relationship management application.",
+        "score": 0.9,
+    }
+
+    monkeypatch.setattr(service, "is_configured", lambda: True)
+    monkeypatch.setattr(service, "get_chat_session", lambda *args: object())
+    monkeypatch.setattr(service, "load_chat_turns", lambda *args: [])
+    monkeypatch.setattr(service, "find_customer_id", lambda *args: None)
+    monkeypatch.setattr(
+        service,
+        "plan_analytics_tool_call",
+        lambda *args: pytest.fail("definition questions must skip analytics planning"),
+    )
+    monkeypatch.setattr(
+        router.retrieval,
+        "search_knowledge",
+        lambda received_question, sources, customer_id=None: (
+            [knowledge]
+            if received_question == question and sources == ["document"]
+            else pytest.fail("expected document retrieval")
+        ),
+    )
+    monkeypatch.setattr(service, "save_chat_turn", lambda *args: None)
+
+    async def generate_answer(received_question, context, history):
+        assert received_question == question
+        assert context["retrieved_knowledge"] == [knowledge]
+        assert history == []
+        raise ConnectionError("empty AI answer")
+
+    monkeypatch.setattr(service, "generate_answer", generate_answer)
+
+    answer = asyncio.run(
+        router.ask_assistant(
+            AssistantQuestion(question=question, session_id=1),
+            db=object(),
+            current_user={"user_id": 1, "role": "viewer", "access_pages": ["assistant"]},
+        )
+    )
+
+    assert "relevant information I found" in answer.answer
+    assert knowledge["text"] in answer.answer
+
+
+def test_sql_planner_failure_falls_back_to_builtin_analytics(monkeypatch):
+    question = "Which sellers are associated with the orders?"
+    analytics_context = {"sales_summary": [{"order_count": 12}]}
+    loaded_contexts = []
+    monkeypatch.setattr(service, "is_configured", lambda: True)
+    monkeypatch.setattr(service, "get_chat_session", lambda *args: object())
+    monkeypatch.setattr(service, "load_chat_turns", lambda *args: [])
+    monkeypatch.setattr(service, "find_customer_id", lambda *args: None)
+    async def fail_tool_plan(*args):
+        raise ConnectionError("empty tool response")
+
+    monkeypatch.setattr(service, "plan_analytics_tool_call", fail_tool_plan)
+    monkeypatch.setattr(router, "is_nova_readonly_db_configured", lambda: True)
+    monkeypatch.setattr(router, "_readable_sql_catalog", lambda: {"orders": ["order_id"]})
+
+    async def empty_sql_plan(*args):
+        raise ConnectionError("empty SQL planner response")
+
+    monkeypatch.setattr(service, "generate_sql_query", empty_sql_plan)
+    monkeypatch.setattr(
+        service,
+        "load_analytics_context",
+        lambda db, domains, received_question: (
+            loaded_contexts.append((domains, received_question))
+            or analytics_context
+        ),
+    )
+    monkeypatch.setattr(service, "deterministic_analytics_answer", lambda *args: None)
+    monkeypatch.setattr(service, "_broad_product_buyer_answer", lambda *args: None)
+    monkeypatch.setattr(service, "_review_detail_answer", lambda *args: None)
+    monkeypatch.setattr(service, "save_chat_turn", lambda *args: None)
+
+    async def answer_from_fallback_context(received_question, context, history):
+        assert received_question == question
+        assert context == analytics_context
+        assert history == []
+        return "I found order analytics, but this seller breakdown is not available."
+
+    monkeypatch.setattr(service, "generate_answer", answer_from_fallback_context)
+
+    answer = asyncio.run(
+        router.ask_assistant(
+            AssistantQuestion(question=question, session_id=1),
+            db=object(),
+            current_user={"user_id": 1, "role": "viewer", "access_pages": ["assistant"]},
+        )
+    )
+
+    assert answer.answer.startswith("I found order analytics")
+    assert loaded_contexts == [(service.select_analytics_domains(question), question)]
+
+
 def test_ask_assistant_executes_selected_safe_analytics_tool(monkeypatch):
     question = "How many customers have more than 3 orders?"
     plan = parse_analytics_tool_call(
